@@ -167,7 +167,7 @@
       const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return '';};
       return {
         id: pick('ticket id','id'),
-        module: pick('impacted module','module','issue location')||'Unspecified',
+        module: pick('  Impacted  Module  ','module','issue location')||'Unspecified',
         title: pick('title'),
         desc: pick('description'),
         file: pick('file upload','link','url'),
