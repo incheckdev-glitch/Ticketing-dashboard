@@ -48,7 +48,7 @@
       padding:8px 12px; border-radius:10px; border:1px solid var(--border);
       background:transparent; color:inherit; font:inherit;
     }
-    .btn { cursor:pointer; font-weight:600; background:var(--card); text-decoration:none; display:inline-flex; align-items:center; gap:6px }
+    .btn { cursor:pointer; font-weight:600; background:var(--card) }
     .btn.primary { background:var(--accent); border-color:transparent; color:#fff }
     .btn.ghost { border-color:transparent; background:transparent }
     .btn:hover { opacity:.92; transform:translateY(-1px) }
@@ -166,19 +166,465 @@
       </select>
       <button id="refreshNow" class="btn"><span class="icon">🔄</span> Refresh</button>
       <button id="exportBtn" class="btn"><span class="icon">⬇</span> Export CSV</button>
-      <!-- Create Ticket Button -->
-      <a href="https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform"
-         target="_blank" rel="noopener"
-         class="btn primary"><span class="icon">➕</span> Create Ticket</a>
     </div>
   </header>
 
-  <!-- Rest of the dashboard ... (unchanged) -->
-  <!-- Keep your sidebar, content, charts, table, modal, script, etc. -->
-  <!-- Your full original script is already complete, so no changes needed there. -->
+  <div class="wrap">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <h3>Filters</h3>
+      <div class="filter-group">
+        <div class="filter-row">
+          <label class="muted">Module</label>
+          <select id="moduleFilter" class="select"></select>
+        </div>
+        <div class="filter-row">
+          <label class="muted">Priority</label>
+          <select id="priorityFilter" class="select"></select>
+        </div>
+        <div class="filter-row">
+          <label class="muted">Status</label>
+          <select id="statusFilter" class="select"></select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="filter-group">
+        <div class="filter-row">
+          <label class="muted">Start Date</label>
+          <input type="date" id="startDateFilter" class="input">
+        </div>
+        <div class="filter-row">
+          <label class="muted">End Date</label>
+          <input type="date" id="endDateFilter" class="input">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="filter-group">
+        <button id="resetBtn" class="btn ghost">Reset</button>
+        <span class="muted">Tip: click any KPI to filter by that status.</span>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      <div class="grid cols-4" id="kpis"></div>
+
+      <div class="charts">
+        <div class="card"><canvas id="byModule" height="140"></canvas></div>
+        <div class="card"><canvas id="byPriority" height="140"></canvas></div>
+        <div class="card"><canvas id="byStatus" height="140"></canvas></div>
+        <div class="card"><canvas id="byType" height="140"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Issues</strong>
+          <span id="rowCount" class="muted"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table id="issuesTable">
+            <thead><tr>
+              <th data-key="id" class="sortable">ID</th>
+              <th data-key="module" class="sortable">Module</th>
+              <th data-key="title" class="sortable">Title</th>
+              <th data-key="priority" class="sortable">Priority</th>
+              <th data-key="status" class="sortable">Status</th>
+              <th data-key="date" class="sortable">Date</th>
+              <th data-key="log" class="sortable">Log</th>
+              <th>Link</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="table-actions">
+          <div class="pagination">
+            <button id="firstPage" class="chip">« First</button>
+            <button id="prevPage" class="chip">‹ Prev</button>
+            <span id="pageInfo" class="muted"></span>
+            <button id="nextPage" class="chip">Next ›</button>
+            <button id="lastPage" class="chip">Last »</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="muted">Rows per page</span>
+            <select id="pageSize" class="select sm">
+              <option>10</option><option selected>20</option><option>50</option><option>100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <div class="header">
+        <h2 id="modalTitle" style="margin:0;font-size:20px">Issue</h2>
+        <div class="actions">
+          <button id="copyId" class="btn sm"><span class="icon">🆔</span> Copy ID</button>
+          <button id="copyLink" class="btn sm"><span class="icon">🔗</span> Copy Link</button>
+          <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Spinner + Toast -->
+  <div class="spinner" id="spinner"><div class="ring"></div></div>
+  <div class="toast" id="toast"></div>
 
 <script>
-/* your JavaScript from before (unchanged) */
+document.addEventListener("DOMContentLoaded", () => {
+  const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+
+  // Elements
+  const els = {
+    tableBody: q('#issuesTable tbody'),
+    rowCount: q('#rowCount'),
+    moduleFilter: q('#moduleFilter'),
+    priorityFilter: q('#priorityFilter'),
+    statusFilter: q('#statusFilter'),
+    reset: q('#resetBtn'),
+    refresh: q('#refreshNow'),
+    kpis: q('#kpis'),
+    modal: q('#issueModal'),
+    modalBody: q('#modalBody'),
+    modalTitle: q('#modalTitle'),
+    copyId: q('#copyId'),
+    copyLink: q('#copyLink'),
+    closeModal: q('#modalClose'),
+    drawerBtn: q('#drawerBtn'),
+    sidebar: q('#sidebar'),
+    spinner: q('#spinner'),
+    toast: q('#toast'),
+    search: q('#searchInput'),
+    themeSelect: q('#themeSelect'),
+    firstPage: q('#firstPage'),
+    prevPage: q('#prevPage'),
+    nextPage: q('#nextPage'),
+    lastPage: q('#lastPage'),
+    pageInfo: q('#pageInfo'),
+    pageSize: q('#pageSize')
+  };
+
+  // State
+  let rows = [], filtered = [], charts = {};
+  let sortKey = null, sortAsc = true;
+  let currentPage = 1, rowsPerPage = +els.pageSize.value;
+  let selectedIssue = null;
+
+  // Utils
+  function q(s, r = document) { return r.querySelector(s); }
+  const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+  const showSpinner = (v=true)=> els.spinner.style.display = v ? 'flex' : 'none';
+  const showToast = (msg, ms=3500) => { els.toast.textContent = msg; els.toast.style.display = 'block'; setTimeout(()=>els.toast.style.display='none', ms); };
+
+  function normalizeRow(raw){
+    const lower={}; for(const k in raw){ if(!k) continue; lower[k.toLowerCase().replace(/\s+/g,' ').trim()]=String(raw[k]??'').trim(); }
+    const pick=(...keys)=>{ for(const key of keys){ if(lower[key]) return lower[key]; } return ''; };
+    return {
+      id: pick('ticket id','id'),
+      module: (pick('impacted module','module','issue location')||'Unspecified'),
+      title: pick('title'),
+      desc: pick('description'),
+      file: pick('file upload','link','url'),
+      priority: pick('priority'),
+      status: pick('status')||'Not Started Yet',
+      type: pick('category','type'),
+      date: pick('timestamp','date','created at'),
+      log: pick('log','logs','comment','notes')
+    };
+  }
+  function parseCsv(t){ return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id||r.title||r.module); }
+  function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
+  const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
+  const priorityBadge = p => pill(p,`priority-${p||''}`);
+
+  // Theme
+  const applyTheme = (mode) => {
+    if(mode==='system'){ localStorage.setItem('theme','system'); document.documentElement.removeAttribute('data-theme'); return; }
+    document.documentElement.setAttribute('data-theme',mode);
+    localStorage.setItem('theme', mode);
+  };
+  const initTheme = () => {
+    const saved = localStorage.getItem('theme') || 'system';
+    els.themeSelect.value = saved;
+    if(saved==='system'){ document.documentElement.removeAttribute('data-theme'); }
+    else { document.documentElement.setAttribute('data-theme', saved); }
+  };
+
+  // Filters & Renderers
+  function renderKpis(){
+    const total=filtered.length; const counts={};
+    filtered.forEach(r=>{ counts[r.status]=(counts[r.status]||0)+1; });
+    els.kpis.innerHTML='';
+    const add=(label,val)=>{
+      const d=document.createElement('div');
+      d.className='card kpi';
+      d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div>`;
+      d.onclick=()=>{ if(label!=='Total Issues'){ els.statusFilter.value=label; applyFilters(); } };
+      els.kpis.appendChild(d);
+    };
+    add('Total Issues', total);
+    Object.entries(counts).forEach(([s,v])=> add(s, v));
+  }
+  function uniqueSorted(arr){ return [...new Set(arr.filter(Boolean).map(v=>v.trim()))].sort((a,b)=>a.localeCompare(b)); }
+  function renderFilters(){
+    els.moduleFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.module))].map(v=>`<option>${v}</option>`).join('');
+    els.priorityFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
+    els.statusFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');
+  }
+
+  function sortData(list){
+    if(!sortKey) return list;
+    const sorted=[...list].sort((a,b)=>{
+      const va=a[sortKey]||"", vb=b[sortKey]||"";
+      if(sortKey==='date'){
+        const da=new Date(va), db=new Date(vb);
+        if(isNaN(da)||isNaN(db)) return 0;
+        return da - db;
+      }
+      return String(va).localeCompare(String(vb), undefined, {numeric:true, sensitivity:'base'});
+    });
+    return sortAsc ? sorted : sorted.reverse();
+  }
+
+  function paginate(list){
+    const start=(currentPage-1)*rowsPerPage;
+    return list.slice(start, start+rowsPerPage);
+  }
+
+  function renderTable(){
+    const list = sortData(filtered);
+    const pageData = paginate(list);
+
+    els.tableBody.innerHTML = pageData.map(r=>`
+      <tr role="button" tabindex="0" aria-label="Open issue ${r.id}" data-id="${r.id}">
+        <td>${r.id||'-'}</td>
+        <td>${r.module||'-'}</td>
+        <td>${r.title||'-'}</td>
+        <td>${priorityBadge(r.priority||'-')}</td>
+        <td>${statusBadge(r.status||'-')}</td>
+        <td>${r.date||'-'}</td>
+        <td>${r.log||'-'}</td>
+        <td>${r.file?`<a href="${r.file}" target="_blank" rel="noopener">🔗</a>`:'-'}</td>
+      </tr>
+    `).join('');
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+    els.rowCount.textContent = `${total} rows`;
+    els.pageInfo.textContent = `Page ${currentPage} / ${totalPages}`;
+
+    // Update sorted column classes
+    qAll('#issuesTable thead th').forEach(th => th.classList.remove('sorted-asc','sorted-desc'));
+    if(sortKey){
+      const th = q(`#issuesTable thead th[data-key="${sortKey}"]`);
+      if(th) th.classList.add(sortAsc?'sorted-asc':'sorted-desc');
+    }
+  }
+
+  function groupCount(list,key){
+    return list.reduce((acc, r) => {
+      const k=r[key]||'Unspecified';
+      acc[k]=(acc[k]||0)+1;
+      return acc;
+    },{});
+  }
+  function drawCharts(){
+    const colors = {
+      High:'#f87171', Medium:'#fbbf24', Low:'#34d399'
+    };
+    const make = (id, type, data) => {
+      if(charts[id]) charts[id].destroy();
+      charts[id] = new Chart(q('#'+id), {
+        type,
+        data: {
+          labels: Object.keys(data),
+          datasets: [{ data: Object.values(data), backgroundColor: Object.keys(data).map(k => colors[k] || '#4f8cff') }]
+        },
+        options: {
+          responsive:true,
+          plugins: {
+            legend: { display: type!=='bar' },
+            tooltip: { callbacks: { label: ctx => `${ctx.raw} (${percent(ctx.raw, Object.values(data))}%)` } }
+          },
+          scales: type==='bar' ? { x:{ grid:{color:'rgba(128,128,128,.1)'} }, y:{ beginAtZero:true, grid:{color:'rgba(128,128,128,.12)'} } } : {}
+        }
+      });
+    };
+    make('byModule','bar', groupCount(filtered,'module'));
+    make('byPriority','doughnut', groupCount(filtered,'priority'));
+    make('byStatus','bar', groupCount(filtered,'status'));
+    make('byType','bar', groupCount(filtered,'type'));
+  }
+  const percent = (val, arr) => {
+    const total = arr.reduce((a,b)=>a+b,0) || 1;
+    return Math.round((val*100)/total);
+  };
+
+  function applyFilters(){
+    const qstr = (els.search.value||'').toLowerCase().trim();
+    const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
+    const start = q('#startDateFilter').value, end = q('#endDateFilter').value;
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? (()=>{ const d=new Date(end); d.setDate(d.getDate()+1); return d; })() : null;
+
+    filtered = rows.filter(r=>{
+      const hay = [r.id,r.module,r.title,r.desc,r.log].filter(Boolean).join(' ').toLowerCase();
+      let keepDate = true;
+      if(r.date){
+        const d = new Date(r.date);
+        if(!isNaN(d)){
+          if(startDate && d < startDate) keepDate = false;
+          if(endDate && d >= endDate) keepDate = false;
+        }
+      } else if(startDate || endDate){ keepDate = false; }
+      return (!qstr || hay.includes(qstr))
+        && (!m || m==='All' || r.module===m)
+        && (!p || p==='All' || r.priority===p)
+        && (!s || s==='All' || r.status===s)
+        && keepDate;
+    });
+
+    currentPage = 1;
+    renderKpis();
+    renderTable();
+    drawCharts();
+  }
+
+  // Data
+  async function loadSheet(){
+    try {
+      showSpinner(true);
+      const res = await fetch(SHEET_URL, { cache:'no-store' });
+      if(!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+      const text = await res.text();
+      rows = parseCsv(text);
+      filtered = [...rows];
+      renderFilters();
+      applyFilters();
+    } catch(e) {
+      showToast('Error loading data: '+e.message);
+      // fallback: clear UI
+      els.tableBody.innerHTML = `<tr><td colspan="8" style="color:#ffb4b4">Error loading data.</td></tr>`;
+    } finally {
+      showSpinner(false);
+    }
+  }
+
+  // Modal
+  function openModal(id){
+    const r = rows.find(x=>x.id===id);
+    if(!r) return;
+    selectedIssue = r;
+    els.modalTitle.textContent = r.title || r.id || 'Issue';
+    els.modalBody.innerHTML = `
+      <p><b>ID:</b> ${r.id || '-'}</p>
+      <p><b>Module:</b> ${r.module || '-'}</p>
+      <p><b>Priority:</b> ${r.priority || '-'}</p>
+      <p><b>Status:</b> ${r.status || '-'}</p>
+      <p><b>Date:</b> ${r.date || '-'}</p>
+      <p><b>Description:</b><br>${r.desc || '-'}</p>
+      <p><b>Log:</b><br>${r.log || '-'}</p>
+      ${r.file ? `<p><b>Attachment:</b> <a href="${r.file}" target="_blank" rel="noopener">${r.file}</a></p>` : ''}
+    `;
+    els.modal.style.display='flex';
+  }
+  function closeModal(){ els.modal.style.display='none'; selectedIssue=null; }
+
+  // Export
+  function exportCsv(){
+    const csv = Papa.unparse(filtered);
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'issues_export.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Events
+  function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+  q('#issuesTable').addEventListener('click', (ev)=>{
+    const tr = ev.target.closest('tr[data-id]');
+    if(tr){ openModal(tr.getAttribute('data-id')); }
+  });
+  els.closeModal.addEventListener('click', closeModal);
+  els.modal.addEventListener('click', (e)=>{ if(e.target===els.modal) closeModal(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
+
+  els.copyId.addEventListener('click', async ()=>{
+    if(!selectedIssue) return;
+    await navigator.clipboard.writeText(selectedIssue.id || '');
+    showToast('Issue ID copied');
+  });
+  els.copyLink.addEventListener('click', async ()=>{
+    if(!selectedIssue) return;
+    const link = selectedIssue.file || '';
+    if(!link){ showToast('No link on this issue'); return; }
+    await navigator.clipboard.writeText(link);
+    showToast('Link copied');
+  });
+
+  // Sorting
+  qAll('#issuesTable thead th.sortable').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.getAttribute('data-key');
+      if(sortKey===key){ sortAsc = !sortAsc; } else { sortKey=key; sortAsc=true; }
+      renderTable();
+    });
+  });
+
+  // Pagination
+  const updateAndRender = ()=>{ renderTable(); };
+  els.pageSize.addEventListener('change', ()=>{
+    rowsPerPage = +els.pageSize.value;
+    currentPage = 1;
+    updateAndRender();
+  });
+  els.firstPage.addEventListener('click', ()=>{ currentPage=1; updateAndRender(); });
+  els.prevPage.addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; updateAndRender(); } });
+  els.nextPage.addEventListener('click', ()=>{
+    const totalPages = Math.max(1, Math.ceil(filtered.length/rowsPerPage));
+    if(currentPage<totalPages){ currentPage++; updateAndRender(); }
+  });
+  els.lastPage.addEventListener('click', ()=>{
+    currentPage = Math.max(1, Math.ceil(filtered.length/rowsPerPage));
+    updateAndRender();
+  });
+
+  // Sidebar drawer
+  els.drawerBtn.addEventListener('click', ()=> els.sidebar.classList.toggle('open'));
+
+  // Filters & search
+  const onFilterChange = ()=> applyFilters();
+  [els.moduleFilter, els.priorityFilter, els.statusFilter].forEach(el=> el.addEventListener('change', onFilterChange));
+  q('#startDateFilter').addEventListener('change', onFilterChange);
+  q('#endDateFilter').addEventListener('change', onFilterChange);
+  els.reset.addEventListener('click', ()=>{
+    els.search.value=''; q('#startDateFilter').value=''; q('#endDateFilter').value='';
+    renderFilters(); applyFilters();
+  });
+  els.refresh.addEventListener('click', loadSheet);
+  els.search.addEventListener('input', debounce(applyFilters, 250));
+
+  // Theme select
+  els.themeSelect.addEventListener('change', ()=> applyTheme(els.themeSelect.value));
+  initTheme();
+
+  // Initial load
+  if(typeof Chart === 'undefined') { showToast('Chart.js failed to load'); }
+  if(typeof Papa === 'undefined') { showToast('PapaParse failed to load'); }
+  loadSheet();
+});
 </script>
 </body>
 </html>
