@@ -4,66 +4,53 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>InCheck Issues Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; }
     *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b1020;color:var(--text)}
-    header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:16px 24px;background:#0c1328;position:sticky;top:0;z-index:10;border-bottom:1px solid #1e2a58}
+    body{margin:0;font-family:Inter,sans-serif;background:#0b1020;color:var(--text)}
+    header{display:flex;align-items:center;padding:16px 20px;gap:10px;background:#0b1020d0;border-bottom:1px solid #1e2a58;position:sticky;top:0;z-index:10}
     .title{font-weight:700;font-size:18px}
-    .toolbar label{font-size:13px;color:var(--muted);margin-left:8px}
-    .toolbar select,.toolbar input,.toolbar button{background:#0f1733;color:var(--text);border:1px solid #263564;border-radius:8px;padding:8px 10px;font:inherit}
-    .toolbar button{cursor:pointer;font-weight:600}
-    #newTicketBtn { background: linear-gradient(180deg, #22c55e, #16a34a); border: none; color: white; }
-    .container{padding:20px 24px;max-width:1200px;margin:0 auto}
-    .grid{display:grid;gap:16px}
-    .grid.cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}
-    .charts{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
-    @media(max-width:900px){.grid.cols-5{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
-    @media(max-width:580px){.grid.cols-5{grid-template-columns:1fr}}
-    .card{background:var(--card);border:1px solid #1e2a58;border-radius:12px;padding:16px}
-    .kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase}
-    .kpi .value{font-size:24px;font-weight:700}
+    .toolbar{margin-left:auto;display:flex;gap:8px}
+    select,input,button{background:#111935;color:var(--text);border:1px solid #263564;border-radius:8px;padding:8px 10px}
+    button{cursor:pointer;font-weight:600}
+    .container{max-width:1200px;margin:0 auto;padding:20px}
+    .grid{display:grid;gap:12px}
+    .grid.cols-4{grid-template-columns:repeat(4,1fr)}
+    .card{background:var(--card);border:1px solid #1e2a58;border-radius:12px;padding:14px;cursor:pointer}
+    .kpi{display:flex;flex-direction:column}
+    .kpi .label{font-size:12px;color:var(--muted);text-transform:uppercase}
+    .kpi .value{font-size:24px;font-weight:800}
+    .charts{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px}
+    .table-wrap{max-height:400px;overflow:auto;border:1px solid #1e2a58;border-radius:10px}
     table{width:100%;border-collapse:collapse;font-size:14px}
     th,td{padding:8px;border-bottom:1px solid #213065;text-align:left}
     th{background:#0e1a3c;position:sticky;top:0}
-    .table-wrap{max-height:420px;overflow:auto;border:1px solid #1e2a58;border-radius:12px}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
-    .pill.bug{background:#201227;color:#ffc4ec}
-    .pill.enh{background:#0d2130;color:#b9e2ff}
-    footer{padding:20px;text-align:center;color:#7d8ab3}
+    /* Modal */
+    .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center}
+    .modal-content{background:#111935;padding:20px;border-radius:12px;max-width:600px;width:90%;position:relative}
+    .close{position:absolute;top:10px;right:15px;font-size:20px;cursor:pointer}
+    footer{text-align:center;color:#7d8ab3;padding:20px}
   </style>
 </head>
 <body>
   <header>
     <div class="title">InCheck Issues Dashboard</div>
-    <div style="margin-left:auto" class="toolbar">
-      <label>Search:</label>
-      <input id="searchInput" type="search" placeholder="Title / ID" />
-
-      <label>Impacted Module:</label>
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="Search..." />
       <select id="moduleFilter"></select>
-
-      <label>Priority:</label>
       <select id="priorityFilter"></select>
-
-      <label>Status:</label>
       <select id="statusFilter"></select>
-
-      <button id="newTicketBtn">➕ New Ticket</button>
-      <button id="refreshNow">🔄 Refresh</button>
       <button id="resetBtn">Reset</button>
     </div>
   </header>
 
   <div class="container">
-    <div class="grid cols-5" id="kpis"></div>
+    <div class="grid cols-4" id="kpis"></div>
 
-    <div class="charts" style="margin-top:16px">
+    <div class="charts">
       <div class="card"><canvas id="byModule"></canvas></div>
       <div class="card"><canvas id="byPriority"></canvas></div>
       <div class="card"><canvas id="byStatus"></canvas></div>
@@ -71,11 +58,7 @@
     </div>
 
     <div class="card" style="margin-top:16px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <strong style="font-size:16px">Issues</strong>
-        <span id="rowCount" style="color:#7d8ab3"></span>
-        <span id="lastUpdated" style="margin-left:auto;color:#7d8ab3;font-size:12px"></span>
-      </div>
+      <strong>Issues</strong> <span id="rowCount"></span>
       <div class="table-wrap">
         <table id="issuesTable">
           <thead>
@@ -95,163 +78,61 @@
     </div>
   </div>
 
-  <footer>
-    Data loads live from Google Sheets (CSV link).
-  </footer>
+  <footer>Click KPI cards or rows to explore details</footer>
 
-  <script>
-    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
-    const NEW_TICKET_URL = "https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform";
+  <!-- Modal -->
+  <div id="issueModal" class="modal">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2 id="modalTitle"></h2>
+      <p><strong>ID:</strong> <span id="modalId"></span></p>
+      <p><strong>Module:</strong> <span id="modalModule"></span></p>
+      <p><strong>Type:</strong> <span id="modalType"></span></p>
+      <p><strong>Priority:</strong> <span id="modalPriority"></span></p>
+      <p><strong>Status:</strong> <span id="modalStatus"></span></p>
+      <p><strong>Description:</strong></p>
+      <p id="modalDescription"></p>
+      <p><strong>Links:</strong> <span id="modalLinks"></span></p>
+    </div>
+  </div>
 
-    const els = {
-      kpis: document.getElementById('kpis'),
-      tableBody: document.querySelector('#issuesTable tbody'),
-      rowCount: document.getElementById('rowCount'),
-      lastUpdated: document.getElementById('lastUpdated'),
-      search: document.getElementById('searchInput'),
-      moduleFilter: document.getElementById('moduleFilter'),
-      priorityFilter: document.getElementById('priorityFilter'),
-      statusFilter: document.getElementById('statusFilter'),
-      reset: document.getElementById('resetBtn'),
-      refreshNow: document.getElementById('refreshNow'),
-      newTicket: document.getElementById('newTicketBtn')
-    };
-
-    // Open Google Form on click
-    els.newTicket.addEventListener('click', () => {
-      window.open(NEW_TICKET_URL, "_blank");
-    });
-
-    function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort(); }
-    function typeBadge(t){ const c=/bug/i.test(t)?'bug':/enh/i.test(t)?'enh':''; return `<span class="pill ${c}">${t||'-'}</span>`; }
-
-    let rows = [], filtered = [], charts = {};
-
-    function normalizeRow(raw){
-      const lower = {};
-      for (const k in raw) {
-        if (!k) continue;
-        const normKey = k.toLowerCase().replace(/\s+/g, ' ').trim();
-        lower[normKey] = String(raw[k] ?? '').trim();
-      }
-      const pick = (...keys) => {
-        for (const key of keys) {
-          if (lower[key]) return lower[key];
-        }
-        return '';
-      };
-      return {
-        id: pick('ticket id', 'id', 'incheck id'),
-        module: pick('module', 'impacted module'),
-        title: pick('title'),
-        description: pick('description'),
-        type: pick('type', 'category'),
-        priority: pick('priority'),
-        status: pick('status', 'task status')
-      };
-    }
-
-    function parseCsv(text){
-      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-      return (parsed.data || []).map(normalizeRow).filter(r => r.id || r.title);
-    }
-
-    function renderKpis(){
-      const total = filtered.length;
-      const counts = groupCount(filtered, 'status');
-      els.kpis.innerHTML = `
-        <div class="card kpi"><div class="label">Total Issues</div><div class="value">${total}</div></div>
-        <div class="card kpi"><div class="label">Resolved</div><div class="value">${counts['Resolved']||0}</div></div>
-        <div class="card kpi"><div class="label">Under Development</div><div class="value">${counts['Under Development']||0}</div></div>
-        <div class="card kpi"><div class="label">Rejected</div><div class="value">${counts['Rejected']||0}</div></div>
-        <div class="card kpi"><div class="label">On Hold</div><div class="value">${counts['On Hold']||0}</div></div>`;
-    }
-
-    function renderFilters(){
-      const modules = ['All', ...uniq(rows.map(r => r.module))];
-      const priorities = ['All', ...uniq(rows.map(r => r.priority))];
-      const statuses = ['All', ...uniq(rows.map(r => r.status))];
-      els.moduleFilter.innerHTML = modules.map(v => `<option>${v}</option>`).join('');
-      els.priorityFilter.innerHTML = priorities.map(v => `<option>${v}</option>`).join('');
-      els.statusFilter.innerHTML = statuses.map(v => `<option>${v}</option>`).join('');
-    }
-
-    function renderTable(){
-      els.tableBody.innerHTML = filtered.map(r => `
-        <tr>
-          <td>${r.id}</td>
-          <td>${r.module}</td>
-          <td>${r.title}</td>
-          <td>${r.description}</td>
-          <td>${typeBadge(r.type)}</td>
-          <td>${r.priority}</td>
-          <td>${r.status}</td>
-        </tr>`).join('');
-      els.rowCount.textContent = `${filtered.length} rows`;
-    }
-
-    function groupCount(list, key){
-      return list.reduce((acc, r) => {
-        const k = r[key] || 'Unspecified';
-        acc[k] = (acc[k] || 0) + 1;
-        return acc;
-      }, {});
-    }
-
-    function drawCharts(){
-      const make = (id, type, data) => {
-        if (charts[id]) charts[id].destroy();
-        charts[id] = new Chart(document.getElementById(id), {
-          type,
-          data: { labels: Object.keys(data), datasets: [{ data: Object.values(data) }] },
-          options: { plugins: { legend: { display: type !== 'bar' } } }
-        });
-      };
-      make('byModule','bar', groupCount(filtered,'module'));
-      make('byPriority','doughnut', groupCount(filtered,'priority'));
-      make('byStatus','bar', groupCount(filtered,'status'));
-      make('byType','bar', groupCount(filtered,'type'));
-    }
-
-    function applyFilters(){
-      const q = (els.search.value || '').toLowerCase();
-      const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
-
-      filtered = rows.filter(r => {
-        const text = (r.id + ' ' + r.module + ' ' + r.title + ' ' + r.description).toLowerCase();
-        return (!q || text.includes(q))
-           && (!m || m === 'All' || r.module === m)
-           && (!p || p === 'All' || r.priority === p)
-           && (!s || s === 'All' || r.status === s);
-      });
-
-      renderKpis();
-      renderTable();
-      drawCharts();
-    }
-
-    async function loadSheet(){
-      try {
-        const res = await fetch(SHEET_URL + "&t=" + Date.now(), { cache: 'no-store' });
-        const text = await res.text();
-        rows = parseCsv(text);
-        filtered = [...rows];
-        renderFilters();
-        applyFilters();
-        els.lastUpdated.textContent = `Last updated: ${new Date().toLocaleString()}`;
-      } catch(e) {
-        console.error("Load failed", e);
-      }
-    }
-
-    els.search.addEventListener('input', applyFilters);
-    els.moduleFilter.addEventListener('change', applyFilters);
-    els.priorityFilter.addEventListener('change', applyFilters);
-    els.statusFilter.addEventListener('change', applyFilters);
-    els.reset.addEventListener('click', () => { els.search.value = ''; renderFilters(); applyFilters(); });
-    els.refreshNow.addEventListener('click', loadSheet);
-
-    loadSheet();
-  </script>
+<script>
+const SHEET_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+const els={kpis:document.getElementById('kpis'),tableBody:document.querySelector('#issuesTable tbody'),rowCount:document.getElementById('rowCount'),
+search:document.getElementById('searchInput'),moduleFilter:document.getElementById('moduleFilter'),
+priorityFilter:document.getElementById('priorityFilter'),statusFilter:document.getElementById('statusFilter'),reset:document.getElementById('resetBtn')};
+let rows=[],filtered=[],charts={};
+function normalizeRow(raw){const lower={};for(const k in raw){lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
+const pick=(...keys)=>{for(const key of keys){if(lower[key])return lower[key];}return'';}
+return{id:pick('ticket id','id','incheck id'),module:pick('impacted module','module'),title:pick('title'),description:pick('description'),type:pick('type','category'),priority:pick('priority'),status:pick('status','task status'),links:pick('file upload')};}
+function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id||r.title);}
+function renderKpis(){const counts={};rows.forEach(r=>{counts[r.status]=(counts[r.status]||0)+1;});els.kpis.innerHTML=`
+  <div class="card kpi" data-filter="All"><div class="label">Total Issues</div><div class="value">${rows.length}</div></div>
+  ${Object.entries(counts).map(([s,n])=>`<div class="card kpi" data-filter="${s}"><div class="label">${s}</div><div class="value">${n}</div></div>`).join('')}
+`;document.querySelectorAll('#kpis .card').forEach(card=>{card.onclick=()=>{const f=card.getAttribute('data-filter');filtered=(f==='All')?[...rows]:rows.filter(r=>r.status===f);applyFilters(false);};});}
+function renderFilters(){els.moduleFilter.innerHTML=['All',...new Set(rows.map(r=>r.module))].map(v=>`<option>${v}</option>`).join('');
+els.priorityFilter.innerHTML=['All',...new Set(rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
+els.statusFilter.innerHTML=['All',...new Set(rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');}
+function renderTable(){els.tableBody.innerHTML=filtered.map((r,i)=>`<tr data-index="${i}"><td>${r.id}</td><td>${r.module}</td><td>${r.title}</td><td>${r.description}</td><td>${r.type}</td><td>${r.priority}</td><td>${r.status}</td></tr>`).join('');
+els.rowCount.textContent=`${filtered.length} rows`;
+document.querySelectorAll('#issuesTable tbody tr').forEach(row=>{row.onclick=()=>openModal(filtered[row.dataset.index]);});}
+function groupCount(list,key){return list.reduce((a,r)=>{a[r[key]||'Unspecified']=(a[r[key]||'Unspecified']||0)+1;return a;},{});}
+function drawCharts(){const make=(id,type,data)=>{if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]}});};
+make('byModule','bar',groupCount(filtered,'module'));make('byPriority','doughnut',groupCount(filtered,'priority'));
+make('byStatus','bar',groupCount(filtered,'status'));make('byType','bar',groupCount(filtered,'type'));}
+function applyFilters(refilter=true){if(refilter){const q=els.search.value.toLowerCase();const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
+filtered=rows.filter(r=>(!q||(r.id+r.title+r.module).toLowerCase().includes(q))&&(!m||m==='All'||r.module===m)&&(!p||p==='All'||r.priority===p)&&(!s||s==='All'||r.status===s));}
+renderKpis();renderTable();drawCharts();}
+function openModal(r){document.getElementById('modalTitle').textContent=r.title;
+document.getElementById('modalId').textContent=r.id;document.getElementById('modalModule').textContent=r.module;
+document.getElementById('modalType').textContent=r.type;document.getElementById('modalPriority').textContent=r.priority;
+document.getElementById('modalStatus').textContent=r.status;document.getElementById('modalDescription').textContent=r.description;
+document.getElementById('modalLinks').innerHTML=r.links?`<a href="${r.links}" target="_blank">Open</a>`:"—";
+document.getElementById('issueModal').style.display='flex';}
+document.getElementById('closeModal').onclick=()=>document.getElementById('issueModal').style.display='none';
+els.search.oninput=()=>applyFilters();els.moduleFilter.onchange=()=>applyFilters();els.priorityFilter.onchange=()=>applyFilters();els.statusFilter.onchange=()=>applyFilters();
+els.reset.onclick=()=>{els.search.value='';renderFilters();applyFilters();};
+(async()=>{const text=await (await fetch(SHEET_URL)).text();rows=parseCsv(text);filtered=[...rows];renderFilters();applyFilters();})();
+</script>
 </body>
 </html>
