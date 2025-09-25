@@ -10,14 +10,15 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
-    :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;}
+    :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; }
     *{box-sizing:border-box}
     body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b1020;color:var(--text)}
     header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:16px 24px;background:#0c1328;position:sticky;top:0;z-index:10;border-bottom:1px solid #1e2a58}
-    header .title{font-weight:700;font-size:18px}
+    .title{font-weight:700;font-size:18px}
     .toolbar label{font-size:13px;color:var(--muted);margin-left:8px}
     .toolbar select,.toolbar input,.toolbar button{background:#0f1733;color:var(--text);border:1px solid #263564;border-radius:8px;padding:8px 10px;font:inherit}
     .toolbar button{cursor:pointer;font-weight:600}
+    #newTicketBtn { background: linear-gradient(180deg, #22c55e, #16a34a); border: none; color: white; }
     .container{padding:20px 24px;max-width:1200px;margin:0 auto}
     .grid{display:grid;gap:16px}
     .grid.cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}
@@ -53,6 +54,7 @@
       <label>Status:</label>
       <select id="statusFilter"></select>
 
+      <button id="newTicketBtn">➕ New Ticket</button>
       <button id="refreshNow">🔄 Refresh</button>
       <button id="resetBtn">Reset</button>
     </div>
@@ -99,6 +101,7 @@
 
   <script>
     const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+    const NEW_TICKET_URL = "https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform";
 
     const els = {
       kpis: document.getElementById('kpis'),
@@ -111,61 +114,70 @@
       statusFilter: document.getElementById('statusFilter'),
       reset: document.getElementById('resetBtn'),
       refreshNow: document.getElementById('refreshNow'),
+      newTicket: document.getElementById('newTicketBtn')
     };
 
+    // Open Google Form on click
+    els.newTicket.addEventListener('click', () => {
+      window.open(NEW_TICKET_URL, "_blank");
+    });
+
     function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort(); }
-    function typeBadge(t){const c=/bug/i.test(t)?'bug':/enh/i.test(t)?'enh':'';return `<span class="pill ${c}">${t||'-'}</span>`;}
+    function typeBadge(t){ const c=/bug/i.test(t)?'bug':/enh/i.test(t)?'enh':''; return `<span class="pill ${c}">${t||'-'}</span>`; }
 
     let rows = [], filtered = [], charts = {};
 
     function normalizeRow(raw){
       const lower = {};
-      for(const k in raw){
-        if(!k) continue;
-        // normalize: lowercase, trim, collapse multiple spaces
-        const normKey = k.toLowerCase().replace(/\s+/g,' ').trim();
+      for (const k in raw) {
+        if (!k) continue;
+        const normKey = k.toLowerCase().replace(/\s+/g, ' ').trim();
         lower[normKey] = String(raw[k] ?? '').trim();
       }
-      const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return '';}
+      const pick = (...keys) => {
+        for (const key of keys) {
+          if (lower[key]) return lower[key];
+        }
+        return '';
+      };
       return {
-        id: pick('ticket id','id','incheck id'),
-        module: pick('module','impacted module'),
+        id: pick('ticket id', 'id', 'incheck id'),
+        module: pick('module', 'impacted module'),
         title: pick('title'),
         description: pick('description'),
-        type: pick('type','category'),
+        type: pick('type', 'category'),
         priority: pick('priority'),
-        status: pick('status','task status'),
+        status: pick('status', 'task status')
       };
     }
 
     function parseCsv(text){
-      const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
-      return (parsed.data||[]).map(normalizeRow).filter(r=>r.id||r.title);
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      return (parsed.data || []).map(normalizeRow).filter(r => r.id || r.title);
     }
 
     function renderKpis(){
       const total = filtered.length;
-      const counts = groupCount(filtered,'status');
+      const counts = groupCount(filtered, 'status');
       els.kpis.innerHTML = `
         <div class="card kpi"><div class="label">Total Issues</div><div class="value">${total}</div></div>
         <div class="card kpi"><div class="label">Resolved</div><div class="value">${counts['Resolved']||0}</div></div>
         <div class="card kpi"><div class="label">Under Development</div><div class="value">${counts['Under Development']||0}</div></div>
         <div class="card kpi"><div class="label">Rejected</div><div class="value">${counts['Rejected']||0}</div></div>
-        <div class="card kpi"><div class="label">On Hold</div><div class="value">${counts['On Hold']||0}</div></div>
-      `;
+        <div class="card kpi"><div class="label">On Hold</div><div class="value">${counts['On Hold']||0}</div></div>`;
     }
 
     function renderFilters(){
-      const modules = ['All',...uniq(rows.map(r=>r.module))];
-      const priorities = ['All',...uniq(rows.map(r=>r.priority))];
-      const statuses = ['All',...uniq(rows.map(r=>r.status))];
-      els.moduleFilter.innerHTML = modules.map(v=>`<option>${v}</option>`).join('');
-      els.priorityFilter.innerHTML = priorities.map(v=>`<option>${v}</option>`).join('');
-      els.statusFilter.innerHTML = statuses.map(v=>`<option>${v}</option>`).join('');
+      const modules = ['All', ...uniq(rows.map(r => r.module))];
+      const priorities = ['All', ...uniq(rows.map(r => r.priority))];
+      const statuses = ['All', ...uniq(rows.map(r => r.status))];
+      els.moduleFilter.innerHTML = modules.map(v => `<option>${v}</option>`).join('');
+      els.priorityFilter.innerHTML = priorities.map(v => `<option>${v}</option>`).join('');
+      els.statusFilter.innerHTML = statuses.map(v => `<option>${v}</option>`).join('');
     }
 
     function renderTable(){
-      els.tableBody.innerHTML = filtered.map(r=>`
+      els.tableBody.innerHTML = filtered.map(r => `
         <tr>
           <td>${r.id}</td>
           <td>${r.module}</td>
@@ -178,42 +190,66 @@
       els.rowCount.textContent = `${filtered.length} rows`;
     }
 
-    function groupCount(list,key){return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
+    function groupCount(list, key){
+      return list.reduce((acc, r) => {
+        const k = r[key] || 'Unspecified';
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+      }, {});
+    }
 
     function drawCharts(){
-      const make=(id,type,data)=>{if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]},options:{plugins:{legend:{display:type!=='bar'}}}});}
-      make('byModule','bar',groupCount(filtered,'module'));
-      make('byPriority','doughnut',groupCount(filtered,'priority'));
-      make('byStatus','bar',groupCount(filtered,'status'));
-      make('byType','bar',groupCount(filtered,'type'));
+      const make = (id, type, data) => {
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(document.getElementById(id), {
+          type,
+          data: { labels: Object.keys(data), datasets: [{ data: Object.values(data) }] },
+          options: { plugins: { legend: { display: type !== 'bar' } } }
+        });
+      };
+      make('byModule','bar', groupCount(filtered,'module'));
+      make('byPriority','doughnut', groupCount(filtered,'priority'));
+      make('byStatus','bar', groupCount(filtered,'status'));
+      make('byType','bar', groupCount(filtered,'type'));
     }
 
     function applyFilters(){
-      const q=(els.search.value||'').toLowerCase();
-      const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
-      filtered=rows.filter(r=>{
-        const text=(r.id+' '+r.module+' '+r.title+' '+r.description).toLowerCase();
-        return (!q||text.includes(q))&&(!m||m==='All'||r.module===m)&&(!p||p==='All'||r.priority===p)&&(!s||s==='All'||r.status===s);
+      const q = (els.search.value || '').toLowerCase();
+      const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
+
+      filtered = rows.filter(r => {
+        const text = (r.id + ' ' + r.module + ' ' + r.title + ' ' + r.description).toLowerCase();
+        return (!q || text.includes(q))
+           && (!m || m === 'All' || r.module === m)
+           && (!p || p === 'All' || r.priority === p)
+           && (!s || s === 'All' || r.status === s);
       });
-      renderKpis();renderTable();drawCharts();
+
+      renderKpis();
+      renderTable();
+      drawCharts();
     }
 
     async function loadSheet(){
-      try{
-        const res=await fetch(SHEET_URL+"&t="+Date.now(),{cache:'no-store'});
-        const text=await res.text();
-        rows=parseCsv(text);filtered=[...rows];
-        renderFilters();applyFilters();
-        els.lastUpdated.textContent=`Last updated: ${new Date().toLocaleString()}`;
-      }catch(e){console.error("Load failed",e);}
+      try {
+        const res = await fetch(SHEET_URL + "&t=" + Date.now(), { cache: 'no-store' });
+        const text = await res.text();
+        rows = parseCsv(text);
+        filtered = [...rows];
+        renderFilters();
+        applyFilters();
+        els.lastUpdated.textContent = `Last updated: ${new Date().toLocaleString()}`;
+      } catch(e) {
+        console.error("Load failed", e);
+      }
     }
 
-    els.search.addEventListener('input',applyFilters);
-    els.moduleFilter.addEventListener('change',applyFilters);
-    els.priorityFilter.addEventListener('change',applyFilters);
-    els.statusFilter.addEventListener('change',applyFilters);
-    els.reset.addEventListener('click',()=>{els.search.value='';renderFilters();applyFilters();});
-    els.refreshNow.addEventListener('click',loadSheet);
+    els.search.addEventListener('input', applyFilters);
+    els.moduleFilter.addEventListener('change', applyFilters);
+    els.priorityFilter.addEventListener('change', applyFilters);
+    els.statusFilter.addEventListener('change', applyFilters);
+    els.reset.addEventListener('click', () => { els.search.value = ''; renderFilters(); applyFilters(); });
+    els.refreshNow.addEventListener('click', loadSheet);
 
     loadSheet();
   </script>
