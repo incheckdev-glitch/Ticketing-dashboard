@@ -302,10 +302,12 @@
       <div class="header">
         <h2 id="modalTitle" style="margin:0;font-size:20px">Issue</h2>
         <div class="actions">
-          <button id="copyId" class="btn sm" aria-label="Copy issue ID"><span class="icon" aria-hidden="true">🆔</span> Copy ID</button>
-          <button id="copyLink" class="btn sm" aria-label="Copy issue link"><span class="icon" aria-hidden="true">🔗</span> Copy Link</button>
-          <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
-        </div>
+  <button id="copyId" class="btn sm" aria-label="Copy issue ID"><span class="icon">🆔</span> Copy ID</button>
+  <button id="copyLink" class="btn sm" aria-label="Copy issue link"><span class="icon">🔗</span> Copy Link</button>
+  <button id="editBtn" class="btn sm" aria-label="Edit issue"><span class="icon">✏️</span> Edit</button>
+  <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+</div>
+
       </div>
       <div id="modalBody"></div>
     </div>
@@ -330,6 +332,7 @@ document.addEventListener("DOMContentLoaded", () => {
     reset: q('#resetBtn'),
     refresh: q('#refreshNow'),
     kpis: q('#kpis'),
+    editBtn: q('#editBtn'),
     modal: q('#issueModal'),
     modalBody: q('#modalBody'),
     modalTitle: q('#modalTitle'),
@@ -712,6 +715,67 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast('Link copied');
     }catch{ showToast('Unable to copy (clipboard blocked)'); }
   });
+// --- Edit issue flow (password-protected) ---
+els.editBtn.addEventListener('click', async () => {
+  if (!selectedIssue) { showToast('Open an issue first'); return; }
+
+  // 1) Ask for password (do NOT hardcode it in the client)
+  const password = prompt('Enter password to edit:');
+  if (password == null || password === '') return;
+
+  // 2) Ask which fields to update (you can expand this UI later)
+  const newStatus = prompt('New Status:', selectedIssue.status || '');
+  if (newStatus == null) return; // user canceled
+  const newLog = prompt('New Log:', selectedIssue.log || '');
+  if (newLog == null) return;
+
+  // 3) Send to Apps Script
+  try {
+    showSpinner(true);
+    const res = await fetch(
+      'https://script.google.com/macros/s/AKfycbxFp7K40NnxHyaVxPTJZMUejpP5wI1hz_8a09RemxU1mwCYU55_kPlwKjisQ3oWE9OJGg/exec',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password,
+          id: selectedIssue.id,
+          status: newStatus,
+          log: newLog
+        })
+      }
+    );
+
+    // If your deployment is correct, GAS returns JSON
+    const json = await res.json();
+
+    if (json.success) {
+      showToast('✅ Issue updated');
+      // Keep UI responsive: update local object, then refresh from source
+      selectedIssue.status = newStatus;
+      selectedIssue.log = newLog;
+      // Re-render modal body with the new values
+      els.modalBody.innerHTML = `
+        <p><b>ID:</b> ${escapeHtml(selectedIssue.id || '-')}</p>
+        <p><b>Module:</b> ${escapeHtml(selectedIssue.module || '-')}</p>
+        <p><b>Priority:</b> ${escapeHtml(selectedIssue.priority || '-')}</p>
+        <p><b>Status:</b> ${escapeHtml(selectedIssue.status || '-')}</p>
+        <p><b>Date:</b> ${escapeHtml(selectedIssue.date || '-')}</p>
+        <p><b>Description:</b><br>${escapeHtml(selectedIssue.desc || '-')}</p>
+        <p><b>Log:</b><br>${escapeHtml(selectedIssue.log || '-')}</p>
+        ${selectedIssue.file ? `<p><b>Attachment:</b> <a href="${escapeAttr(selectedIssue.file)}" target="_blank" rel="noopener">Open link</a></p>` : ''}
+      `;
+      // Reload the sheet to reflect the changes in the table/charts
+      await loadSheet();
+    } else {
+      showToast('❌ ' + (json.message || 'Update failed'));
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  } finally {
+    showSpinner(false);
+  }
+});
 
   // Sorting
   qAll('#issuesTable thead th.sortable').forEach(th=>{
