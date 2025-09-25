@@ -361,12 +361,7 @@ document.addEventListener("DOMContentLoaded", () => {
       log: pick('log','logs','comment','notes')
     };
   }
-  function parseCsv(t){ 
-  return Papa.parse(t,{header:true,skipEmptyLines:true})
-    .data.map(normalizeRow)
-    .filter(r => r.id && r.id.trim() !== ""); // only keep rows with valid ID
-}
-
+  function parseCsv(t){ return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id||r.title||r.module); }
   function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
   const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
   const priorityBadge = p => pill(p,`priority-${p||''}`);
@@ -468,69 +463,87 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function drawCharts(){
-  const priorityColors = {
-    High: '#ef4444',   // red
-    Medium: '#f59e0b', // orange
-    Low: '#10b981'     // green
-  };
+    const priorityColors = {
+      High: cssVar('--priority-high'),
+      Medium: cssVar('--priority-medium'),
+      Low: cssVar('--priority-low')
+    };
 
-  const statusColors = {
-    "Resolved": "#10b981",          // green
-    "Under Development": "#3b82f6", // blue
-    "Rejected": "#ef4444",          // red
-    "On Hold": "#f59e0b",           // orange
-    "Not Started Yet": "#6b7280",   // gray
-    "Sent": "#8b5cf6",              // purple
-    "On Stage": "#0ea5e9"           // cyan
-  };
+    const statusColors = {
+      "Resolved": cssVar('--status-resolved'),
+      "Under Development": cssVar('--status-underdev'),
+      "Rejected": cssVar('--status-rejected'),
+      "On Hold": cssVar('--status-onhold'),
+      "Not Started Yet": cssVar('--status-notstarted'),
+      "Sent": cssVar('--status-sent'),
+      "On Stage": cssVar('--status-onstage')
+    };
 
-  // ✅ new module color map
-  const moduleColors = {
-    "Mobile App": "#f59e0b", // orange
-    "Checklist": "#10b981",  // green
-    "Reporting": "#ef4444",  // red
-    "Journal": "#8b5cf6",    // purple
-    "Unspecified": "#6b7280" // gray
-  };
-
-  // ✅ new type color map
-  const typeColors = {
-    "Bug": "#ef4444",        // red
-    "Enhancement": "#f59e0b",// orange
-    "Unspecified": "#6b7280" // gray
-  };
-
-  const make = (id, type, data, colorMap={}) => {
-    if(charts[id]) charts[id].destroy();
-    charts[id] = new Chart(q('#'+id), {
-      type,
-      data: {
-        labels: Object.keys(data),
-        datasets: [{
-          data: Object.values(data),
-          backgroundColor: Object.keys(data).map(k => colorMap[k] || '#4f8cff')
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: type !== 'bar' },
-          tooltip: { callbacks: { label: ctx => `${ctx.raw} (${percent(ctx.raw, Object.values(data))}%)` } }
+    const make = (id, type, data, colorMap={}) => {
+      if(charts[id]) charts[id].destroy();
+      charts[id] = new Chart(q('#'+id), {
+        type,
+        data: {
+          labels: Object.keys(data),
+          datasets: [{
+            data: Object.values(data),
+            backgroundColor: Object.keys(data).map(k => colorMap[k] || cssVar('--accent'))
+          }]
         },
-        scales: type === 'bar' ? {
-          x: { grid: { color: 'rgba(128,128,128,.1)' } },
-          y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.12)' } }
-        } : {}
-      }
-    });
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: type !== 'bar' },
+            tooltip: { callbacks: { label: ctx => `${ctx.raw} (${percent(ctx.raw, Object.values(data))}%)` } }
+          },
+          scales: type === 'bar' ? {
+            x: { grid: { color: 'rgba(128,128,128,.1)' } },
+            y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.12)' } }
+          } : {}
+        }
+      });
+    };
+
+    make('byModule', 'bar', groupCount(filtered,'module'));
+    make('byPriority', 'doughnut', groupCount(filtered,'priority'), priorityColors);
+    make('byStatus', 'bar', groupCount(filtered,'status'), statusColors);
+    make('byType', 'bar', groupCount(filtered,'type'));
+  }
+
+  const percent = (val, arr) => {
+    const total = arr.reduce((a,b)=>a+b,0) || 1;
+    return Math.round((val*100)/total);
   };
 
-  make('byModule', 'bar', groupCount(filtered,'module'), moduleColors);
-  make('byPriority', 'doughnut', groupCount(filtered,'priority'), priorityColors);
-  make('byStatus', 'bar', groupCount(filtered,'status'), statusColors);
-  make('byType', 'bar', groupCount(filtered,'type'), typeColors);
-}
+  function applyFilters(){
+    const qstr = (els.search.value||'').toLowerCase().trim();
+    const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
+    const start = q('#startDateFilter').value, end = q('#endDateFilter').value;
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? (()=>{ const d=new Date(end); d.setDate(d.getDate()+1); return d; })() : null;
 
+    filtered = rows.filter(r=>{
+      const hay = [r.id,r.module,r.title,r.desc,r.log].filter(Boolean).join(' ').toLowerCase();
+      let keepDate = true;
+      if(r.date){
+        const d = new Date(r.date);
+        if(!isNaN(d)){
+          if(startDate && d < startDate) keepDate = false;
+          if(endDate && d >= endDate) keepDate = false;
+        }
+      } else if(startDate || endDate){ keepDate = false; }
+      return (!qstr || hay.includes(qstr))
+        && (!m || m==='All' || r.module===m)
+        && (!p || p==='All' || r.priority===p)
+        && (!s || s==='All' || r.status===s)
+        && keepDate;
+    });
+
+    currentPage = 1;
+    renderKpis();
+    renderTable();
+    drawCharts();
+  }
 
   // Data
   async function loadSheet(){
