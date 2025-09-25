@@ -439,32 +439,52 @@ document.addEventListener("DOMContentLoaded", () => {
     },{});
   }
   function drawCharts(){
-    const colors = {
-      High:'#f87171', Medium:'#fbbf24', Low:'#34d399'
-    };
-    const make = (id, type, data) => {
-      if(charts[id]) charts[id].destroy();
-      charts[id] = new Chart(q('#'+id), {
-        type,
-        data: {
-          labels: Object.keys(data),
-          datasets: [{ data: Object.values(data), backgroundColor: Object.keys(data).map(k => colors[k] || '#4f8cff') }]
+  const priorityColors = {
+    High: '#f87171',   // red
+    Medium: '#fbbf24', // yellow
+    Low: '#34d399'     // green
+  };
+
+  const statusColors = {
+    "Resolved": "#10b981",          // green
+    "Under Development": "#3b82f6", // blue
+    "Rejected": "#ef4444",          // red
+    "On Hold": "#f59e0b",           // orange
+    "Not Started Yet": "#6b7280",   // gray
+    "Sent": "#8b5cf6"               // purple
+  };
+
+  const make = (id, type, data, colorMap={}) => {
+    if(charts[id]) charts[id].destroy();
+    charts[id] = new Chart(q('#'+id), {
+      type,
+      data: {
+        labels: Object.keys(data),
+        datasets: [{
+          data: Object.values(data),
+          backgroundColor: Object.keys(data).map(k => colorMap[k] || '#4f8cff')
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: type !== 'bar' },
+          tooltip: { callbacks: { label: ctx => `${ctx.raw} (${percent(ctx.raw, Object.values(data))}%)` } }
         },
-        options: {
-          responsive:true,
-          plugins: {
-            legend: { display: type!=='bar' },
-            tooltip: { callbacks: { label: ctx => `${ctx.raw} (${percent(ctx.raw, Object.values(data))}%)` } }
-          },
-          scales: type==='bar' ? { x:{ grid:{color:'rgba(128,128,128,.1)'} }, y:{ beginAtZero:true, grid:{color:'rgba(128,128,128,.12)'} } } : {}
-        }
-      });
-    };
-    make('byModule','bar', groupCount(filtered,'module'));
-    make('byPriority','doughnut', groupCount(filtered,'priority'));
-    make('byStatus','bar', groupCount(filtered,'status'));
-    make('byType','bar', groupCount(filtered,'type'));
-  }
+        scales: type === 'bar' ? {
+          x: { grid: { color: 'rgba(128,128,128,.1)' } },
+          y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.12)' } }
+        } : {}
+      }
+    });
+  };
+
+  make('byModule', 'bar', groupCount(filtered,'module'));
+  make('byPriority', 'doughnut', groupCount(filtered,'priority'), priorityColors);
+  make('byStatus', 'bar', groupCount(filtered,'status'), statusColors);
+  make('byType', 'bar', groupCount(filtered,'type'));
+}
+
   const percent = (val, arr) => {
     const total = arr.reduce((a,b)=>a+b,0) || 1;
     return Math.round((val*100)/total);
