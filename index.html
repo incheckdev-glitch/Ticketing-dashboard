@@ -121,24 +121,57 @@
 
   <script>
     const SHEET_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
-    const els={tableBody:document.querySelector('#issuesTable tbody'),rowCount:document.getElementById('rowCount'),moduleFilter:document.getElementById('moduleFilter'),priorityFilter:document.getElementById('priorityFilter'),statusFilter:document.getElementById('statusFilter'),reset:document.getElementById('resetBtn'),refresh:document.getElementById('refreshNow'),kpis:document.getElementById('kpis'),modal:document.getElementById('issueModal'),modalBody:document.getElementById('modalBody')};
+    const els={
+      tableBody:document.querySelector('#issuesTable tbody'),
+      rowCount:document.getElementById('rowCount'),
+      moduleFilter:document.getElementById('moduleFilter'),
+      priorityFilter:document.getElementById('priorityFilter'),
+      statusFilter:document.getElementById('statusFilter'),
+      reset:document.getElementById('resetBtn'),
+      refresh:document.getElementById('refreshNow'),
+      kpis:document.getElementById('kpis'),
+      modal:document.getElementById('issueModal'),
+      modalBody:document.getElementById('modalBody')
+    };
     let rows=[],filtered=[],charts={};
 
-    function normalizeRow(raw){
+    // Robust row normalization: tolerate header typos and missing IDs
+    function normalizeRow(raw, i){
+      const lower={};
+      for(const k in raw){ if(k) lower[k.toLowerCase().trim()] = String(raw[k] ?? '').trim(); }
+      const pick=(...keys)=>{ for(const key of keys){ const v = lower[key.toLowerCase()]; if(v) return v; } return ''; };
+
+      const id = pick('ticket id','id','issue id','key') || `ROW-${i+1}`;
+      const module = pick(
+        'impacted module',          // correct
+        'imapcted module',          // common typo you mentioned
+        'module',
+        'issue location',
+        'affected module',
+        'component'
+      ) || 'Unspecified';
+
       return {
-        id: raw["Ticket ID"]?.trim() || raw["ID"]?.trim() || "",
-        module: raw["Impacted Module"]?.trim() || raw["impacted module"]?.trim() || "", // 👈 force column 8
-        title: raw["Title"]?.trim() || "",
-        desc: raw["Description"]?.trim() || "",
-        file: raw["File Upload"]?.trim() || raw["Link"]?.trim() || raw["URL"]?.trim() || "",
-        priority: raw["Priority"]?.trim() || "",
-        status: raw["Status"]?.trim() || "Not Started Yet",
-        type: raw["Category"]?.trim() || raw["Type"]?.trim() || "",
-        date: raw["Timestamp"]?.trim() || raw["Date"]?.trim() || raw["Created At"]?.trim() || ""
+        id,
+        module,
+        title: pick('title','issue title','subject'),
+        desc: pick('description','details','body'),
+        file: pick('file upload','link','url','attachment'),
+        priority: pick('priority'),
+        status: pick('status') || 'Not Started Yet',
+        type: pick('category','type'),
+        date: pick('timestamp','date','created at','creation date')
       };
     }
 
-    function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id);}
+    function parseCsv(t){
+      const parsed = Papa.parse(t,{header:true,skipEmptyLines:true}).data;
+      return parsed
+        .map((raw,i)=>normalizeRow(raw,i))
+        // keep rows that have at least something meaningful
+        .filter(r => r.title || r.desc || r.module || r.priority || r.status);
+    }
+
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
     function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
     function priorityBadge(p){return pill(p,`priority-${p}`);}
@@ -147,56 +180,65 @@
       const total=filtered.length; const counts={};
       filtered.forEach(r=>{counts[r.status]=(counts[r.status]||0)+1;});
       els.kpis.innerHTML='';
-      const add=(label,val)=>{const d=document.createElement('div');d.className='card kpi';d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div>`;d.onclick=()=>{els.statusFilter.value=label;applyFilters();};els.kpis.appendChild(d);}
-      add('Total Issues',total); Object.entries(counts).forEach(([s,v])=>add(s,v));
+      const add=(label,val)=>{
+        const d=document.createElement('div');
+        d.className='card kpi';
+        d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div>`;
+        d.onclick=()=>{ els.statusFilter.value=label; applyFilters(); };
+        els.kpis.appendChild(d);
+      };
+      add('Total Issues',total);
+      Object.entries(counts).forEach(([s,v])=>add(s,v));
     }
 
     function renderFilters(){
-      // Module filter (dedupe case-insensitive, trim)
+      // Module filter (trim + case-insensitive dedupe)
       let modules = rows.map(r => (r.module || "Unspecified").trim());
       const seenM = new Set();
-      modules = modules.filter(m => {
-        const key = m.toLowerCase();
-        if(seenM.has(key)) return false;
-        seenM.add(key);
-        return true;
-      });
+      modules = modules.filter(m => { const k=m.toLowerCase(); if(seenM.has(k)) return false; seenM.add(k); return true; });
       modules.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.moduleFilter.innerHTML=['All',...modules].map(v=>`<option value="${v}">${v}</option>`).join('');
 
       // Priority filter
       let priorities = rows.map(r => (r.priority || "Unspecified").trim());
       const seenP = new Set();
-      priorities = priorities.filter(p => {
-        const key = p.toLowerCase();
-        if(seenP.has(key)) return false;
-        seenP.add(key);
-        return true;
-      });
+      priorities = priorities.filter(p => { const k=p.toLowerCase(); if(seenP.has(k)) return false; seenP.add(k); return true; });
       priorities.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.priorityFilter.innerHTML=['All',...priorities].map(v=>`<option value="${v}">${v}</option>`).join('');
 
       // Status filter
       let statuses = rows.map(r => (r.status || "Unspecified").trim());
       const seenS = new Set();
-      statuses = statuses.filter(s => {
-        const key = s.toLowerCase();
-        if(seenS.has(key)) return false;
-        seenS.add(key);
-        return true;
-      });
+      statuses = statuses.filter(s => { const k=s.toLowerCase(); if(seenS.has(k)) return false; seenS.add(k); return true; });
       statuses.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.statusFilter.innerHTML=['All',...statuses].map(v=>`<option value="${v}">${v}</option>`).join('');
     }
 
     function renderTable(){
-      els.tableBody.innerHTML=filtered.map(r=>`<tr onclick="openModal('${r.id}')"><td>${r.id}</td><td>${r.module}</td><td>${r.title}</td><td>${priorityBadge(r.priority)}</td><td>${statusBadge(r.status)}</td><td>${r.date||'-'}</td><td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td></tr>`).join('');
+      els.tableBody.innerHTML = filtered.map(r=>`
+        <tr onclick="openModal('${r.id}')">
+          <td>${r.id}</td>
+          <td>${r.module}</td>
+          <td>${r.title||'-'}</td>
+          <td>${priorityBadge(r.priority)}</td>
+          <td>${statusBadge(r.status)}</td>
+          <td>${r.date||'-'}</td>
+          <td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td>
+        </tr>`).join('');
       els.rowCount.textContent=`${filtered.length} rows`;
     }
 
-    function groupCount(list,key){return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
+    function groupCount(list,key){
+      return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
     function drawCharts(){
-      const make=(id,type,data)=>{if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]},options:{plugins:{legend:{display:type!=='bar'}}}});}
+      const make=(id,type,data)=>{
+        if(charts[id]) charts[id].destroy();
+        charts[id]=new Chart(document.getElementById(id),{
+          type,
+          data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]},
+          options:{plugins:{legend:{display:type!=='bar'}}}
+        });
+      };
       make('byModule','bar',groupCount(filtered,'module'));
       make('byPriority','doughnut',groupCount(filtered,'priority'));
       make('byStatus','bar',groupCount(filtered,'status'));
@@ -205,38 +247,79 @@
 
     function applyFilters(){
       const q=(document.getElementById('searchInput').value||'').toLowerCase();
-      const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
-      const startDate=document.getElementById('startDateFilter').value;
-      const endDate=document.getElementById('endDateFilter').value;
+      const m=els.moduleFilter.value, p=els.priorityFilter.value, s=els.statusFilter.value;
+      const startRaw=document.getElementById('startDateFilter').value;
+      const endRaw=document.getElementById('endDateFilter').value;
+
+      // Inclusive end-of-day for end date
+      const startDate = startRaw ? new Date(startRaw) : null;
+      const endDate = endRaw ? (()=>{ const d=new Date(endRaw); d.setDate(d.getDate()+1); return d; })() : null;
 
       filtered=rows.filter(r=>{
-        const txt=(r.id+' '+r.module+' '+r.title).toLowerCase();
+        const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')).toLowerCase();
+
+        // Date filter
         let keepDate=true;
         if(r.date){
           const issueDate=new Date(r.date);
-          if(startDate && issueDate < new Date(startDate)) keepDate=false;
-          if(endDate && issueDate > new Date(endDate)) keepDate=false;
+          if(startDate && issueDate < startDate) keepDate=false;
+          if(endDate && issueDate >= endDate) keepDate=false; // end-of-day inclusive
+        } else {
+          // If no date on row and user set date filters, hide row
+          if(startDate || endDate) keepDate=false;
         }
-        return (!q||txt.includes(q))
-          &&(!m||m==='All'||(r.module||"Unspecified").trim()===m)
-          &&(!p||p==='All'||(r.priority||"Unspecified").trim()===p)
-          &&(!s||s==='All'||(r.status||"Unspecified").trim()===s)
+
+        return (!q || hay.includes(q))
+          && (!m || m==='All' || (r.module||"Unspecified").trim()===m)
+          && (!p || p==='All' || (r.priority||"Unspecified").trim()===p)
+          && (!s || s==='All' || (r.status||"Unspecified").trim()===s)
           && keepDate;
       });
 
-      renderKpis();renderTable();drawCharts();
+      renderKpis(); renderTable(); drawCharts();
     }
 
-    async function loadSheet(){const res=await fetch(SHEET_URL);const text=await res.text();rows=parseCsv(text);filtered=[...rows];renderFilters();applyFilters();}
-    function openModal(id){const r=rows.find(x=>x.id===id);els.modalBody.innerHTML=`<h2>${r.title}</h2><p><b>ID:</b> ${r.id}</p><p><b>Module:</b> ${r.module}</p><p><b>Priority:</b> ${r.priority}</p><p><b>Status:</b> ${r.status}</p><p><b>Date:</b> ${r.date||'-'}</p><p><b>Description:</b> ${r.desc}</p>${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;els.modal.style.display='flex';}
+    async function loadSheet(){
+      const res=await fetch(SHEET_URL);
+      const text=await res.text();
+      rows=parseCsv(text);
+      filtered=[...rows];
+      renderFilters();
+      applyFilters();
+    }
+
+    function openModal(id){
+      const r=rows.find(x=>x.id===id);
+      els.modalBody.innerHTML=`
+        <h2>${r.title||'-'}</h2>
+        <p><b>ID:</b> ${r.id}</p>
+        <p><b>Module:</b> ${r.module}</p>
+        <p><b>Priority:</b> ${r.priority||'-'}</p>
+        <p><b>Status:</b> ${r.status||'-'}</p>
+        <p><b>Date:</b> ${r.date||'-'}</p>
+        <p><b>Description:</b> ${r.desc||'-'}</p>
+        ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}
+      `;
+      els.modal.style.display='flex';
+    }
     function closeModal(){els.modal.style.display='none';}
+
     document.getElementById('searchInput').addEventListener('input',applyFilters);
-    els.moduleFilter.addEventListener('change',applyFilters);els.priorityFilter.addEventListener('change',applyFilters);els.statusFilter.addEventListener('change',applyFilters);
+    els.moduleFilter.addEventListener('change',applyFilters);
+    els.priorityFilter.addEventListener('change',applyFilters);
+    els.statusFilter.addEventListener('change',applyFilters);
     document.getElementById('startDateFilter').addEventListener('change',applyFilters);
     document.getElementById('endDateFilter').addEventListener('change',applyFilters);
 
-    els.reset.onclick=()=>{document.getElementById('searchInput').value='';document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';renderFilters();applyFilters();};
+    els.reset.onclick=()=>{
+      document.getElementById('searchInput').value='';
+      document.getElementById('startDateFilter').value='';
+      document.getElementById('endDateFilter').value='';
+      renderFilters(); applyFilters();
+    };
     els.refresh.onclick=loadSheet;
+
+    // Load data
     loadSheet();
 
     // Theme toggle
@@ -252,6 +335,9 @@
       localStorage.setItem('theme',next);
       themeBtn.textContent=next==='light'?'🌙':'☀️';
     });
+
+    // Optional: log headers once to help future debugging
+    // console.log('First row keys:', Object.keys(Papa.parse(await (await fetch(SHEET_URL)).text(), {header:true}).data[0]||{}));
   </script>
 </body>
 </html>
