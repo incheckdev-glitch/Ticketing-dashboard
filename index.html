@@ -10,57 +10,59 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
-    :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --accent-2:#8b5cf6; --danger:#ef4444; --ok:#10b981; }
-    *{box-sizing:border-box}
-    body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:linear-gradient(180deg,#0b1020,#0c1328 40%,#0e1530); color:var(--text)}
-    header{display:flex; gap:12px; align-items:center; padding:20px 24px; position:sticky; top:0; backdrop-filter:saturate(140%) blur(8px); background-color:#0b1020d0; z-index:10; border-bottom:1px solid #1e2a58}
+    :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; }
+    body{margin:0; font-family:Inter,sans-serif; background:linear-gradient(180deg,#0b1020,#0c1328 40%,#0e1530); color:var(--text)}
+    header{display:flex; gap:12px; align-items:center; padding:20px 24px; position:sticky; top:0; background:#0b1020d0; backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid #1e2a58; z-index:10}
     header .title{font-weight:700; font-size:18px}
+    .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    .toolbar label{font-size:13px; color:var(--muted); margin-right:4px}
+    select, input[type="search"], button{background:#0f1733; color:var(--text); border:1px solid #263564; border-radius:8px; padding:8px 10px; font:inherit}
+    button{cursor:pointer; font-weight:600}
+    button.secondary{background:#365dc7; border:none; color:#fff}
+    button.ghost{background:#0f1733; border:1px solid #2a3a73}
     .container{padding:20px 24px; max-width:1200px; margin:0 auto}
     .grid{display:grid; gap:16px}
-    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .grid.cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}
     .charts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
-    @media (max-width: 900px){ .grid.cols-4{grid-template-columns:repeat(2,1fr)} .charts{grid-template-columns:1fr} }
-    @media (max-width: 580px){ .grid.cols-4{grid-template-columns:1fr} }
-    .card{background:var(--card); border:1px solid #1e2a58; border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.35)}
-    .kpi{display:flex; flex-direction:column; gap:6px}
+    @media (max-width: 900px){ .grid.cols-5{grid-template-columns:repeat(2,1fr)} .charts{grid-template-columns:1fr} }
+    @media (max-width: 580px){ .grid.cols-5{grid-template-columns:1fr} }
+    .card{background:var(--card); border:1px solid #1e2a58; border-radius:14px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.35)}
+    .kpi{display:flex; flex-direction:column; gap:6px; text-align:center}
     .kpi .label{color:var(--muted); font-size:12px; text-transform:uppercase}
-    .kpi .value{font-size:28px; font-weight:800}
-    .toolbar{display:flex; flex-wrap:wrap; gap:8px}
-    select, input[type="search"], button{background:#0f1733; color:var(--text); border:1px solid #263564; border-radius:10px; padding:10px 12px; font:inherit}
-    button{background:linear-gradient(180deg,#365dc7,#2c4dac); border:none; font-weight:600; cursor:pointer}
-    button.ghost{background:#0f1733}
-    button.secondary{background:#0f1733; border:1px solid #2a3a73}
-    .hint{font-size:12px; color:#a7b4df}
-    .banner{border:1px solid #3b4c8a; background:#0e1838; padding:8px 12px; border-radius:10px; color:#bfd0ff; display:flex; align-items:center; gap:8px}
+    .kpi .value{font-size:22px; font-weight:700}
+    .banner{border:1px solid #3b4c8a; background:#0e1838; padding:8px 12px; border-radius:10px; color:#bfd0ff; display:none; align-items:center; gap:8px}
     .banner.error{border-color:#7a1b27; background:#230c12; color:#ffc7cf}
     table{width:100%; border-collapse:collapse; font-size:14px}
-    th, td{padding:10px 8px; border-bottom:1px solid #213065; vertical-align:top}
+    th, td{padding:8px 6px; border-bottom:1px solid #213065; vertical-align:top}
     th{position:sticky; top:0; background:#0e1a3c; text-align:left}
-    .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3a73}
+    .pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3a73}
     .pill.bug{background:#201227; color:#ffc4ec; border-color:#4e2b58}
     .pill.enh{background:#0d2130; color:#b9e2ff; border-color:#274f6a}
-    .muted{color:#93a1d9}
     .table-wrap{max-height:420px; overflow:auto; border:1px solid #1e2a58; border-radius:12px}
-    footer{padding:20px; text-align:center; color:#7d8ab3}
+    footer{padding:16px; text-align:center; color:#7d8ab3; font-size:13px}
   </style>
 </head>
 <body>
   <header>
     <div class="title">InCheck Issues Dashboard</div>
     <div style="margin-left:auto" class="toolbar">
-      <input id="searchInput" type="search" placeholder="Search title / ID / module" />
+      <label>Search:</label>
+      <input id="searchInput" type="search" placeholder="Title / ID / Module" />
+      <label>Module:</label>
       <select id="moduleFilter"></select>
+      <label>Priority:</label>
       <select id="priorityFilter"></select>
+      <label>Status:</label>
       <select id="statusFilter"></select>
-      <button id="refreshNow" class="secondary">Refresh Now</button>
+      <button id="refreshNow" class="secondary">🔄 Refresh</button>
       <button id="resetBtn" class="ghost">Reset</button>
     </div>
   </header>
 
   <div class="container">
-    <div id="statusBanner" class="banner" style="display:none"></div>
+    <div id="statusBanner" class="banner"></div>
 
-    <div class="grid cols-4" id="kpis"></div>
+    <div class="grid cols-5" id="kpis"></div>
 
     <div class="charts" style="margin-top:16px">
       <div class="card"><canvas id="byModule"></canvas></div>
@@ -73,7 +75,7 @@
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
         <strong style="font-size:16px">Issues</strong>
         <span id="rowCount" class="muted"></span>
-        <span id="lastUpdated" class="hint" style="margin-left:auto"></span>
+        <span id="lastUpdated" class="hint" style="margin-left:auto; font-size:12px"></span>
       </div>
       <div class="table-wrap">
         <table id="issuesTable">
@@ -92,20 +94,10 @@
         </table>
       </div>
     </div>
-
-    <div class="card" style="margin-top:16px">
-      <strong>Debug Preview (first 5 rows)</strong>
-      <div id="debugPreview" class="hint" style="margin-top:8px"></div>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <strong>Self Tests</strong>
-      <div id="testResults" class="hint" style="margin-top:8px"></div>
-    </div>
   </div>
 
   <footer>
-    Data loads live from Google Sheet (CSV export link).
+    Data loads live from Google Sheet (CSV export).
   </footer>
 
   <script>
@@ -123,8 +115,6 @@
       statusFilter: document.getElementById('statusFilter'),
       reset: document.getElementById('resetBtn'),
       refreshNow: document.getElementById('refreshNow'),
-      tests: document.getElementById('testResults'),
-      debug: document.getElementById('debugPreview'),
     };
 
     function showBanner(msg, type='info'){
@@ -160,7 +150,13 @@
     }
 
     function renderKpis(){
-      els.kpis.innerHTML = `<div class="card kpi"><div class="label">Total Issues</div><div class="value">${filtered.length}</div></div>`;
+      els.kpis.innerHTML = `
+        <div class="card kpi"><div class="label">Total Issues</div><div class="value">${filtered.length}</div></div>
+        <div class="card kpi"><div class="label">Modules</div><div class="value">${uniq(filtered.map(r=>r.module)).length}</div></div>
+        <div class="card kpi"><div class="label">Priorities</div><div class="value">${uniq(filtered.map(r=>r.priority)).length}</div></div>
+        <div class="card kpi"><div class="label">Statuses</div><div class="value">${uniq(filtered.map(r=>r.status)).length}</div></div>
+        <div class="card kpi"><div class="label">Types</div><div class="value">${uniq(filtered.map(r=>r.type)).length}</div></div>
+      `;
     }
 
     function renderFilters(){
@@ -212,7 +208,6 @@
         rows=parseCsv(text); filtered=[...rows];
         renderFilters(); applyFilters();
         els.lastUpdated.textContent='Last updated: '+new Date().toLocaleString();
-        els.debug.innerHTML=rows.slice(0,5).map(r=>`${r.id} | ${r.title} | ${r.description}`).join('<br>');
         showBanner(`Loaded ${rows.length} rows`);
       }catch(e){console.error(e);showBanner('Failed to load sheet: '+e.message,'error');}
     }
@@ -224,15 +219,6 @@
     els.reset.addEventListener('click',()=>{els.search.value='';renderFilters();applyFilters();});
     els.refreshNow.addEventListener('click',loadSheet);
 
-    // Self test
-    function runTests(){
-      const csv=`ID,Module,Title,Description,Type,Priority,Status\n1,Reporting,Export error,Broken export,Bug,High,Resolved`;
-      const r=parseCsv(csv)[0];
-      const ok=r.id==='1'&&r.description==='Broken export'&&r.type==='Bug'&&r.status==='Resolved';
-      els.tests.textContent=ok?'✅ Basic mapping works':'❌ Test failed';
-    }
-
-    runTests();
     loadSheet();
   </script>
 </body>
