@@ -147,7 +147,7 @@
 
       return {
         id: pick('ticket id','id') || `ROW-${i+1}`,
-        module: pick('impacted module','module','issue location') || 'Unspecified',  // ✅ works with "  Impacted  Module  "
+        module: pick('impacted module','module','issue location') || 'Unspecified',
         title: pick('title'),
         desc: pick('description'),
         file: pick('file upload','link','url'),
@@ -158,7 +158,13 @@
       };
     }
 
-    function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id);}
+    // ✅ Filter out empty rows
+    function parseCsv(t){
+      return Papa.parse(t,{header:true,skipEmptyLines:true}).data
+        .map(normalizeRow)
+        .filter(r => Object.values(r).some(v => v && v.trim() !== ""));
+    }
+
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
     function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
     function priorityBadge(p){return pill(p,`priority-${p}`);}
