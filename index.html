@@ -10,14 +10,15 @@
     refresh:document.getElementById('refreshNow'),
     kpis:document.getElementById('kpis'),
     modal:document.getElementById('issueModal'),
-    modalBody:document.getElementById('modalBody')
+    modalBody:document.getElementById('modalBody'),
+    toolbar:document.querySelector('.toolbar')
   };
   let rows=[],filtered=[],charts={},sortKey=null,sortAsc=true;
   let currentPage=1,rowsPerPage=20;
 
-  // --- Normalize rows ---
+  // --- Normalize ---
   function normalizeRow(raw){
-    const lower={}; 
+    const lower={};
     for(const k in raw){ if(!k) continue; lower[k.toLowerCase().trim()]=String(raw[k]??'').trim(); }
     const pick=(...keys)=>keys.map(k=>lower[k]).find(Boolean)||'';
     return {
@@ -34,7 +35,7 @@
     };
   }
 
-  // --- CSV parse ---
+  // --- CSV ---
   function parseCsv(t){
     return Papa.parse(t,{header:true,skipEmptyLines:true}).data
       .map(normalizeRow)
@@ -42,7 +43,7 @@
   }
 
   // --- Helpers ---
-  function pill(text,cls){return `<span class="pill ${cls}" role="status">${text||'-'}</span>`;}
+  function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
   function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
   function priorityBadge(p){return pill(p,`priority-${p}`);}
 
@@ -53,7 +54,7 @@
     els.kpis.innerHTML='';
     const add=(label,val)=>{
       const d=document.createElement('div');
-      d.className='card kpi'; d.setAttribute("tabindex","0"); // accessibility
+      d.className='card kpi'; d.setAttribute("tabindex","0");
       d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div>`;
       d.onclick=()=>{ if(label!=="Total Issues"){els.statusFilter.value=label;applyFilters();} };
       els.kpis.appendChild(d);
@@ -99,7 +100,7 @@
         <td>${statusBadge(r.status)}</td>
         <td>${r.date||'-'}</td>
         <td>${r.log||'-'}</td>
-        <td>${r.file?`<a href="${r.file}" target="_blank" aria-label="Attachment link">🔗</a>`:'-'}</td>
+        <td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td>
       </tr>`).join('');
     els.rowCount.textContent=`${filtered.length} rows (page ${currentPage}/${Math.ceil(filtered.length/rowsPerPage)})`;
   }
@@ -112,7 +113,7 @@
       if(charts[id])charts[id].destroy();
       charts[id]=new Chart(document.getElementById(id),{
         type,
-        data:{labels:Object.keys(data),datasets:[{data:Object.values(data),backgroundColor:Object.keys(data).map(k=>colors[k]||undefined)}]},
+        data:{labels:Object.keys(data),datasets:[{data:Object.values(data),backgroundColor:Object.keys(data).map(k=>colors[k]||'#4f8cff')}]},
         options:{plugins:{legend:{display:type!=='bar'}}}
       });
     };
@@ -135,8 +136,7 @@
       let keepDate=true;
       if(r.date){
         const d=new Date(r.date);
-        if(isNaN(d)) keepDate=true; // ignore bad dates
-        else{
+        if(!isNaN(d)){
           if(startDate&&d<startDate) keepDate=false;
           if(endDate&&d>=endDate) keepDate=false;
         }
@@ -173,6 +173,7 @@
   // --- Modal ---
   function openModal(id){
     const r=rows.find(x=>x.id===id);
+    if(!r) return;
     els.modalBody.innerHTML=`
       <h2>${r.title||'-'}</h2>
       <p><b>ID:</b> ${r.id||'-'}</p>
@@ -184,7 +185,6 @@
       <p><b>Log:</b> ${r.log||'-'}</p>
       ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;
     els.modal.style.display='flex';
-    els.modal.setAttribute("aria-modal","true");
   }
   function closeModal(){els.modal.style.display='none';}
 
@@ -198,14 +198,16 @@
   els.reset.onclick=()=>{document.getElementById('searchInput').value='';document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';renderFilters();applyFilters();};
   els.refresh.onclick=loadSheet;
 
-  // Sorting headers
+  // Sorting headers (safe mapping)
+  const headerMap={
+    "ID":"id","Module":"module","Title":"title","Priority":"priority","Status":"status","Date":"date","Log":"log"
+  };
   document.querySelectorAll("#issuesTable th").forEach(th=>{
     th.style.cursor="pointer";
     th.onclick=()=>{
-      const key=th.textContent.toLowerCase();
-      const mapping={id:"id",module:"module",title:"title",priority:"priority",status:"status",date:"date",log:"log"};
-      if(!mapping[key]) return;
-      if(sortKey===mapping[key]) sortAsc=!sortAsc; else{sortKey=mapping[key];sortAsc=true;}
+      const key=headerMap[th.textContent.trim()];
+      if(!key) return;
+      if(sortKey===key) sortAsc=!sortAsc; else{sortKey=key;sortAsc=true;}
       renderTable();
     };
   });
@@ -213,7 +215,7 @@
   // Export button
   const exportBtn=document.createElement("button");
   exportBtn.textContent="⬇ Export CSV"; exportBtn.onclick=exportCsv;
-  document.querySelector(".toolbar").appendChild(exportBtn);
+  els.toolbar.appendChild(exportBtn);
 
   // Theme toggle
   const themeBtn=document.getElementById('themeToggle');
