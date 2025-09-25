@@ -165,7 +165,7 @@
         <option value="light">Light</option>
       </select>
       <button id="refreshNow" class="btn"><span class="icon">🔄</span> Refresh</button>
-      <button id="exportBtn" class="btn"><span class="icon">⬇</span> Export CSV</button>
+      <button id="createTicketBtn" class="btn primary">   <span class="icon">➕</span> Create Ticket </button>
     </div>
   </header>
 
@@ -540,15 +540,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function closeModal(){ els.modal.style.display='none'; selectedIssue=null; }
 
-  // Export
-  function exportCsv(){
-    const csv = Papa.unparse(filtered);
-    const blob = new Blob([csv], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'issues_export.csv'; a.click();
-    URL.revokeObjectURL(url);
-  }
+// Redirect to Google Form instead of exporting
+els.createTicket = q('#createTicketBtn');
+els.createTicket.addEventListener('click', () => {
+  window.open("https://forms.gle/PPnEP1AQneoBT79s5", "_blank");
+});
+
 
   // Events
   function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
