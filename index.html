@@ -155,11 +155,41 @@
     }
 
     function renderFilters(){
-      const uniq=a=>[...new Set(a.filter(Boolean).map(x=>x.trim()))].sort((a,b)=>a.localeCompare(b));
-      const modules=uniq(rows.map(r=>r.module || "Unspecified"));
+      // Module filter (dedupe case-insensitive, trim)
+      let modules = rows.map(r => (r.module || "Unspecified").trim());
+      const seenM = new Set();
+      modules = modules.filter(m => {
+        const key = m.toLowerCase();
+        if(seenM.has(key)) return false;
+        seenM.add(key);
+        return true;
+      });
+      modules.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.moduleFilter.innerHTML=['All',...modules].map(v=>`<option value="${v}">${v}</option>`).join('');
-      els.priorityFilter.innerHTML=['All',...uniq(rows.map(r=>r.priority))].map(v=>`<option value="${v}">${v}</option>`).join('');
-      els.statusFilter.innerHTML=['All',...uniq(rows.map(r=>r.status))].map(v=>`<option value="${v}">${v}</option>`).join('');
+
+      // Priority filter
+      let priorities = rows.map(r => (r.priority || "Unspecified").trim());
+      const seenP = new Set();
+      priorities = priorities.filter(p => {
+        const key = p.toLowerCase();
+        if(seenP.has(key)) return false;
+        seenP.add(key);
+        return true;
+      });
+      priorities.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+      els.priorityFilter.innerHTML=['All',...priorities].map(v=>`<option value="${v}">${v}</option>`).join('');
+
+      // Status filter
+      let statuses = rows.map(r => (r.status || "Unspecified").trim());
+      const seenS = new Set();
+      statuses = statuses.filter(s => {
+        const key = s.toLowerCase();
+        if(seenS.has(key)) return false;
+        seenS.add(key);
+        return true;
+      });
+      statuses.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+      els.statusFilter.innerHTML=['All',...statuses].map(v=>`<option value="${v}">${v}</option>`).join('');
     }
 
     function renderTable(){
@@ -191,9 +221,9 @@
           if(endDate && issueDate > new Date(endDate)) keepDate=false;
         }
         return (!q||txt.includes(q))
-          &&(!m||m==='All'||r.module===m)
-          &&(!p||p==='All'||r.priority===p)
-          &&(!s||s==='All'||r.status===s)
+          &&(!m||m==='All'||(r.module||"Unspecified").trim()===m)
+          &&(!p||p==='All'||(r.priority||"Unspecified").trim()===p)
+          &&(!s||s==='All'||(r.status||"Unspecified").trim()===s)
           && keepDate;
       });
 
