@@ -16,6 +16,7 @@
     .toolbar{margin-left:auto;display:flex;gap:8px}
     select,input,button{background:#111935;color:var(--text);border:1px solid #263564;border-radius:8px;padding:8px 10px}
     button{cursor:pointer;font-weight:600}
+    #newTicketBtn{background:linear-gradient(180deg,#22c55e,#16a34a);border:none;} /* green button */
     .container{max-width:1200px;margin:0 auto;padding:20px}
     .grid{display:grid;gap:12px}
     .grid.cols-4{grid-template-columns:repeat(4,1fr)}
@@ -44,6 +45,7 @@
       <select id="priorityFilter"></select>
       <select id="statusFilter"></select>
       <button id="resetBtn">Reset</button>
+      <button id="newTicketBtn">➕ New Ticket</button>
     </div>
   </header>
 
@@ -102,7 +104,7 @@ const els={kpis:document.getElementById('kpis'),tableBody:document.querySelector
 search:document.getElementById('searchInput'),moduleFilter:document.getElementById('moduleFilter'),
 priorityFilter:document.getElementById('priorityFilter'),statusFilter:document.getElementById('statusFilter'),reset:document.getElementById('resetBtn')};
 let rows=[],filtered=[],charts={};
-function normalizeRow(raw){const lower={};for(const k in raw){lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
+function normalizeRow(raw){const lower={};for(const k in raw){lower[k.toLowerCase().replace(/\s+/g,' ').trim()]=String(raw[k]??'').trim();}
 const pick=(...keys)=>{for(const key of keys){if(lower[key])return lower[key];}return'';}
 return{id:pick('ticket id','id','incheck id'),module:pick('impacted module','module'),title:pick('title'),description:pick('description'),type:pick('type','category'),priority:pick('priority'),status:pick('status','task status'),links:pick('file upload')};}
 function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id||r.title);}
@@ -132,6 +134,8 @@ document.getElementById('issueModal').style.display='flex';}
 document.getElementById('closeModal').onclick=()=>document.getElementById('issueModal').style.display='none';
 els.search.oninput=()=>applyFilters();els.moduleFilter.onchange=()=>applyFilters();els.priorityFilter.onchange=()=>applyFilters();els.statusFilter.onchange=()=>applyFilters();
 els.reset.onclick=()=>{els.search.value='';renderFilters();applyFilters();};
+// New Ticket button
+document.getElementById('newTicketBtn').onclick=()=>{window.open("https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform","_blank");};
 (async()=>{const text=await (await fetch(SHEET_URL)).text();rows=parseCsv(text);filtered=[...rows];renderFilters();applyFilters();})();
 </script>
 </body>
