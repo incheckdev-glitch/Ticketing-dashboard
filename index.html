@@ -120,16 +120,21 @@
 
     function normalizeRow(raw){
       const lower = {};
-      for(const k in raw){if(!k)continue;lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
-      const pick=(...keys)=>{for(const key of keys){if(lower[key])return lower[key];}return '';}
+      for(const k in raw){
+        if(!k) continue;
+        // normalize: lowercase, trim, collapse multiple spaces
+        const normKey = k.toLowerCase().replace(/\s+/g,' ').trim();
+        lower[normKey] = String(raw[k] ?? '').trim();
+      }
+      const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return '';}
       return {
-        id: pick('ticket id','id'),
+        id: pick('ticket id','id','incheck id'),
         module: pick('module','impacted module'),
         title: pick('title'),
         description: pick('description'),
         type: pick('type','category'),
         priority: pick('priority'),
-        status: pick('status'),
+        status: pick('status','task status'),
       };
     }
 
