@@ -105,7 +105,7 @@
       <div class="table-wrap">
         <table id="issuesTable">
           <thead><tr>
-            <th>ID</th><th>Module</th><th>Title</th><th>Priority</th><th>Status</th><th>Date</th><th>Link</th>
+            <th>ID</th><th>Module</th><th>Title</th><th>Priority</th><th>Status</th><th>Date</th><th>Log</th><th>Link</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -153,18 +153,18 @@
         priority: pick('priority'),
         status: pick('status') || 'Not Started Yet',
         type: pick('category','type'),
-        date: pick('timestamp','date','created at')
+        date: pick('timestamp','date','created at'),
+        log: pick('log','logs','comment','notes')   // ✅ new
       };
     }
 
-    // ✅ Hard filter: drop rows where only Timestamp is filled
     function parseCsv(t){
       return Papa.parse(t,{header:true,skipEmptyLines:true}).data
         .map(normalizeRow)
         .filter(r => {
-          const keys = ["id","title","module","desc","priority","status","type","file"];
+          const keys = ["id","title","module","desc","priority","status","type","file","log"];
           const hasRealField = keys.some(k => r[k] && r[k].trim() !== "" && r[k].trim() !== "Unspecified");
-          return hasRealField; // must have at least one real field
+          return hasRealField;
         });
     }
 
@@ -216,6 +216,7 @@
           <td>${priorityBadge(r.priority)}</td>
           <td>${statusBadge(r.status)}</td>
           <td>${r.date||'-'}</td>
+          <td>${r.log||'-'}</td>
           <td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td>
         </tr>`).join('');
       els.rowCount.textContent=`${filtered.length} rows`;
@@ -247,7 +248,7 @@
       const endDate=end?(()=>{let d=new Date(end);d.setDate(d.getDate()+1);return d;})():null;
 
       filtered=rows.filter(r=>{
-        const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')).toLowerCase();
+        const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')+' '+(r.log||'')).toLowerCase();
         let keepDate=true;
         if(r.date){
           const d=new Date(r.date);
@@ -282,6 +283,7 @@
         <p><b>Status:</b> ${r.status||'-'}</p>
         <p><b>Date:</b> ${r.date||'-'}</p>
         <p><b>Description:</b> ${r.desc||'-'}</p>
+        <p><b>Log:</b> ${r.log||'-'}</p>
         ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;
       els.modal.style.display='flex';
     }
