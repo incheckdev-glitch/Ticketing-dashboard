@@ -3,68 +3,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>InCheck Issues Dashboard</title>
+  <title>InCheck Issues Dashboard (Upgraded)</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root {
-      --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff;
-      --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
-      --info:#3b82f6; --purple:#8b5cf6; --neutral:#6b7280;
+      --bg:#0b1020; --card:#111935; --muted:#9aa3c7; --text:#e8edff;
+      --accent:#4f8cff; --danger:#f87171; --ok:#34d399; --warn:#fbbf24;
+      --info:#60a5fa; --purple:#c084fc; --neutral:#9ca3af;
     }
     :root[data-theme="light"] {
       --bg:#f8f9ff; --card:#ffffff; --muted:#555; --text:#111;
-      --accent:#2563eb; --danger:#dc2626; --ok:#059669; --warn:#d97706;
-      --info:#1d4ed8; --purple:#7c3aed; --neutral:#374151;
+      --accent:#2563eb; --danger:#fca5a5; --ok:#6ee7b7; --warn:#fde68a;
+      --info:#93c5fd; --purple:#d8b4fe; --neutral:#9ca3af;
+    }
+    :root[data-theme="blue"] {
+      --bg:#e6f0ff; --card:#ffffff; --muted:#334155; --text:#0f172a;
+      --accent:#3b82f6; --danger:#ef4444; --ok:#22c55e; --warn:#f59e0b;
+      --info:#2563eb; --purple:#6366f1; --neutral:#475569;
+    }
+    :root[data-theme="green"] {
+      --bg:#ecfdf5; --card:#ffffff; --muted:#065f46; --text:#022c22;
+      --accent:#10b981; --danger:#dc2626; --ok:#059669; --warn:#d97706;
+      --info:#047857; --purple:#7c3aed; --neutral:#065f46;
     }
     body {
-      margin:0; font-family:Inter,sans-serif; background:var(--bg); color:var(--text);
-      transition: background 0.3s, color 0.3s;
+      margin:0;font-family:Inter,sans-serif;background:var(--bg);color:var(--text);
+      transition:background 0.3s ease,color 0.3s ease;
     }
     header {
-      display:flex; align-items:center; gap:12px;
-      padding:16px; position:sticky; top:0; background:var(--card);
-      z-index:10; box-shadow:0 2px 6px rgba(0,0,0,0.2);
-      flex-wrap:wrap; border-bottom:1px solid #222;
+      display:flex;gap:8px;align-items:center;padding:12px 16px;
+      position:sticky;top:0;background:var(--card);z-index:10;flex-wrap:wrap;
+      box-shadow:0 2px 5px rgba(0,0,0,0.2);
     }
-    header .title { font-weight:700; font-size:20px }
-    .toolbar { margin-left:auto; display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end }
-    .toolbar label { display:flex; flex-direction:column; font-size:12px; color:var(--muted) }
-    .toolbar input, .toolbar select, .toolbar button {
-      padding:6px 10px; border-radius:8px; font:inherit; border:none;
-    }
-    button { cursor:pointer; font-weight:600; }
-    button:hover { opacity:0.9; }
-    .container { padding:20px; max-width:1280px; margin:0 auto }
-    .grid { display:grid; gap:16px }
-    .grid.cols-4 { grid-template-columns:repeat(4,1fr) }
-    @media(max-width:900px){.grid.cols-4{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:580px){.grid.cols-4{grid-template-columns:1fr}}
-    .card {
-      background:var(--card); border-radius:12px; padding:16px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.25); transition:transform 0.2s;
-    }
-    .card:hover { transform:translateY(-2px); }
-    .kpi { text-align:center; cursor:pointer; }
-    .kpi .label { font-size:12px; color:var(--muted); text-transform:uppercase }
-    .kpi .value { font-size:24px; font-weight:700; margin-top:6px }
-    .charts { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:20px }
+    header .title { font-weight:700;font-size:18px }
+    .toolbar { margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end }
+    input,select,button { padding:6px 10px;border-radius:8px;font:inherit;border:none }
+    button { cursor:pointer;font-weight:600 }
+    .container { padding:20px;max-width:1200px;margin:0 auto }
+    .grid { display:grid;gap:16px }
+    /* KPI strip is horizontally scrollable */
+    .grid.kpis { grid-auto-flow:column;grid-auto-columns:200px;overflow-x:auto;padding-bottom:10px }
+    .card { background:var(--card);border-radius:12px;padding:16px;transition:transform 0.2s }
+    .card:hover { transform:translateY(-3px) }
+    .kpi { text-align:center;cursor:pointer;min-width:150px }
+    .kpi .label { font-size:12px;color:var(--muted);text-transform:uppercase }
+    .kpi .value { font-size:22px;font-weight:700 }
+    .charts { display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px }
     @media(max-width:900px){.charts{grid-template-columns:1fr}}
-    table { width:100%; border-collapse:collapse; font-size:14px }
-    th,td { padding:10px; border-bottom:1px solid #333 }
-    th { position:sticky; top:0; background:var(--card); text-align:left }
+    table { width:100%;border-collapse:collapse;font-size:14px }
+    th,td { padding:8px;border-bottom:1px solid #333 }
+    tr { transition:background 0.2s }
     tr:nth-child(even){ background:rgba(255,255,255,0.03) }
-    tr:hover { background:rgba(255,255,255,0.07) }
-    .table-wrap { max-height:420px; overflow:auto; border-radius:8px }
-    .pill { padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600; display:inline-block }
-    .status-Resolved{background:var(--ok);color:#fff}
-    .status-Under\ Development{background:var(--info);color:#fff}
-    .status-Rejected{background:var(--danger);color:#fff}
-    .status-On\ Hold{background:var(--warn);color:#000}
-    .status-Not\ Started\ Yet{background:var(--neutral);color:#fff}
-    .status-Sent{background:var(--purple);color:#fff}
-    .priority-High{background:#f87171;color:#fff}
+    tr:hover { background:rgba(255,255,255,0.1) }
+    th { position:sticky;top:0;background:var(--card) }
+    .table-wrap { max-height:420px;overflow:auto }
+    .pill { padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;display:inline-block }
+    .status-Resolved{background:var(--ok);color:#000}
+    .status-Under\\ Development{background:var(--info);color:#000}
+    .status-Rejected{background:var(--danger);color:#000}
+    .status-On\\ Hold{background:var(--warn);color:#000}
+    .status-Not\\ Started\\ Yet{background:var(--neutral);color:#fff}
+    .status-Sent{background:var(--purple);color:#000}
+    .priority-High{background:#f87171;color:#000}
     .priority-Medium{background:#fbbf24;color:#000}
     .priority-Low{background:#34d399;color:#000}
     /* Modal */
@@ -72,10 +74,19 @@
       background:rgba(0,0,0,.7); align-items:center; justify-content:center; z-index:100 }
     .modal-content {
       background:var(--card); color:var(--text); padding:20px; border-radius:12px;
-      max-width:700px; width:90%; max-height:90%; overflow:auto;
-      box-shadow:0 4px 20px rgba(0,0,0,0.4);
+      max-width:700px; width:90%; max-height:90%; overflow:auto; box-shadow:0 4px 20px rgba(0,0,0,0.4);
+      animation:fadeIn 0.3s ease;
     }
     .modal-close { float:right; cursor:pointer; font-weight:bold }
+    @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    /* Mobile table */
+    @media(max-width:600px){
+      table, thead, tbody, th, td, tr{display:block}
+      thead{display:none}
+      tr{margin-bottom:10px;border:1px solid #333;border-radius:8px;padding:8px;background:var(--card)}
+      td{border:none;padding:6px}
+      td:before{content:attr(data-label) ": ";font-weight:600;color:var(--muted)}
+    }
   </style>
 </head>
 <body>
@@ -93,19 +104,19 @@
       <a href="https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform" target="_blank">
         <button id="newTicketBtn">➕ New Ticket</button>
       </a>
-      <button id="themeToggle">🌙</button>
+      <button id="themeToggle" title="Switch theme">🌙</button>
     </div>
   </header>
 
   <div class="container">
-    <div class="grid cols-4" id="kpis"></div>
+    <div class="grid kpis" id="kpis"></div>
     <div class="charts">
       <div class="card"><canvas id="byModule"></canvas></div>
       <div class="card"><canvas id="byPriority"></canvas></div>
       <div class="card"><canvas id="byStatus"></canvas></div>
       <div class="card"><canvas id="byType"></canvas></div>
     </div>
-    <div class="card" style="margin-top:20px">
+    <div class="card" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>Issues</strong><span id="rowCount"></span>
       </div>
@@ -122,16 +133,17 @@
   </div>
 
   <!-- Modal -->
-  <div id="issueModal" class="modal">
+  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="issueTitle">
     <div class="modal-content">
-      <span class="modal-close" onclick="closeModal()">&times;</span>
+      <span class="modal-close" onclick="closeModal()" aria-label="Close">&times;</span>
       <div id="modalBody"></div>
     </div>
   </div>
 
   <script>
     const SHEET_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
-    const els={tableBody:document.querySelector('#issuesTable tbody'),
+    const els={
+      tableBody:document.querySelector('#issuesTable tbody'),
       rowCount:document.getElementById('rowCount'),
       moduleFilter:document.getElementById('moduleFilter'),
       priorityFilter:document.getElementById('priorityFilter'),
@@ -140,16 +152,19 @@
       refresh:document.getElementById('refreshNow'),
       kpis:document.getElementById('kpis'),
       modal:document.getElementById('issueModal'),
-      modalBody:document.getElementById('modalBody')};
+      modalBody:document.getElementById('modalBody')
+    };
     let rows=[],filtered=[],charts={};
+
+    const debounce=(fn,delay=300)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),delay);};};
 
     function normalizeRow(raw){
       const lower={}; for(const k in raw){
         if(!k) continue;
-        const cleanKey=k.toLowerCase().replace(/\s+/g,' ').trim();
+        const cleanKey=k.toLowerCase().replace(/\\s+/g,' ').trim();
         lower[cleanKey]=String(raw[k]??'').trim();
       }
-      const pick=(...keys)=>{ for(const key of keys){ if(lower[key]) return lower[key]; } return ''; };
+      const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return '';};
       return {
         id: pick('ticket id','id'),
         module: pick('impacted module','module','issue location')||'Unspecified',
@@ -171,19 +186,22 @@
     }
 
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
-    function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
-    function priorityBadge(p){return pill(p,`priority-${p}`);}
+    function statusBadge(s){return pill(s,`status-${(s||'').replace(/\\s/g,'\\\\ ')}`);}
+    function priorityBadge(p){return pill(p,`priority-${p||''}`);}
 
     function renderKpis(){
       const total=filtered.length; const counts={};
       filtered.forEach(r=>{counts[r.status]=(counts[r.status]||0)+1;});
       els.kpis.innerHTML='';
-      const add=(label,val)=>{const d=document.createElement('div');
+      const add=(label,val)=>{
+        const d=document.createElement('div');
         d.className='card kpi';
         d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div>`;
-        d.onclick=()=>{els.statusFilter.value=label;applyFilters();};
-        els.kpis.appendChild(d);};
-      add('Total Issues',total); Object.entries(counts).forEach(([s,v])=>add(s,v));
+        d.onclick=()=>{ if(label!=='Total Issues'){ els.statusFilter.value=label; applyFilters(); } };
+        els.kpis.appendChild(d);
+      };
+      add('Total Issues',total);
+      Object.entries(counts).forEach(([s,v])=>add(s,v));
     }
 
     function renderFilters(){
@@ -195,27 +213,41 @@
 
     function renderTable(){
       els.tableBody.innerHTML=filtered.map(r=>`
-        <tr onclick="openModal('${r.id}')">
-          <td>${r.id||'-'}</td>
-          <td>${r.module}</td>
-          <td>${r.title||'-'}</td>
-          <td>${priorityBadge(r.priority)}</td>
-          <td>${statusBadge(r.status)}</td>
-          <td>${r.date||'-'}</td>
-          <td>${r.log||'-'}</td>
-          <td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td>
+        <tr role="button" tabindex="0" onclick="openModal('${(r.id||'').replace(/'/g,'&#39;')}')">
+          <td data-label="ID">${r.id||'-'}</td>
+          <td data-label="Module">${r.module||'-'}</td>
+          <td data-label="Title">${r.title||'-'}</td>
+          <td data-label="Priority">${priorityBadge(r.priority)}</td>
+          <td data-label="Status">${statusBadge(r.status)}</td>
+          <td data-label="Date">${r.date||'-'}</td>
+          <td data-label="Log">${r.log||'-'}</td>
+          <td data-label="Link">${r.file?`<a href="${r.file}" target="_blank" rel="noopener">🔗</a>`:'-'}</td>
         </tr>`).join('');
       els.rowCount.textContent=`${filtered.length} rows`;
     }
 
-    function groupCount(list,key){return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
+    function groupCount(list,key){
+      return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
     function drawCharts(){
-      const make=(id,type,data)=>{if(charts[id])charts[id].destroy();
-        charts[id]=new Chart(document.getElementById(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]},options:{plugins:{legend:{display:type!=='bar'}}}});}
-      make('byModule','bar',groupCount(filtered,'module'));
-      make('byPriority','doughnut',groupCount(filtered,'priority'));
-      make('byStatus','bar',groupCount(filtered,'status'));
-      make('byType','bar',groupCount(filtered,'type'));
+      const make=(id,type,data,colors)=>{
+        if(charts[id]) charts[id].destroy();
+        charts[id]=new Chart(document.getElementById(id),{
+          type,
+          data:{labels:Object.keys(data),datasets:[{data:Object.values(data),backgroundColor:colors}]},
+          options:{plugins:{tooltip:{callbacks:{label:ctx=>{
+            const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const val=ctx.raw;
+            const pct = total ? ((val/total)*100).toFixed(1) : 0;
+            return `${ctx.label}: ${val} (${pct}%)`;
+          }}}},
+          animation:{duration:800,easing:'easeOutQuart'},
+          responsive:true,maintainAspectRatio:false}
+        });
+      };
+      make('byModule','bar',groupCount(filtered,'module'),['#93c5fd','#a7f3d0','#fde68a','#fca5a5','#c4b5fd','#bbf7d0']);
+      make('byPriority','doughnut',groupCount(filtered,'priority'),['#fca5a5','#fde68a','#a7f3d0']);
+      make('byStatus','bar',groupCount(filtered,'status'),['#60a5fa','#34d399','#f87171','#fbbf24','#9ca3af','#c084fc']);
+      make('byType','bar',groupCount(filtered,'type'),['#6366f1','#22c55e','#f59e0b','#fca5a5','#a7f3d0']);
     }
 
     function applyFilters(){
@@ -225,43 +257,88 @@
       const end=document.getElementById('endDateFilter').value;
       const startDate=start?new Date(start):null;
       const endDate=end?(()=>{let d=new Date(end);d.setDate(d.getDate()+1);return d;})():null;
+
       filtered=rows.filter(r=>{
-        const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')+' '+(r.log||'')).toLowerCase();
+        const hay=(r.id+' '+(r.module||'')+' '+(r.title||'')+' '+(r.desc||'')+' '+(r.log||'')).toLowerCase();
         let keepDate=true;
-        if(r.date){const d=new Date(r.date);if(startDate&&d<startDate)keepDate=false;if(endDate&&d>=endDate)keepDate=false;}
-        else if(startDate||endDate) keepDate=false;
-        return (!q||hay.includes(q))&&(!m||m==='All'||r.module===m)&&(!p||p==='All'||r.priority===p)&&(!s||s==='All'||r.status===s)&&keepDate;});
+        if(r.date){
+          const d=new Date(r.date);
+          if(startDate && d<startDate) keepDate=false;
+          if(endDate && d>=endDate) keepDate=false;
+        } else if(startDate||endDate){ keepDate=false; }
+        return (!q||hay.includes(q))
+          && (!m||m==='All'||r.module===m)
+          && (!p||p==='All'||r.priority===p)
+          && (!s||s==='All'||r.status===s)
+          && keepDate;
+      });
+
       renderKpis();renderTable();drawCharts();
     }
 
-    async function loadSheet(){const res=await fetch(SHEET_URL);const text=await res.text();rows=parseCsv(text);filtered=[...rows];renderFilters();applyFilters();}
-    function openModal(id){const r=rows.find(x=>x.id===id);
+    async function loadSheet(){
+      try{
+        const res=await fetch(SHEET_URL);
+        const text=await res.text();
+        rows=parseCsv(text);
+        filtered=[...rows];
+        renderFilters();
+        applyFilters();
+      }catch(e){
+        console.error('Failed to load CSV',e);
+        els.kpis.innerHTML='<div class="card">Failed to load data.</div>';
+      }
+    }
+
+    function openModal(id){
+      const r=rows.find(x=>x.id===id) || {};
       els.modalBody.innerHTML=`
-        <h2>${r.title||'-'}</h2>
+        <h2 id="issueTitle">${r.title||'-'}</h2>
         <p><b>ID:</b> ${r.id||'-'}</p>
-        <p><b>Module:</b> ${r.module}</p>
+        <p><b>Module:</b> ${r.module||'-'}</p>
         <p><b>Priority:</b> ${r.priority||'-'}</p>
         <p><b>Status:</b> ${r.status||'-'}</p>
         <p><b>Date:</b> ${r.date||'-'}</p>
         <p><b>Description:</b> ${r.desc||'-'}</p>
         <p><b>Log:</b> ${r.log||'-'}</p>
-        ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;
-      els.modal.style.display='flex';}
+        ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank" rel="noopener">${r.file}</a></p>`:''}
+      `;
+      els.modal.style.display='flex';
+    }
     function closeModal(){els.modal.style.display='none';}
+    window.addEventListener('click',(e)=>{ if(e.target===els.modal) closeModal(); });
+    window.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); });
 
-    document.getElementById('searchInput').addEventListener('input',applyFilters);
+    document.getElementById('searchInput').addEventListener('input',debounce(applyFilters,250));
     els.moduleFilter.addEventListener('change',applyFilters);
     els.priorityFilter.addEventListener('change',applyFilters);
     els.statusFilter.addEventListener('change',applyFilters);
     document.getElementById('startDateFilter').addEventListener('change',applyFilters);
     document.getElementById('endDateFilter').addEventListener('change',applyFilters);
-    els.reset.onclick=()=>{document.getElementById('searchInput').value='';document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';renderFilters();applyFilters();};
+    els.reset.onclick=()=>{document.getElementById('searchInput').value='';
+      document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';
+      renderFilters();els.moduleFilter.value='All';els.priorityFilter.value='All';els.statusFilter.value='All';applyFilters();};
     els.refresh.onclick=loadSheet;
-    loadSheet();
 
+    /* Theme cycle */
+    const themes=['dark','light','blue','green'];
     const themeBtn=document.getElementById('themeToggle');
-    if(localStorage.getItem('theme')){document.documentElement.setAttribute('data-theme',localStorage.getItem('theme'));themeBtn.textContent=localStorage.getItem('theme')==='light'?'🌙':'☀️';}
-    themeBtn.addEventListener('click',()=>{const cur=document.documentElement.getAttribute('data-theme')||'dark';const next=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);localStorage.setItem('theme',next);themeBtn.textContent=next==='light'?'🌙':'☀️';});
+    function applyTheme(theme){
+      document.documentElement.setAttribute('data-theme', theme==='dark'?'':theme);
+      localStorage.setItem('theme', theme);
+      themeBtn.textContent = theme==='dark'?'🌙':theme==='light'?'☀️':theme==='blue'?'💙':'💚';
+    }
+    (function initTheme(){
+      const t=localStorage.getItem('theme')||'dark';
+      applyTheme(t);
+      themeBtn.addEventListener('click',()=>{
+        const cur=localStorage.getItem('theme')||'dark';
+        const idx=(themes.indexOf(cur)+1)%themes.length;
+        applyTheme(themes[idx]);
+      });
+    })();
+
+    loadSheet();
   </script>
 </body>
 </html>
