@@ -166,7 +166,7 @@
       </select>
       <button id="refreshNow" class="btn"><span class="icon">🔄</span> Refresh</button>
       <button id="exportBtn" class="btn"><span class="icon">⬇</span> Export CSV</button>
-      <!-- New Create Ticket Button -->
+      <!-- Create Ticket Button -->
       <a href="https://docs.google.com/forms/d/e/1FAIpQLScZBcjXHMzssdXADWcmBiQKurxxR6eHQ_qR7-JdDoUbZg78lw/viewform" 
          target="_blank" 
          rel="noopener" 
@@ -174,7 +174,124 @@
     </div>
   </header>
 
-  <!-- Rest of your code remains unchanged -->
-  <!-- ... keep all your <div class="wrap">, table, modal, script, etc. ... -->
+  <div class="wrap">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <h3>Filters</h3>
+      <div class="filter-group">
+        <div class="filter-row">
+          <label class="muted">Module</label>
+          <select id="moduleFilter" class="select"></select>
+        </div>
+        <div class="filter-row">
+          <label class="muted">Priority</label>
+          <select id="priorityFilter" class="select"></select>
+        </div>
+        <div class="filter-row">
+          <label class="muted">Status</label>
+          <select id="statusFilter" class="select"></select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="filter-group">
+        <div class="filter-row">
+          <label class="muted">Start Date</label>
+          <input type="date" id="startDateFilter" class="input">
+        </div>
+        <div class="filter-row">
+          <label class="muted">End Date</label>
+          <input type="date" id="endDateFilter" class="input">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="filter-group">
+        <button id="resetBtn" class="btn ghost">Reset</button>
+        <span class="muted">Tip: click any KPI to filter by that status.</span>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      <div class="grid cols-4" id="kpis"></div>
+
+      <div class="charts">
+        <div class="card"><canvas id="byModule" height="140"></canvas></div>
+        <div class="card"><canvas id="byPriority" height="140"></canvas></div>
+        <div class="card"><canvas id="byStatus" height="140"></canvas></div>
+        <div class="card"><canvas id="byType" height="140"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Issues</strong>
+          <span id="rowCount" class="muted"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table id="issuesTable">
+            <thead><tr>
+              <th data-key="id" class="sortable">ID</th>
+              <th data-key="module" class="sortable">Module</th>
+              <th data-key="title" class="sortable">Title</th>
+              <th data-key="priority" class="sortable">Priority</th>
+              <th data-key="status" class="sortable">Status</th>
+              <th data-key="date" class="sortable">Date</th>
+              <th data-key="log" class="sortable">Log</th>
+              <th>Link</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="table-actions">
+          <div class="pagination">
+            <button id="firstPage" class="chip">« First</button>
+            <button id="prevPage" class="chip">‹ Prev</button>
+            <span id="pageInfo" class="muted"></span>
+            <button id="nextPage" class="chip">Next ›</button>
+            <button id="lastPage" class="chip">Last »</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="muted">Rows per page</span>
+            <select id="pageSize" class="select sm">
+              <option>10</option><option selected>20</option><option>50</option><option>100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <div class="header">
+        <h2 id="modalTitle" style="margin:0;font-size:20px">Issue</h2>
+        <div class="actions">
+          <button id="copyId" class="btn sm"><span class="icon">🆔</span> Copy ID</button>
+          <button id="copyLink" class="btn sm"><span class="icon">🔗</span> Copy Link</button>
+          <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Spinner + Toast -->
+  <div class="spinner" id="spinner"><div class="ring"></div></div>
+  <div class="toast" id="toast"></div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+
+  // ... rest of your JavaScript logic stays unchanged ...
+  // (all parsing, rendering, filtering, charts, etc.)
+});
+</script>
 </body>
 </html>
