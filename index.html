@@ -135,18 +135,17 @@
     };
     let rows=[],filtered=[],charts={};
 
-    function normalizeRow(raw, i){
+    function normalizeRow(raw){
       const lower={};
       for(const k in raw){
         if(!k) continue;
-        // normalize header: collapse multiple spaces + trim
         const cleanKey = k.toLowerCase().replace(/\s+/g,' ').trim();
         lower[cleanKey] = String(raw[k] ?? '').trim();
       }
       const pick=(...keys)=>{ for(const key of keys){ if(lower[key.toLowerCase()]) return lower[key.toLowerCase()]; } return ''; };
 
       return {
-        id: pick('ticket id','id') || `ROW-${i+1}`,
+        id: pick('ticket id','id'), // ❌ no more fake ROW-xx IDs
         module: pick('impacted module','module','issue location') || 'Unspecified',
         title: pick('title'),
         desc: pick('description'),
@@ -158,11 +157,13 @@
       };
     }
 
-    // ✅ Filter out empty rows
+    // ✅ Filter out blank rows
     function parseCsv(t){
       return Papa.parse(t,{header:true,skipEmptyLines:true}).data
         .map(normalizeRow)
-        .filter(r => Object.values(r).some(v => v && v.trim() !== ""));
+        .filter(r => {
+          return Object.values(r).some(v => v && v.trim() !== "");
+        });
     }
 
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
@@ -207,7 +208,7 @@
     function renderTable(){
       els.tableBody.innerHTML=filtered.map(r=>`
         <tr onclick="openModal('${r.id}')">
-          <td>${r.id}</td>
+          <td>${r.id||'-'}</td>
           <td>${r.module}</td>
           <td>${r.title||'-'}</td>
           <td>${priorityBadge(r.priority)}</td>
@@ -273,7 +274,7 @@
       const r=rows.find(x=>x.id===id);
       els.modalBody.innerHTML=`
         <h2>${r.title||'-'}</h2>
-        <p><b>ID:</b> ${r.id}</p>
+        <p><b>ID:</b> ${r.id||'-'}</p>
         <p><b>Module:</b> ${r.module}</p>
         <p><b>Priority:</b> ${r.priority||'-'}</p>
         <p><b>Status:</b> ${r.status||'-'}</p>
