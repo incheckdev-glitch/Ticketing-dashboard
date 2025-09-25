@@ -125,19 +125,16 @@
     let rows=[],filtered=[],charts={};
 
     function normalizeRow(raw){
-      const lower={}; 
-      for(const k in raw){if(k) lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
-      const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return'';}
       return {
-        id: pick('ticket id','id'),
-        module: pick('impacted module'),
-        title: pick('title'),
-        desc: pick('description'),
-        file: pick('file upload','link','url'),
-        priority: pick('priority'),
-        status: pick('status') || 'Not Started Yet',
-        type: pick('category','type'),
-        date: pick('timestamp','date','created at')
+        id: raw["Ticket ID"]?.trim() || raw["ID"]?.trim() || "",
+        module: raw["Impacted Module"]?.trim() || raw["impacted module"]?.trim() || "", // 👈 force column 8
+        title: raw["Title"]?.trim() || "",
+        desc: raw["Description"]?.trim() || "",
+        file: raw["File Upload"]?.trim() || raw["Link"]?.trim() || raw["URL"]?.trim() || "",
+        priority: raw["Priority"]?.trim() || "",
+        status: raw["Status"]?.trim() || "Not Started Yet",
+        type: raw["Category"]?.trim() || raw["Type"]?.trim() || "",
+        date: raw["Timestamp"]?.trim() || raw["Date"]?.trim() || raw["Created At"]?.trim() || ""
       };
     }
 
