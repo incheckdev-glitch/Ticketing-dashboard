@@ -3,94 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>InCheck Pro Dashboard (Standalone)</title>
+  <title>InCheck Issues Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
-    :root {
-      --bg: #0b1020;
-      --card: #111935;
-      --muted: #7d8ab3;
-      --text: #e8edff;
-      --accent: #4f8cff;
-      --accent-2: #8b5cf6;
-      --danger: #ef4444;
-      --ok: #10b981;
-    }
-    [data-theme="light"] {
-      --bg: #f7f9fc;
-      --card: #ffffff;
-      --muted: #55627a;
-      --text: #1e1e2f;
-      --accent: #365dc7;
-      --accent-2: #7c3aed;
-      --danger: #b91c1c;
-      --ok: #059669;
-    }
-    * { box-sizing: border-box }
-    body {
-      margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      background: var(--bg); color: var(--text);
-    }
-    header {
-      display:flex; gap:12px; align-items:center; padding:16px 20px;
-      position:sticky; top:0; z-index:10;
-      background-color: var(--bg); border-bottom:1px solid #1e2a58;
-    }
-    .title { font-weight:700; font-size:18px }
-    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto }
-    button, select, input[type="search"], input[type="date"] {
-      background: var(--card); color: var(--text); border:1px solid #263564;
-      border-radius:8px; padding:8px 10px; font:inherit;
-    }
-    button { cursor:pointer; font-weight:600; }
-    .filter-panel {
-      display:none; padding:10px; background:var(--card);
-      border-bottom:1px solid #1e2a58; animation:slideDown .3s ease forwards;
-    }
-    @keyframes slideDown { from{opacity:0; transform:translateY(-10px)} to{opacity:1; transform:translateY(0)} }
-    .container { padding:20px; max-width:1200px; margin:0 auto }
-    .grid { display:grid; gap:16px }
-    .grid.cols-4{ grid-template-columns:repeat(4,1fr) }
-    .charts{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:16px }
-    @media(max-width:900px){ .grid.cols-4{grid-template-columns:repeat(2,1fr)} .charts{grid-template-columns:1fr} }
-    .card{ background:var(--card); border-radius:12px; padding:12px; }
-    table{ width:100%; border-collapse:collapse; font-size:14px; margin-top:8px }
-    th,td{ padding:8px; border-bottom:1px solid #213065; text-align:left }
-    th{ background:var(--card); position:sticky; top:0 }
-    .pill{ padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3a73; }
+    :root{ --bg:#0b1020; --card:#111935; --muted:#7d8ab3; --text:#e8edff; --accent:#4f8cff; --accent-2:#8b5cf6; --danger:#ef4444; --ok:#10b981; }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:linear-gradient(180deg,#0b1020,#0c1328 40%,#0e1530); color:var(--text)}
+    header{display:flex; gap:12px; align-items:center; padding:20px 24px; position:sticky; top:0; backdrop-filter:saturate(140%) blur(8px); background-color:#0b1020d0; z-index:10; border-bottom:1px solid #1e2a58}
+    header .title{font-weight:700; font-size:18px}
+    .container{padding:20px 24px; max-width:1200px; margin:0 auto}
+    .grid{display:grid; gap:16px}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .charts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
+    @media (max-width: 900px){ .grid.cols-4{grid-template-columns:repeat(2,1fr)} .charts{grid-template-columns:1fr} }
+    @media (max-width: 580px){ .grid.cols-4{grid-template-columns:1fr} }
+    .card{background:var(--card); border:1px solid #1e2a58; border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .kpi{display:flex; flex-direction:column; gap:6px}
+    .kpi .label{color:var(--muted); font-size:12px; text-transform:uppercase}
+    .kpi .value{font-size:28px; font-weight:800}
+    .toolbar{display:flex; flex-wrap:wrap; gap:8px}
+    select, input[type="search"], button{background:#0f1733; color:var(--text); border:1px solid #263564; border-radius:10px; padding:10px 12px; font:inherit}
+    button{background:linear-gradient(180deg,#365dc7,#2c4dac); border:none; font-weight:600; cursor:pointer}
+    button.ghost{background:#0f1733}
+    button.secondary{background:#0f1733; border:1px solid #2a3a73}
+    .hint{font-size:12px; color:#a7b4df}
+    .banner{border:1px solid #3b4c8a; background:#0e1838; padding:8px 12px; border-radius:10px; color:#bfd0ff; display:flex; align-items:center; gap:8px}
+    .banner.error{border-color:#7a1b27; background:#230c12; color:#ffc7cf}
+    table{width:100%; border-collapse:collapse; font-size:14px}
+    th, td{padding:10px 8px; border-bottom:1px solid #213065; vertical-align:top}
+    th{position:sticky; top:0; background:#0e1a3c; text-align:left}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3a73}
+    .pill.bug{background:#201227; color:#ffc4ec; border-color:#4e2b58}
+    .pill.enh{background:#0d2130; color:#b9e2ff; border-color:#274f6a}
+    .muted{color:#93a1d9}
+    .table-wrap{max-height:420px; overflow:auto; border:1px solid #1e2a58; border-radius:12px}
+    footer{padding:20px; text-align:center; color:#7d8ab3}
   </style>
 </head>
-<body data-theme="dark">
+<body>
   <header>
-    <div class="title">InCheck Pro Dashboard</div>
-    <div class="toolbar">
-      <input id="searchInput" type="search" placeholder="Search…" />
-      <button id="filterBtn">Filter</button>
-      <button id="importBtn">Import CSV</button>
-      <button id="exportBtn">Export CSV</button>
-      <button id="resetBtn">Reset</button>
-      <button id="themeToggle">🌙/☀️</button>
+    <div class="title">InCheck Issues Dashboard</div>
+    <div style="margin-left:auto" class="toolbar">
+      <input id="searchInput" type="search" placeholder="Search title / ID / module" />
+      <select id="moduleFilter"></select>
+      <select id="priorityFilter"></select>
+      <select id="statusFilter"></select>
+      <button id="refreshNow" class="secondary">Refresh Now</button>
+      <button id="resetBtn" class="ghost">Reset</button>
     </div>
   </header>
 
-  <div id="filterPanel" class="filter-panel">
-    <select id="requestedByFilter"></select>
-    <select id="departmentFilter"></select>
-    <select id="moduleFilter"></select>
-    <select id="priorityFilter"></select>
-    <select id="statusFilter"></select>
-    <input type="date" id="dateFrom" />
-    <input type="date" id="dateTo" />
-  </div>
-
   <div class="container">
+    <div id="statusBanner" class="banner" style="display:none"></div>
+
     <div class="grid cols-4" id="kpis"></div>
 
-    <div class="charts">
+    <div class="charts" style="margin-top:16px">
       <div class="card"><canvas id="byModule"></canvas></div>
       <div class="card"><canvas id="byPriority"></canvas></div>
       <div class="card"><canvas id="byStatus"></canvas></div>
@@ -98,88 +70,120 @@
     </div>
 
     <div class="card" style="margin-top:16px">
-      <strong>Tickets</strong>
-      <table id="issuesTable">
-        <thead><tr><th>ID</th><th>Timestamp</th><th>Requested By</th><th>Department</th><th>Module</th><th>Title</th><th>Type</th><th>Priority</th><th>Status</th><th>Email</th><th>LOG</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+        <strong style="font-size:16px">Issues</strong>
+        <span id="rowCount" class="muted"></span>
+        <span id="lastUpdated" class="hint" style="margin-left:auto"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="issuesTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Module</th>
+              <th>Title</th>
+              <th>Description</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <strong>Debug Preview (first 5 rows)</strong>
+      <div id="debugPreview" class="hint" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <strong>Self Tests</strong>
+      <div id="testResults" class="hint" style="margin-top:8px"></div>
     </div>
   </div>
 
+  <footer>
+    Data loads live from Google Sheet (CSV export link).
+  </footer>
+
   <script>
-    let rows = [], filtered = [], charts = {};
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
 
     const els = {
-      search: document.getElementById('searchInput'),
-      filterBtn: document.getElementById('filterBtn'),
-      filterPanel: document.getElementById('filterPanel'),
-      importBtn: document.getElementById('importBtn'),
-      exportBtn: document.getElementById('exportBtn'),
-      resetBtn: document.getElementById('resetBtn'),
-      themeToggle: document.getElementById('themeToggle'),
+      banner: document.getElementById('statusBanner'),
       kpis: document.getElementById('kpis'),
       tableBody: document.querySelector('#issuesTable tbody'),
-      requestedByFilter: document.getElementById('requestedByFilter'),
-      departmentFilter: document.getElementById('departmentFilter'),
+      rowCount: document.getElementById('rowCount'),
+      lastUpdated: document.getElementById('lastUpdated'),
+      search: document.getElementById('searchInput'),
       moduleFilter: document.getElementById('moduleFilter'),
       priorityFilter: document.getElementById('priorityFilter'),
       statusFilter: document.getElementById('statusFilter'),
-      dateFrom: document.getElementById('dateFrom'),
-      dateTo: document.getElementById('dateTo')
+      reset: document.getElementById('resetBtn'),
+      refreshNow: document.getElementById('refreshNow'),
+      tests: document.getElementById('testResults'),
+      debug: document.getElementById('debugPreview'),
     };
 
+    function showBanner(msg, type='info'){
+      els.banner.textContent = msg;
+      els.banner.className = 'banner' + (type==='error' ? ' error' : '');
+      els.banner.style.display = 'flex';
+      if(type!=='error') setTimeout(()=>els.banner.style.display='none',4000);
+    }
+
     function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort(); }
+    function badge(text){ return `<span class="pill">${text||'-'}</span>`; }
+    function typeBadge(t){ const c=/bug/i.test(t)?'bug':/enh/i.test(t)?'enh':''; return `<span class="pill ${c}">${t||'-'}</span>`; }
+
+    let rows = [], filtered = [], charts = {};
 
     function normalizeRow(raw){
-      const lower={}; for(const k in raw){lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
+      const lower={}; for(const k in raw){ lower[k.toLowerCase().trim()]=String(raw[k]??'').trim(); }
       const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];} return '';};
       return {
-        id: pick('ticket id','id'),
-        timestamp: pick('timestamp'),
-        requestedBy: pick('requested by'),
-        department: pick('department'),
+        id: pick('id','ticket id','incheck id'),
         module: pick('module','impacted module'),
         title: pick('title'),
+        description: pick('description'),
         type: pick('type','category'),
         priority: pick('priority'),
-        status: pick('status','task status'),
-        email: pick('email','email address'),
-        log: pick('log')
+        status: pick('status')
       };
     }
 
     function parseCsv(text){
-      const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+      const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
       return (parsed.data||[]).map(normalizeRow).filter(r=>r.id||r.title);
     }
 
-    function renderFilters(){
-      const setOpts=(el,arr)=> el.innerHTML=['All',...uniq(arr)].map(v=>`<option>${v}</option>`).join('');
-      setOpts(els.requestedByFilter, rows.map(r=>r.requestedBy));
-      setOpts(els.departmentFilter, rows.map(r=>r.department));
-      setOpts(els.moduleFilter, rows.map(r=>r.module));
-      setOpts(els.priorityFilter, rows.map(r=>r.priority));
-      setOpts(els.statusFilter, rows.map(r=>r.status));
+    function renderKpis(){
+      els.kpis.innerHTML = `<div class="card kpi"><div class="label">Total Issues</div><div class="value">${filtered.length}</div></div>`;
     }
 
-    function renderKpis(){
-      els.kpis.innerHTML = `
-        <div class="card">Total: ${filtered.length}</div>
-        <div class="card">Open: ${filtered.filter(r=>/open|under/i.test(r.status)).length}</div>
-        <div class="card">Resolved: ${filtered.filter(r=>/resolv/i.test(r.status)).length}</div>
-        <div class="card">High Priority: ${filtered.filter(r=>/high|urgent/i.test(r.priority)).length}</div>`;
+    function renderFilters(){
+      els.moduleFilter.innerHTML = ['All',...uniq(rows.map(r=>r.module))].map(v=>`<option>${v}</option>`).join('');
+      els.priorityFilter.innerHTML = ['All',...uniq(rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
+      els.statusFilter.innerHTML = ['All',...uniq(rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');
     }
 
     function renderTable(){
       els.tableBody.innerHTML = filtered.map(r=>`
         <tr>
-          <td>${r.id}</td><td>${r.timestamp}</td><td>${r.requestedBy}</td><td>${r.department}</td>
-          <td>${r.module}</td><td>${r.title}</td><td>${r.type}</td><td>${r.priority}</td>
-          <td>${r.status}</td><td>${r.email}</td><td>${(r.log||'').split('|').pop().trim()}</td>
+          <td>${r.id}</td>
+          <td>${r.module}</td>
+          <td>${r.title}</td>
+          <td>${r.description}</td>
+          <td>${typeBadge(r.type)}</td>
+          <td>${badge(r.priority)}</td>
+          <td>${r.status}</td>
         </tr>`).join('');
+      els.rowCount.textContent=`${filtered.length} rows`;
     }
 
-    function groupCount(list,key){ return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{}); }
+    function groupCount(list,key){return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
 
     function drawCharts(){
       const make=(id,type,data)=>{if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]}});};
@@ -191,48 +195,45 @@
 
     function applyFilters(){
       const q=(els.search.value||'').toLowerCase();
-      const f=(v)=>v!=='All'&&v;
-      const rq=els.requestedByFilter.value, dp=els.departmentFilter.value, mo=els.moduleFilter.value, pr=els.priorityFilter.value, st=els.statusFilter.value;
-      const df=els.dateFrom.value?new Date(els.dateFrom.value):null;
-      const dt=els.dateTo.value?new Date(els.dateTo.value):null;
+      const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
       filtered=rows.filter(r=>{
-        const text=(r.id+' '+r.title+' '+r.module+' '+r.department+' '+r.requestedBy).toLowerCase();
-        const date=r.timestamp?new Date(r.timestamp):null;
-        return (!q||text.includes(q))
-          &&(!f(rq)||r.requestedBy===rq)
-          &&(!f(dp)||r.department===dp)
-          &&(!f(mo)||r.module===mo)
-          &&(!f(pr)||r.priority===pr)
-          &&(!f(st)||r.status===st)
-          &&(!df||date>=df)&&(!dt||date<=dt);
+        const text=(r.id+' '+r.module+' '+r.title+' '+r.description).toLowerCase();
+        return (!q||text.includes(q))&&(!m||m==='All'||r.module===m)&&(!p||p==='All'||r.priority===p)&&(!s||s==='All'||r.status===s);
       });
       renderKpis(); renderTable(); drawCharts();
     }
 
-    // Events
-    els.search.addEventListener('input',applyFilters);
-    [els.requestedByFilter,els.departmentFilter,els.moduleFilter,els.priorityFilter,els.statusFilter,els.dateFrom,els.dateTo].forEach(el=>el.addEventListener('change',applyFilters));
-    els.resetBtn.addEventListener('click',()=>{els.search.value='';renderFilters();applyFilters();});
-    els.filterBtn.addEventListener('click',()=>{els.filterPanel.style.display=els.filterPanel.style.display==='block'?'none':'block';});
-    els.themeToggle.addEventListener('click',()=>{document.body.dataset.theme=document.body.dataset.theme==='light'?'dark':'light';});
+    async function loadSheet(){
+      try{
+        showBanner('Loading data…');
+        const res=await fetch(SHEET_URL+'&t='+Date.now(),{cache:'no-store'});
+        if(!res.ok) throw new Error(res.statusText);
+        const text=await res.text();
+        rows=parseCsv(text); filtered=[...rows];
+        renderFilters(); applyFilters();
+        els.lastUpdated.textContent='Last updated: '+new Date().toLocaleString();
+        els.debug.innerHTML=rows.slice(0,5).map(r=>`${r.id} | ${r.title} | ${r.description}`).join('<br>');
+        showBanner(`Loaded ${rows.length} rows`);
+      }catch(e){console.error(e);showBanner('Failed to load sheet: '+e.message,'error');}
+    }
 
-    // Import & Export
-    els.importBtn.addEventListener('click',()=>{
-      const input=document.createElement('input'); input.type='file'; input.accept='.csv';
-      input.onchange=e=>{
-        const file=e.target.files[0]; if(!file) return;
-        if(!confirm('Replace all current data with this file?')) return;
-        const reader=new FileReader();
-        reader.onload=ev=>{ rows=parseCsv(ev.target.result); filtered=[...rows]; renderFilters(); applyFilters(); };
-        reader.readAsText(file);
-      }; input.click();
-    });
-    els.exportBtn.addEventListener('click',()=>{
-      const header=['ID','Timestamp','Requested By','Department','Module','Title','Type','Priority','Status','Email','LOG'];
-      const csv=[header.join(',')].concat(filtered.map(r=>header.map(h=>JSON.stringify(r[h.toLowerCase().replace(/ /g,'')]||'')).join(',')));
-      const blob=new Blob([csv.join('\n')],{type:'text/csv'});
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='export.csv'; a.click();
-    });
+    els.search.addEventListener('input',applyFilters);
+    els.moduleFilter.addEventListener('change',applyFilters);
+    els.priorityFilter.addEventListener('change',applyFilters);
+    els.statusFilter.addEventListener('change',applyFilters);
+    els.reset.addEventListener('click',()=>{els.search.value='';renderFilters();applyFilters();});
+    els.refreshNow.addEventListener('click',loadSheet);
+
+    // Self test
+    function runTests(){
+      const csv=`ID,Module,Title,Description,Type,Priority,Status\n1,Reporting,Export error,Broken export,Bug,High,Resolved`;
+      const r=parseCsv(csv)[0];
+      const ok=r.id==='1'&&r.description==='Broken export'&&r.type==='Bug'&&r.status==='Resolved';
+      els.tests.textContent=ok?'✅ Basic mapping works':'❌ Test failed';
+    }
+
+    runTests();
+    loadSheet();
   </script>
 </body>
 </html>
