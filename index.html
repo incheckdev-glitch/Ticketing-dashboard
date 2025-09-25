@@ -107,15 +107,31 @@
     th.sorted-desc::after { content:" ↓" }
 
     .pill { padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700; display:inline-block }
-    .status-Resolved{background:var(--ok);color:#fff}
-    .status-Under\ Development{background:var(--info);color:#fff}
-    .status-Rejected{background:var(--danger);color:#fff}
-    .status-On\ Hold{background:var(--warn);color:#000}
-    .status-Not\ Started\ Yet{background:var(--neutral);color:#fff}
-    .status-Sent{background:var(--purple);color:#fff}
-    .priority-High{background:#f87171;color:#fff}
-    .priority-Medium{background:#fbbf24;color:#000}
-    .priority-Low{background:#34d399;color:#000}
+   .status-Resolved {
+  background: var(--ok);        /* green */
+  color: #fff;
+}
+.status-Under\ Development {
+  background: var(--info);      /* blue */
+  color: #fff;
+}
+.status-Rejected {
+  background: var(--danger);    /* red */
+  color: #fff;
+}
+.status-On\ Hold {
+  background: var(--warn);      /* orange */
+  color: #fff; /* changed from black for better contrast */
+}
+.status-Not\ Started\ Yet {
+  background: var(--neutral);   /* gray */
+  color: #fff;
+}
+.status-Sent {
+  background: var(--purple);    /* purple */
+  color: #fff;
+}
+
 
     /* Modal */
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); align-items:center; justify-content:center; z-index:100 }
