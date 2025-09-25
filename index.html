@@ -135,43 +135,30 @@
     };
     let rows=[],filtered=[],charts={};
 
-    // Robust row normalization: tolerate header typos and missing IDs
     function normalizeRow(raw, i){
       const lower={};
-      for(const k in raw){ if(k) lower[k.toLowerCase().trim()] = String(raw[k] ?? '').trim(); }
-      const pick=(...keys)=>{ for(const key of keys){ const v = lower[key.toLowerCase()]; if(v) return v; } return ''; };
-
-      const id = pick('ticket id','id','issue id','key') || `ROW-${i+1}`;
-      const module = pick(
-        'impacted module',          // correct
-        'imapcted module',          // common typo you mentioned
-        'module',
-        'issue location',
-        'affected module',
-        'component'
-      ) || 'Unspecified';
+      for(const k in raw){
+        if(!k) continue;
+        // normalize header: collapse multiple spaces + trim
+        const cleanKey = k.toLowerCase().replace(/\s+/g,' ').trim();
+        lower[cleanKey] = String(raw[k] ?? '').trim();
+      }
+      const pick=(...keys)=>{ for(const key of keys){ if(lower[key.toLowerCase()]) return lower[key.toLowerCase()]; } return ''; };
 
       return {
-        id,
-        module,
-        title: pick('title','issue title','subject'),
-        desc: pick('description','details','body'),
-        file: pick('file upload','link','url','attachment'),
+        id: pick('ticket id','id') || `ROW-${i+1}`,
+        module: pick('impacted module','module','issue location') || 'Unspecified',  // ✅ works with "  Impacted  Module  "
+        title: pick('title'),
+        desc: pick('description'),
+        file: pick('file upload','link','url'),
         priority: pick('priority'),
         status: pick('status') || 'Not Started Yet',
         type: pick('category','type'),
-        date: pick('timestamp','date','created at','creation date')
+        date: pick('timestamp','date','created at')
       };
     }
 
-    function parseCsv(t){
-      const parsed = Papa.parse(t,{header:true,skipEmptyLines:true}).data;
-      return parsed
-        .map((raw,i)=>normalizeRow(raw,i))
-        // keep rows that have at least something meaningful
-        .filter(r => r.title || r.desc || r.module || r.priority || r.status);
-    }
-
+    function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id);}
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
     function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
     function priorityBadge(p){return pill(p,`priority-${p}`);}
@@ -192,30 +179,27 @@
     }
 
     function renderFilters(){
-      // Module filter (trim + case-insensitive dedupe)
       let modules = rows.map(r => (r.module || "Unspecified").trim());
-      const seenM = new Set();
-      modules = modules.filter(m => { const k=m.toLowerCase(); if(seenM.has(k)) return false; seenM.add(k); return true; });
+      const seenM=new Set();
+      modules=modules.filter(m=>{const k=m.toLowerCase();if(seenM.has(k)) return false;seenM.add(k);return true;});
       modules.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.moduleFilter.innerHTML=['All',...modules].map(v=>`<option value="${v}">${v}</option>`).join('');
 
-      // Priority filter
       let priorities = rows.map(r => (r.priority || "Unspecified").trim());
-      const seenP = new Set();
-      priorities = priorities.filter(p => { const k=p.toLowerCase(); if(seenP.has(k)) return false; seenP.add(k); return true; });
+      const seenP=new Set();
+      priorities=priorities.filter(p=>{const k=p.toLowerCase();if(seenP.has(k)) return false;seenP.add(k);return true;});
       priorities.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.priorityFilter.innerHTML=['All',...priorities].map(v=>`<option value="${v}">${v}</option>`).join('');
 
-      // Status filter
       let statuses = rows.map(r => (r.status || "Unspecified").trim());
-      const seenS = new Set();
-      statuses = statuses.filter(s => { const k=s.toLowerCase(); if(seenS.has(k)) return false; seenS.add(k); return true; });
+      const seenS=new Set();
+      statuses=statuses.filter(s=>{const k=s.toLowerCase();if(seenS.has(k)) return false;seenS.add(k);return true;});
       statuses.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
       els.statusFilter.innerHTML=['All',...statuses].map(v=>`<option value="${v}">${v}</option>`).join('');
     }
 
     function renderTable(){
-      els.tableBody.innerHTML = filtered.map(r=>`
+      els.tableBody.innerHTML=filtered.map(r=>`
         <tr onclick="openModal('${r.id}')">
           <td>${r.id}</td>
           <td>${r.module}</td>
@@ -228,11 +212,10 @@
       els.rowCount.textContent=`${filtered.length} rows`;
     }
 
-    function groupCount(list,key){
-      return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
+    function groupCount(list,key){return list.reduce((a,r)=>{const k=r[key]||'Unspecified';a[k]=(a[k]||0)+1;return a;},{});}
     function drawCharts(){
       const make=(id,type,data)=>{
-        if(charts[id]) charts[id].destroy();
+        if(charts[id])charts[id].destroy();
         charts[id]=new Chart(document.getElementById(id),{
           type,
           data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]},
@@ -247,36 +230,29 @@
 
     function applyFilters(){
       const q=(document.getElementById('searchInput').value||'').toLowerCase();
-      const m=els.moduleFilter.value, p=els.priorityFilter.value, s=els.statusFilter.value;
-      const startRaw=document.getElementById('startDateFilter').value;
-      const endRaw=document.getElementById('endDateFilter').value;
+      const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
+      const start=document.getElementById('startDateFilter').value;
+      const end=document.getElementById('endDateFilter').value;
 
-      // Inclusive end-of-day for end date
-      const startDate = startRaw ? new Date(startRaw) : null;
-      const endDate = endRaw ? (()=>{ const d=new Date(endRaw); d.setDate(d.getDate()+1); return d; })() : null;
+      const startDate=start?new Date(start):null;
+      const endDate=end?(()=>{let d=new Date(end);d.setDate(d.getDate()+1);return d;})():null;
 
       filtered=rows.filter(r=>{
         const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')).toLowerCase();
-
-        // Date filter
         let keepDate=true;
         if(r.date){
-          const issueDate=new Date(r.date);
-          if(startDate && issueDate < startDate) keepDate=false;
-          if(endDate && issueDate >= endDate) keepDate=false; // end-of-day inclusive
-        } else {
-          // If no date on row and user set date filters, hide row
-          if(startDate || endDate) keepDate=false;
-        }
-
-        return (!q || hay.includes(q))
-          && (!m || m==='All' || (r.module||"Unspecified").trim()===m)
-          && (!p || p==='All' || (r.priority||"Unspecified").trim()===p)
-          && (!s || s==='All' || (r.status||"Unspecified").trim()===s)
-          && keepDate;
+          const d=new Date(r.date);
+          if(startDate && d<startDate) keepDate=false;
+          if(endDate && d>=endDate) keepDate=false;
+        } else if(startDate||endDate) keepDate=false;
+        return (!q||hay.includes(q))
+          &&(!m||m==='All'||(r.module||'Unspecified').trim()===m)
+          &&(!p||p==='All'||(r.priority||'Unspecified').trim()===p)
+          &&(!s||s==='All'||(r.status||'Unspecified').trim()===s)
+          &&keepDate;
       });
 
-      renderKpis(); renderTable(); drawCharts();
+      renderKpis();renderTable();drawCharts();
     }
 
     async function loadSheet(){
@@ -284,8 +260,7 @@
       const text=await res.text();
       rows=parseCsv(text);
       filtered=[...rows];
-      renderFilters();
-      applyFilters();
+      renderFilters();applyFilters();
     }
 
     function openModal(id){
@@ -298,8 +273,7 @@
         <p><b>Status:</b> ${r.status||'-'}</p>
         <p><b>Date:</b> ${r.date||'-'}</p>
         <p><b>Description:</b> ${r.desc||'-'}</p>
-        ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}
-      `;
+        ${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;
       els.modal.style.display='flex';
     }
     function closeModal(){els.modal.style.display='none';}
@@ -310,34 +284,22 @@
     els.statusFilter.addEventListener('change',applyFilters);
     document.getElementById('startDateFilter').addEventListener('change',applyFilters);
     document.getElementById('endDateFilter').addEventListener('change',applyFilters);
-
-    els.reset.onclick=()=>{
-      document.getElementById('searchInput').value='';
-      document.getElementById('startDateFilter').value='';
-      document.getElementById('endDateFilter').value='';
-      renderFilters(); applyFilters();
-    };
+    els.reset.onclick=()=>{document.getElementById('searchInput').value='';document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';renderFilters();applyFilters();};
     els.refresh.onclick=loadSheet;
-
-    // Load data
     loadSheet();
 
-    // Theme toggle
-    const themeBtn = document.getElementById('themeToggle');
+    const themeBtn=document.getElementById('themeToggle');
     if(localStorage.getItem('theme')){
-      document.documentElement.setAttribute('data-theme', localStorage.getItem('theme'));
-      themeBtn.textContent = localStorage.getItem('theme') === 'light' ? '🌙' : '☀️';
+      document.documentElement.setAttribute('data-theme',localStorage.getItem('theme'));
+      themeBtn.textContent=localStorage.getItem('theme')==='light'?'🌙':'☀️';
     }
-    themeBtn.addEventListener('click', ()=>{
-      const current=document.documentElement.getAttribute('data-theme')||'dark';
-      const next=current==='dark'?'light':'dark';
+    themeBtn.addEventListener('click',()=>{
+      const cur=document.documentElement.getAttribute('data-theme')||'dark';
+      const next=cur==='dark'?'light':'dark';
       document.documentElement.setAttribute('data-theme',next);
       localStorage.setItem('theme',next);
       themeBtn.textContent=next==='light'?'🌙':'☀️';
     });
-
-    // Optional: log headers once to help future debugging
-    // console.log('First row keys:', Object.keys(Papa.parse(await (await fetch(SHEET_URL)).text(), {header:true}).data[0]||{}));
   </script>
 </body>
 </html>
