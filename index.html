@@ -149,12 +149,172 @@
 
   <!-- Logic -->
   <script>
-    // (same JS logic as before, unchanged)
-    // ...
-    // 🌗 Theme Toggle
-    const themeBtn=document.getElementById('themeToggle');
-    if(localStorage.getItem('theme')==="dark"){document.documentElement.classList.add('dark');themeBtn.textContent="☀️";}else{document.documentElement.classList.remove('dark');themeBtn.textContent="🌙";}
-    themeBtn.addEventListener('click',()=>{const isDark=document.documentElement.classList.contains('dark');if(isDark){document.documentElement.classList.remove('dark');localStorage.setItem('theme','light');themeBtn.textContent="🌙";}else{document.documentElement.classList.add('dark');localStorage.setItem('theme','dark');themeBtn.textContent="☀️";}});
-  </script>
-</body>
-</html>
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+    const els = {
+      tableBody: document.querySelector('#issuesTable tbody'),
+      rowCount: document.getElementById('rowCount'),
+      moduleFilter: document.getElementById('moduleFilter'),
+      priorityFilter: document.getElementById('priorityFilter'),
+      statusFilter: document.getElementById('statusFilter'),
+      reset: document.getElementById('resetBtn'),
+      refresh: document.getElementById('refreshNow'),
+      kpis: document.getElementById('kpis'),
+      modal: document.getElementById('issueModal'),
+      modalBody: document.getElementById('modalBody')
+    };
+    let rows = [], filtered = [], charts = {};
+
+    // Flexible header mapping
+    function normalizeRow(raw) {
+      const lower = {};
+      for (const k in raw) {
+        if (!k) continue;
+        const cleanKey = k.toLowerCase().trim();
+        lower[cleanKey] = String(raw[k] ?? "").trim();
+      }
+
+      const pick = (...candidates) => {
+        for (const key in lower) {
+          for (const c of candidates) {
+            if (key.includes(c)) return lower[key];
+          }
+        }
+        return "";
+      };
+
+      return {
+        id: pick("ticket id", "issue id", "id"),
+        module: pick("module", "component", "location") || "Unspecified",
+        title: pick("title", "subject", "summary"),
+        desc: pick("description", "details", "issue"),
+        file: pick("file", "link", "url", "attachment"),
+        priority: pick("priority", "severity", "level"),
+        status: pick("status", "state", "progress") || "Not Started Yet",
+        type: pick("type", "category", "kind"),
+        date: pick("timestamp", "date", "created"),
+        log: pick("log", "notes", "comment", "remarks")
+      };
+    }
+
+    function parseCsv(t) {
+      return Papa.parse(t, { header: true, skipEmptyLines: true }).data
+        .map(normalizeRow)
+        .filter(r => r.id || r.title || r.module);
+    }
+
+    function badge(text) {
+      const colors = {
+        High: "bg-red-500 text-white",
+        Medium: "bg-yellow-400 text-black",
+        Low: "bg-green-400 text-black",
+        Resolved: "bg-emerald-600 text-white",
+        "Under Development": "bg-blue-600 text-white",
+        Rejected: "bg-red-600 text-white",
+        "On Hold": "bg-amber-500 text-black",
+        "Not Started Yet": "bg-gray-600 text-white",
+        Sent: "bg-purple-600 text-white"
+      };
+      return `<span class="px-2 py-1 rounded-lg text-xs font-semibold ${colors[text] || "bg-gray-400 text-black dark:bg-gray-700 dark:text-white"}">${text || "-"}</span>`;
+    }
+
+    function renderKpis() {
+      const total = filtered.length; const counts = {};
+      filtered.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+      els.kpis.innerHTML = '';
+      const add = (label, val) => {
+        const d = document.createElement('div');
+        d.className = 'bg-white dark:bg-gray-900 rounded-2xl p-6 shadow text-center cursor-pointer hover:scale-[1.02] transition';
+        d.innerHTML = `<div class="text-sm text-gray-500 dark:text-gray-400 uppercase">${label}</div><div class="text-2xl font-bold mt-1">${val}</div>`;
+        d.onclick = () => { els.statusFilter.value = label; applyFilters(); };
+        els.kpis.appendChild(d);
+      };
+      add('Total Issues', total); Object.entries(counts).forEach(([s, v]) => add(s, v));
+    }
+
+    function renderFilters() {
+      const uniq = (arr) => [...new Set(arr.filter(Boolean).map(v => v.trim()))].sort((a, b) => a.localeCompare(b));
+      els.moduleFilter.innerHTML = ['All', ...uniq(rows.map(r => r.module))].map(v => `<option>${v}</option>`).join('');
+      els.priorityFilter.innerHTML = ['All', ...uniq(rows.map(r => r.priority))].map(v => `<option>${v}</option>`).join('');
+      els.statusFilter.innerHTML = ['All', ...uniq(rows.map(r => r.status))].map(v => `<option>${v}</option>`).join('');
+    }
+
+    function renderTable() {
+      els.tableBody.innerHTML = filtered.map(r => `
+        <tr onclick="openModal('${r.id}')" class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition">
+          <td class="px-4 py-2">${r.id || '-'}</td>
+          <td class="px-4 py-2">${r.module}</td>
+          <td class="px-4 py-2">${r.title || '-'}</td>
+          <td class="px-4 py-2">${badge(r.priority)}</td>
+          <td class="px-4 py-2">${badge(r.status)}</td>
+          <td class="px-4 py-2">${r.date || '-'}</td>
+          <td class="px-4 py-2">${r.log || '-'}</td>
+          <td class="px-4 py-2">${r.file ? `<a href="${r.file}" target="_blank">🔗</a>` : '-'}</td>
+        </tr>`).join('');
+      els.rowCount.textContent = `${filtered.length} rows`;
+    }
+
+    function groupCount(list, key) { return list.reduce((a, r) => { const k = r[key] || 'Unspecified'; a[k] = (a[k] || 0) + 1; return a; }, {}); }
+    function drawCharts() {
+      const make = (id, type, data) => {
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(document.getElementById(id), {
+          type,
+          data: { labels: Object.keys(data), datasets: [{ data: Object.values(data) }] },
+          options: { plugins: { legend: { display: type !== 'bar' } } }
+        });
+      };
+      make('byModule', 'bar', groupCount(filtered, 'module'));
+      make('byPriority', 'doughnut', groupCount(filtered, 'priority'));
+      make('byStatus', 'bar', groupCount(filtered, 'status'));
+      make('byType', 'bar', groupCount(filtered, 'type'));
+    }
+
+    function applyFilters() {
+      const q = (document.getElementById('searchInput').value || '').toLowerCase();
+      const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
+      const start = document.getElementById('startDateFilter').value;
+      const end = document.getElementById('endDateFilter').value;
+      const startDate = start ? new Date(start) : null;
+      const endDate = end ? (() => { let d = new Date(end); d.setDate(d.getDate() + 1); return d; })() : null;
+      filtered = rows.filter(r => {
+        const hay = (r.id + ' ' + r.module + ' ' + (r.title || '') + ' ' + (r.desc || '') + ' ' + (r.log || '')).toLowerCase();
+        let keepDate = true;
+        if (r.date) { const d = new Date(r.date); if (startDate && d < startDate) keepDate = false; if (endDate && d >= endDate) keepDate = false; }
+        else if (startDate || endDate) keepDate = false;
+        return (!q || hay.includes(q)) && (!m || m === 'All' || r.module === m) && (!p || p === 'All' || r.priority === p) && (!s || s === 'All' || r.status === s) && keepDate;
+      });
+      renderKpis(); renderTable(); drawCharts();
+    }
+
+    async function loadSheet() {
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        rows = parseCsv(text);
+        console.log("Loaded rows:", rows.slice(0, 3)); // preview first rows
+        filtered = [...rows];
+        renderFilters();
+        applyFilters();
+      } catch (err) {
+        console.error("Error loading sheet:", err);
+        document.getElementById("rowCount").textContent = "⚠️ Failed to load data";
+      }
+    }
+
+    function openModal(id) {
+      const r = rows.find(x => x.id === id);
+      els.modalBody.innerHTML = `
+        <h2 class="text-xl font-bold mb-2">${r.title || '-'}</h2>
+        <p><b>ID:</b> ${r.id || '-'}</p>
+        <p><b>Module:</b> ${r.module}</p>
+        <p><b>Priority:</b> ${r.priority || '-'}</p>
+        <p><b>Status:</b> ${r.status || '-'}</p>
+        <p><b>Date:</b> ${r.date || '-'}</p>
+        <p><b>Description:</b> ${r.desc || '-'}</p>
+        <p><b>Log:</b> ${r.log || '-'}</p>
+        ${r.file ? `<p><b>Attachment:</b> <a href="${r.file}" target="_blank" class="text-accent underline">${r.file}</a></p>` : ''}`;
+      els.modal.classList.remove('hidden'); els.modal.classList.add('flex');
+    }
+    function closeModal() { els.modal.classList.add('hidden'); els.modal.classList.remove('flex'); }
+
+    document.getElementById('searchInput').addEventListener('input',
