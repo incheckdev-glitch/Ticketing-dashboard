@@ -297,7 +297,77 @@
   </div>
 
   <!-- Modal -->
-  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
+  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody"><!-- Edit Modal -->
+<div id="editModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+  <div class="modal-content">
+    <div class="header">
+      <h2 id="editModalTitle" style="margin:0;font-size:20px">Edit Issue</h2>
+      <button class="modal-close" id="editModalClose">✕</button>
+    </div>
+    <div>
+      <label>Status:</label><br>
+      <input id="editStatus" class="input" type="text"><br><br>
+      <label>Log:</label><br>
+      <textarea id="editLog" class="input"></textarea><br><br>
+      <label>Password:</label><br>
+      <input id="editPassword" class="input" type="password"><br><br>
+      <button id="saveEditBtn" class="btn primary">💾 Save</button>
+    </div>
+  </div>
+</div>
+🔧 Step 3: Add JS for Edit modal + Save
+At the bottom of your <script> (before the closing </script>), add:
+
+js
+Copy code
+// Edit modal elements
+const editModal = q('#editModal');
+const editStatus = q('#editStatus');
+const editLog = q('#editLog');
+const editPassword = q('#editPassword');
+const saveEditBtn = q('#saveEditBtn');
+const editModalClose = q('#editModalClose');
+
+let editingId = null;
+
+// Open modal when "Edit" button clicked
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('editBtn')) {
+    editingId = e.target.dataset.id;
+    const issue = rows.find(r => r.id === editingId);
+    if (issue) {
+      editStatus.value = issue.status || '';
+      editLog.value = issue.log || '';
+    }
+    editPassword.value = '';
+    editModal.style.display = 'flex';
+  }
+});
+
+// Close modal
+editModalClose.addEventListener('click', () => editModal.style.display = 'none');
+editModal.addEventListener('click', (e) => { if (e.target === editModal) editModal.style.display = 'none'; });
+
+// Save button
+saveEditBtn.addEventListener('click', async () => {
+  if (!editingId) return;
+  const res = await fetch("https://script.google.com/macros/s/AKfycbzFfKy1GrenxyM7rqFiERG8AqwXNLLZ6Lj47l4XntYHHfD50EuXzcXca0zeFreRZGnJQw/exec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      password: editPassword.value,
+      id: editingId,
+      status: editStatus.value,
+      log: editLog.value
+    })
+  });
+  const data = await res.json();
+  alert(data.message);
+  if (data.success) {
+    editModal.style.display = 'none';
+    loadSheet(); // reload data
+  }
+});
     <div class="modal-content">
       <div class="header">
         <h2 id="modalTitle" style="margin:0;font-size:20px">Issue</h2>
@@ -501,7 +571,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${statusBadge(r.status||'-')}</td>
         <td>${r.date||'-'}</td>
         <td>${r.log||'-'}</td>
-        <td>${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener" aria-label="Open attachment link">🔗</a>`:'-'}</td>
+       <td>
+  ${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener">🔗</a>`:'-'}
+  <button class="btn sm editBtn" data-id="${r.id}">✏️ Edit</button>
+</td>
+
       </tr>
     `).join('');
 
