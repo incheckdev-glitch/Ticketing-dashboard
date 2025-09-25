@@ -71,6 +71,7 @@
     .btn.primary { background:var(--accent); border-color:transparent; color:#fff }
     .btn.ghost { border-color:transparent; background:transparent }
     .btn:hover { opacity:.92; transform:translateY(-1px) }
+    .btn.sm { padding:6px 8px; font-size:12px; border-radius:8px; }
     .icon { font-size:18px; line-height:1 }
 
     /* Layout */
@@ -173,7 +174,9 @@
       color:#fff; padding:10px 12px; border-radius:10px; z-index:130; box-shadow:var(--shadow); display:none
     }
 
-    /* Reduced motion */
+    /* Utils */
+    .hidden { display:none !important; }
+
     @media (prefers-reduced-motion: reduce){
       * { transition:none !important; animation:none !important }
     }
@@ -199,6 +202,8 @@
       </select>
       <button id="refreshNow" class="btn" aria-label="Refresh from source"><span class="icon" aria-hidden="true">🔄</span> Refresh</button>
       <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket"><span class="icon" aria-hidden="true">➕</span> Create Ticket</button>
+      <!-- 🔐 Admin toggle -->
+      <button id="adminBtn" class="btn" aria-label="Admin login/logout">🔐 Admin</button>
     </div>
   </header>
 
@@ -262,14 +267,15 @@
         <div class="table-wrap" role="region" aria-label="Scrollable issues table">
           <table id="issuesTable">
             <thead><tr>
-              <th data-key="id" class="sortable" scope="col" aria-sort="none">ID</th>
-              <th data-key="module" class="sortable" scope="col" aria-sort="none">Module</th>
-              <th data-key="title" class="sortable" scope="col" aria-sort="none">Title</th>
-              <th data-key="priority" class="sortable" scope="col" aria-sort="none">Priority</th>
-              <th data-key="status" class="sortable" scope="col" aria-sort="none">Status</th>
-              <th data-key="date" class="sortable" scope="col" aria-sort="none">Date</th>
-              <th data-key="log" class="sortable" scope="col" aria-sort="none">Log</th>
+              <th data-key="id" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by ID">ID</th>
+              <th data-key="module" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Module">Module</th>
+              <th data-key="title" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Title">Title</th>
+              <th data-key="priority" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Priority">Priority</th>
+              <th data-key="status" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Status">Status</th>
+              <th data-key="date" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Date">Date</th>
+              <th data-key="log" class="sortable" scope="col" aria-sort="none" tabindex="0" role="button" aria-label="Sort by Log">Log</th>
               <th scope="col">Link</th>
+              <!-- Actions header injected dynamically when admin -->
             </tr></thead>
             <tbody>
               <tr><td colspan="8" style="text-align:center;color:var(--muted)">Loading…</td></tr>
@@ -288,7 +294,7 @@
           <div style="display:flex;gap:8px;align-items:center">
             <label for="pageSize" class="muted">Rows per page</label>
             <select id="pageSize" class="select sm" aria-label="Rows per page">
-              <option>10</option><option selected>20</option><option>50</option><option>100</option>
+              <option>10</option><option selected>20</option><option>41</option><option>50</option><option>100</option>
             </select>
           </div>
         </div>
@@ -296,7 +302,7 @@
     </main>
   </div>
 
-  <!-- Modal -->
+  <!-- View Modal -->
   <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
     <div class="modal-content">
       <div class="header">
@@ -311,6 +317,54 @@
     </div>
   </div>
 
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitleLbl">
+    <div class="modal-content">
+      <div class="header">
+        <h2 id="editTitleLbl" style="margin:0;font-size:20px">Edit Issue</h2>
+        <div class="actions">
+          <button class="modal-close" id="editClose" aria-label="Close edit modal">✕</button>
+        </div>
+      </div>
+
+      <form id="editForm">
+        <div style="display:grid;gap:10px;grid-template-columns:repeat(2,1fr)">
+          <label>Title <input id="e_title" class="input" required></label>
+          <label>Module <input id="e_module" class="input"></label>
+          <label>Priority
+            <select id="e_priority" class="select">
+              <option>High</option><option>Medium</option><option>Low</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="e_status" class="select">
+              <option>Not Started Yet</option>
+              <option>Under Development</option>
+              <option>On Hold</option>
+              <option>On Stage</option>
+              <option>Sent</option>
+              <option>Resolved</option>
+              <option>Rejected</option>
+            </select>
+          </label>
+          <label>Date <input id="e_date" class="input" type="date"></label>
+          <label>Link <input id="e_file" class="input" type="url" placeholder="https://..."></label>
+        </div>
+        <label style="display:block;margin-top:10px">Description
+          <textarea id="e_desc" class="input" style="width:100%;min-height:100px"></textarea>
+        </label>
+        <label style="display:block;margin-top:10px">Log
+          <textarea id="e_log" class="input" style="width:100%;min-height:80px"></textarea>
+        </label>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button type="button" id="editCancel" class="btn">Cancel</button>
+          <button type="submit" id="editSave" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Spinner + Toast -->
   <div class="spinner" id="spinner" aria-hidden="true"><div class="ring"></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -318,6 +372,16 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+
+  // OPTIONAL: if you set up Google Apps Script to persist edits, put its URL here:
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFp7K40NnxHyaVxPTJZMUejpP5wI1hz_8a09RemxU1mwCYU55_kPlwKjisQ3oWE9OJGg/exec"; // e.g., "https://script.google.com/macros/s/XXXX/exec" or leave empty to disable
+
+  // 🔐 ADMIN: replace this with your own SHA-256 hex of a strong passphrase.
+  // How to generate in browser console:
+  // (async()=>{ const s="your-passphrase"; const e=new TextEncoder().encode(s);
+  //  const h=await crypto.subtle.digest("SHA-256",e);
+  //  console.log(Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,"0")).join("")); })();
+  const ADMIN_HASH = "REPLACE_WITH_YOUR_SHA256_HEX";
 
   // Elements
   const els = {
@@ -348,7 +412,26 @@ document.addEventListener("DOMContentLoaded", () => {
     lastPage: q('#lastPage'),
     pageInfo: q('#pageInfo'),
     pageSize: q('#pageSize'),
-    createTicket: q('#createTicketBtn')
+    createTicket: q('#createTicketBtn'),
+    adminBtn: q('#adminBtn')
+  };
+
+  // Edit modal elements
+  const editEls = {
+    modal: q('#editModal'),
+    close: q('#editClose'),
+    cancel: q('#editCancel'),
+    form: q('#editForm'),
+    fields: {
+      title: q('#e_title'),
+      module: q('#e_module'),
+      priority: q('#e_priority'),
+      status: q('#e_status'),
+      date: q('#e_date'),
+      file: q('#e_file'),
+      desc: q('#e_desc'),
+      log: q('#e_log'),
+    }
   };
 
   // State
@@ -357,6 +440,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentPage = 1, rowsPerPage = +els.pageSize.value;
   let selectedIssue = null;
   let lastFocusedBeforeModal = null;
+  let editingId = null;
+  let isAdmin = localStorage.getItem('incheck_isAdmin') === '1';
+
+  // Local edit patches
+  const LS_KEY = 'incheck_local_edits';
 
   // Utils
   function q(s, r = document) { return r.querySelector(s); }
@@ -365,6 +453,58 @@ document.addEventListener("DOMContentLoaded", () => {
   const showSpinner = (v=true)=> els.spinner.style.display = v ? 'flex' : 'none';
   const showToast = (msg, ms=3500) => { els.toast.textContent = msg; els.toast.style.display = 'block'; setTimeout(()=>els.toast.style.display='none', ms); };
 
+  // Security helpers
+  async function sha256Hex(s){
+    const enc = new TextEncoder().encode(s);
+    const h = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  async function adminLoginFlow(){
+    const pass = prompt('Enter admin passphrase:');
+    if(!pass) return;
+    const hex = await sha256Hex(pass);
+    if(hex === ADMIN_HASH){
+      isAdmin = true;
+      localStorage.setItem('incheck_isAdmin','1');
+      showToast('Admin mode enabled');
+      renderTable(); // show Edit column
+    }else{
+      showToast('Incorrect passphrase');
+    }
+  }
+  function adminLogout(){
+    isAdmin = false;
+    localStorage.removeItem('incheck_isAdmin');
+    showToast('Admin mode disabled');
+    renderTable(); // hide Edit column
+  }
+
+  // Local edits store
+  function loadLocalEdits(){
+    try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}'); } catch{ return {}; }
+  }
+  function saveLocalEdits(obj){
+    localStorage.setItem(LS_KEY, JSON.stringify(obj));
+  }
+  function applyLocalEditsToRows(){
+    const patches = loadLocalEdits();
+    rows = rows.map(r => patches[r.id] ? { ...r, ...patches[r.id] } : r);
+  }
+
+  // Theme
+  const applyTheme = (mode) => {
+    if(mode==='system'){ localStorage.setItem('theme','system'); document.documentElement.removeAttribute('data-theme'); return; }
+    document.documentElement.setAttribute('data-theme',mode);
+    localStorage.setItem('theme', mode);
+  };
+  const initTheme = () => {
+    const saved = localStorage.getItem('theme') || 'system';
+    els.themeSelect.value = saved;
+    if(saved==='system'){ document.documentElement.removeAttribute('data-theme'); }
+    else { document.documentElement.setAttribute('data-theme', saved); }
+  };
+
+  // CSV normalization
   function normalizeRow(raw){
     const lower={}; for(const k in raw){ if(!k) continue; lower[k.toLowerCase().replace(/\s+/g,' ').trim()]=String(raw[k]??'').trim(); }
     const pick=(...keys)=>{ for(const key of keys){ if(lower[key]) return lower[key]; } return ''; };
@@ -381,29 +521,10 @@ document.addEventListener("DOMContentLoaded", () => {
       log: pick('log','logs','comment','notes')
     };
   }
- function parseCsv(t){ 
-  return Papa.parse(t,{header:true,skipEmptyLines:true})
-    .data
-    .map(normalizeRow)
-    .filter(r => r.id && r.id.trim() !== ""); // only keep rows with real IDs
-}
-
+  function parseCsv(t){ return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow); }
   function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
   const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
   const priorityBadge = p => pill(p,`priority-${p||''}`);
-
-  // Theme
-  const applyTheme = (mode) => {
-    if(mode==='system'){ localStorage.setItem('theme','system'); document.documentElement.removeAttribute('data-theme'); return; }
-    document.documentElement.setAttribute('data-theme',mode);
-    localStorage.setItem('theme', mode);
-  };
-  const initTheme = () => {
-    const saved = localStorage.getItem('theme') || 'system';
-    els.themeSelect.value = saved;
-    if(saved==='system'){ document.documentElement.removeAttribute('data-theme'); }
-    else { document.documentElement.setAttribute('data-theme', saved); }
-  };
 
   // KPI rendering with percentage
   function renderKpis(){
@@ -457,6 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function updatePaginationControls(total){
     const totalPages = Math.max(1, Math.ceil(total/rowsPerPage));
+    currentPage = Math.min(currentPage, totalPages);
     els.pageInfo.textContent = `Page ${Math.min(currentPage,totalPages)} / ${totalPages}`;
     const atFirst = currentPage<=1;
     const atLast = currentPage>=totalPages;
@@ -469,22 +591,37 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function ensureActionsHeader(){
+    const theadRow = q('#issuesTable thead tr');
+    const hasActions = !!theadRow.querySelector('th[data-actions]');
+    if(isAdmin && !hasActions){
+      const th = document.createElement('th');
+      th.textContent = 'Actions';
+      th.setAttribute('data-actions','true');
+      theadRow.appendChild(th);
+    } else if(!isAdmin && hasActions){
+      theadRow.querySelector('th[data-actions]').remove();
+    }
+  }
+
   // Table render
   function renderTable(){
+    ensureActionsHeader();
+
     const list = sortData(filtered);
     const total = list.length;
     updatePaginationControls(total);
     els.rowCount.textContent = `${total} row${total===1?'':'s'}`;
 
     if (!total){
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">No issues found. Adjust filters or search.</td></tr>`;
+      els.tableBody.innerHTML = `<tr><td colspan="${isAdmin?9:8}" style="text-align:center;color:var(--muted)">No issues found. Adjust filters or search.</td></tr>`;
       updateSortedHeaders();
       return;
     }
 
     const pageData = paginate(list);
     if (!pageData.length){
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">No issues on this page.</td></tr>`;
+      els.tableBody.innerHTML = `<tr><td colspan="${isAdmin?9:8}" style="text-align:center;color:var(--muted)">No issues on this page.</td></tr>`;
       updateSortedHeaders();
       return;
     }
@@ -499,6 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${r.date||'-'}</td>
         <td>${r.log||'-'}</td>
         <td>${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener" aria-label="Open attachment link">🔗</a>`:'-'}</td>
+        ${isAdmin ? `<td><button class="btn sm edit-btn" data-id="${escapeAttr(r.id||'')}" aria-label="Edit ${escapeAttr(r.id||'')}">✏️ Edit</button></td>`:''}
       </tr>
     `).join('');
 
@@ -507,11 +645,22 @@ document.addEventListener("DOMContentLoaded", () => {
       tr.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openModal(tr.getAttribute('data-id')); }});
     });
 
+    bindEditButtons();
     updateSortedHeaders();
   }
 
+  function bindEditButtons(){
+    if(!isAdmin) return;
+    qAll('.edit-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        openEditModal(id);
+      });
+    });
+  }
+
   function updateSortedHeaders(){
-    // Reset classes & aria-sort
     qAll('#issuesTable thead th').forEach(th => {
       th.classList.remove('sorted-asc','sorted-desc');
       th.setAttribute('aria-sort','none');
@@ -566,8 +715,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { display: type !== 'bar' },
             tooltip: {
@@ -594,7 +742,7 @@ document.addEventListener("DOMContentLoaded", () => {
     make('byType', 'bar', groupCount(filtered,'type'));
   }
 
-  // Filter logic
+  // Filters
   function applyFilters(){
     const qstr = (els.search.value||'').toLowerCase().trim();
     const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
@@ -632,7 +780,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(SHEET_URL, { cache:'no-store' });
       if(!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const text = await res.text();
-      rows = parseCsv(text);
+
+      rows = parseCsv(text)
+
+        // STRICT: remove phantom/blank rows (fixes "41 not 46")
+        .filter(r => r.id && r.id.trim() !== '');
+
+      applyLocalEditsToRows();   // merge your local patches
       filtered = [...rows];
       renderFilters();
       applyFilters();
@@ -644,15 +798,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Modal
-  function trapFocus(container, e){
-    const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-    if(!focusables.length) return;
-    const first = focusables[0], last = focusables[focusables.length-1];
-    if(e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
-    else if(!e.shiftKey && document.activeElement === last){ first.focus(); e.preventDefault(); }
-  }
-
+  // View Modal
   function openModal(id){
     const r = rows.find(x=>x.id===id);
     if(!r) return;
@@ -679,22 +825,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if(lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus==='function'){ lastFocusedBeforeModal.focus(); }
   }
 
-  // Create ticket → Google Form
-  els.createTicket.addEventListener('click', () => {
-    window.open("https://forms.gle/PPnEP1AQneoBT79s5", "_blank", "noopener");
-  });
+  // Edit Modal
+  function openEditModal(id){
+    const r = rows.find(x=>x.id===id);
+    if(!r) return showToast('Issue not found');
 
-  // Events
+    editingId = id;
+    editEls.fields.title.value   = r.title || '';
+    editEls.fields.module.value  = r.module || '';
+    editEls.fields.priority.value= r.priority || 'Medium';
+    editEls.fields.status.value  = r.status || 'Not Started Yet';
+    const d = r.date ? new Date(r.date) : null;
+    editEls.fields.date.value    = (d && !isNaN(d)) ? new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10) : '';
+    editEls.fields.file.value    = r.file || '';
+    editEls.fields.desc.value    = r.desc || '';
+    editEls.fields.log.value     = r.log || '';
+
+    editEls.modal.style.display='flex';
+    editEls.fields.title.focus();
+  }
+  function closeEditModal(){ editEls.modal.style.display='none'; editingId=null; }
+
+  // Events: view modal
   q('#issuesTable').addEventListener('click', (ev)=>{
     const tr = ev.target.closest('tr[data-id]');
     if(tr){ openModal(tr.getAttribute('data-id')); }
   });
   els.closeModal.addEventListener('click', closeModal);
   els.modal.addEventListener('click', (e)=>{ if(e.target===els.modal) closeModal(); });
-  document.addEventListener('keydown', (e)=>{ 
-    if(e.key==='Escape' && els.modal.style.display==='flex') closeModal();
-    if(e.key==='Tab' && els.modal.style.display==='flex'){ trapFocus(els.modal, e); }
-  });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && els.modal.style.display==='flex') closeModal(); });
 
   els.copyId.addEventListener('click', async ()=>{
     if(!selectedIssue) return;
@@ -713,6 +872,54 @@ document.addEventListener("DOMContentLoaded", () => {
     }catch{ showToast('Unable to copy (clipboard blocked)'); }
   });
 
+  // Events: edit modal
+  editEls.close.addEventListener('click', closeEditModal);
+  editEls.cancel.addEventListener('click', closeEditModal);
+  editEls.modal.addEventListener('click', (e)=>{ if(e.target===editEls.modal) closeEditModal(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && editEls.modal.style.display==='flex') closeEditModal(); });
+
+  editEls.form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    if(!editingId) return;
+
+    const patch = {
+      title:   editEls.fields.title.value.trim(),
+      module:  editEls.fields.module.value.trim(),
+      priority:editEls.fields.priority.value,
+      status:  editEls.fields.status.value,
+      date:    editEls.fields.date.value, // yyyy-mm-dd
+      file:    editEls.fields.file.value.trim(),
+      desc:    editEls.fields.desc.value.trim(),
+      log:     editEls.fields.log.value.trim()
+    };
+
+    // Update in-memory rows
+    rows = rows.map(r => r.id===editingId ? { ...r, ...patch } : r);
+
+    // Save to localStorage patches
+    const patches = loadLocalEdits();
+    patches[editingId] = { ...(patches[editingId]||{}), ...patch };
+    saveLocalEdits(patches);
+
+    // (Optional) Persist to server (Google Apps Script) if configured
+    if(SCRIPT_URL){
+      try{
+        const res = await fetch(SCRIPT_URL, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ id: editingId, ...patch })
+        });
+        const json = await res.json().catch(()=>({}));
+        if(json && json.ok) showToast('Saved to Google Sheet');
+        else showToast('Server save failed');
+      }catch{ showToast('Network error saving to sheet'); }
+    }
+
+    closeEditModal();
+    applyFilters(); // re-filter & redraw
+    showToast('Saved (local)');
+  });
+
   // Sorting
   qAll('#issuesTable thead th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
@@ -723,9 +930,6 @@ document.addEventListener("DOMContentLoaded", () => {
     th.addEventListener('keydown', e=>{
       if(e.key==='Enter' || e.key===' '){ e.preventDefault(); th.click(); }
     });
-    th.setAttribute('tabindex','0');
-    th.setAttribute('role','button');
-    th.setAttribute('aria-label', `Sort by ${th.textContent}`);
   });
 
   // Pagination
@@ -769,6 +973,15 @@ document.addEventListener("DOMContentLoaded", () => {
   els.themeSelect.addEventListener('change', ()=> applyTheme(els.themeSelect.value));
   initTheme();
 
+  // Admin button
+  els.adminBtn.addEventListener('click', async ()=>{
+    if(!ADMIN_HASH || ADMIN_HASH.startsWith('REPLACE_')){
+      alert('Please set ADMIN_HASH in the code first (SHA-256 hex of your passphrase).');
+      return;
+    }
+    if(isAdmin) adminLogout(); else await adminLoginFlow();
+  });
+
   // Initial load
   if(typeof Chart === 'undefined') { showToast('Chart.js failed to load'); }
   if(typeof Papa === 'undefined') { showToast('PapaParse failed to load'); }
@@ -779,7 +992,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
   }
   function escapeAttr(s){
-    // Basic attribute escaping (quotes + ampersand)
     return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   }
 });
