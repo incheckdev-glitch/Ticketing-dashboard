@@ -157,15 +157,14 @@
       };
     }
 
-    // ✅ Strong filter: drop rows that have no real data
+    // ✅ Hard filter: drop rows where only Timestamp is filled
     function parseCsv(t){
       return Papa.parse(t,{header:true,skipEmptyLines:true}).data
         .map(normalizeRow)
         .filter(r => {
-          return (r.id && r.id.trim() !== "") ||
-                 (r.title && r.title.trim() !== "") ||
-                 (r.module && r.module.trim() !== "" && r.module.trim() !== "Unspecified") ||
-                 (r.desc && r.desc.trim() !== "");
+          const keys = ["id","title","module","desc","priority","status","type","file"];
+          const hasRealField = keys.some(k => r[k] && r[k].trim() !== "" && r[k].trim() !== "Unspecified");
+          return hasRealField; // must have at least one real field
         });
     }
 
