@@ -297,7 +297,25 @@
   </div>
 
   <!-- Modal -->
-  <div id="issueModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody"><!-- Edit Modal -->
+  <!-- Edit Modal -->
+<div id="editModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+  <div class="modal-content">
+    <div class="header">
+      <h2 id="editModalTitle" style="margin:0;font-size:20px">Edit Issue</h2>
+      <button class="modal-close" id="editModalClose">✕</button>
+    </div>
+    <div>
+      <label>Status:</label><br>
+      <input id="editStatus" class="input" type="text"><br><br>
+      <label>Log:</label><br>
+      <textarea id="editLog" class="input"></textarea><br><br>
+      <label>Password:</label><br>
+      <input id="editPassword" class="input" type="password"><br><br>
+      <button id="saveEditBtn" class="btn primary">💾 Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="editModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
   <div class="modal-content">
     <div class="header">
