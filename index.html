@@ -157,14 +157,15 @@
       };
     }
 
-    // ✅ Hard filter: drop rows where only Timestamp is filled
+    // ✅ Strong filter: drop rows that have no real data
     function parseCsv(t){
       return Papa.parse(t,{header:true,skipEmptyLines:true}).data
         .map(normalizeRow)
         .filter(r => {
-          const keys = ["id","title","module","desc","priority","status","type","file"];
-          const hasRealField = keys.some(k => r[k] && r[k].trim() !== "" && r[k].trim() !== "Unspecified");
-          return hasRealField; // must have at least one real field
+          return (r.id && r.id.trim() !== "") ||
+                 (r.title && r.title.trim() !== "") ||
+                 (r.module && r.module.trim() !== "" && r.module.trim() !== "Unspecified") ||
+                 (r.desc && r.desc.trim() !== "");
         });
     }
 
@@ -248,7 +249,7 @@
 
       filtered=rows.filter(r=>{
         const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')).toLowerCase();
-        let keepDate=true; 
+        let keepDate=true;
         if(r.date){
           const d=new Date(r.date);
           if(startDate && d<startDate) keepDate=false;
