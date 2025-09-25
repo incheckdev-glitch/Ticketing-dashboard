@@ -381,7 +381,13 @@ document.addEventListener("DOMContentLoaded", () => {
       log: pick('log','logs','comment','notes')
     };
   }
-  function parseCsv(t){ return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id||r.title||r.module); }
+ function parseCsv(t){ 
+  return Papa.parse(t,{header:true,skipEmptyLines:true})
+    .data
+    .map(normalizeRow)
+    .filter(r => r.id && r.id.trim() !== ""); // only keep rows with real IDs
+}
+
   function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
   const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
   const priorityBadge = p => pill(p,`priority-${p||''}`);
