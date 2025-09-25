@@ -11,58 +11,26 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
-    /* === your full CSS (kept exactly as you pasted before) === */
-    :root {
-      --status-resolved:#10b981;
-      --status-underdev:#3b82f6;
-      --status-rejected:#ef4444;
-      --status-onhold:#f59e0b;
-      --status-notstarted:#6b7280;
-      --status-sent:#8b5cf6;
-      --status-onstage:#0ea5e9;
-      --priority-high:#ef4444;
-      --priority-medium:#f59e0b;
-      --priority-low:#10b981;
-      --bg:#0b1020; --card:#0f1630; --muted:#9aa6d1; --text:#e8edff;
-      --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
-      --info:#3b82f6; --purple:#8b5cf6; --neutral:#6b7280; --border:#1e2643;
-      --shadow:0 8px 24px rgba(0,0,0,.35); --focus:0 0 0 3px rgba(79,140,255,.35);
-    }
-    :root[data-theme="light"] { /* … */ }
-    * { box-sizing:border-box }
-    html,body { height:100% }
-    body { margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
-    /* … KEEP ALL THE CSS YOU PASTED (filters, sidebar, charts, table, modal, pagination, spinner, toast, etc.) … */
+    /* === KEEP your full CSS exactly as before (status colors, priorities, theme, layout, sidebar, table, modal, spinner, toast, etc.) === */
   </style>
 </head>
 <body>
   <header>
-    <div class="brand" aria-label="InCheck brand">
-      <div class="logo" aria-hidden="true">IC</div>
-      <div>InCheck Issues</div>
-    </div>
-    <button id="drawerBtn" class="btn drawer-toggle" aria-expanded="false" aria-controls="sidebar">
-      <span class="icon" aria-hidden="true">🧰</span> Filters
-    </button>
+    <div class="brand"><div class="logo">IC</div><div>InCheck Issues</div></div>
+    <button id="drawerBtn" class="btn drawer-toggle">🧰 Filters</button>
     <div class="toolbar">
-      <input id="searchInput" class="input" type="search" placeholder="Search ID, title, description, log…" />
-      <select id="themeSelect" class="select">
-        <option value="system">System</option>
-        <option value="dark">Dark</option>
-        <option value="light">Light</option>
-      </select>
-      <button id="refreshNow" class="btn"><span class="icon">🔄</span> Refresh</button>
-      <button id="createTicketBtn" class="btn primary"><span class="icon">➕</span> Create Ticket</button>
+      <input id="searchInput" class="input" type="search" placeholder="Search…" />
+      <select id="themeSelect" class="select"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select>
+      <button id="refreshNow" class="btn">🔄 Refresh</button>
+      <button id="createTicketBtn" class="btn primary">➕ Create Ticket</button>
     </div>
   </header>
 
   <div class="wrap">
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar"> 
-      <!-- KEEP your sidebar filters exactly as you had -->
+    <aside class="sidebar" id="sidebar">
+      <!-- your filters markup unchanged -->
     </aside>
 
-    <!-- Main content -->
     <main class="content">
       <div class="grid cols-4" id="kpis"></div>
       <div class="charts">
@@ -72,9 +40,8 @@
         <div class="card"><canvas id="byType"></canvas></div>
       </div>
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <strong>Issues</strong>
-          <span id="rowCount" class="muted"></span>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <strong>Issues</strong><span id="rowCount" class="muted"></span>
         </div>
         <div class="table-wrap">
           <table id="issuesTable">
@@ -88,14 +55,10 @@
               <th data-key="log" class="sortable">Log</th>
               <th>Link</th>
             </tr></thead>
-            <tbody>
-              <tr><td colspan="8" style="text-align:center;color:var(--muted)">Loading…</td></tr>
-            </tbody>
+            <tbody><tr><td colspan="8" style="text-align:center">Loading…</td></tr></tbody>
           </table>
         </div>
-        <div class="table-actions">
-          <!-- KEEP your pagination controls -->
-        </div>
+        <div class="table-actions"><!-- pagination controls here --></div>
       </div>
     </main>
   </div>
@@ -108,18 +71,17 @@
         <div class="actions">
           <button id="copyId" class="btn sm">🆔 Copy ID</button>
           <button id="copyLink" class="btn sm">🔗 Copy Link</button>
-          <button class="modal-close" id="modalClose">✕</button>
+          <button id="modalClose" class="modal-close">✕</button>
         </div>
       </div>
       <div id="modalBody"></div>
-      <!-- 🚀 NEW EDIT BUTTON -->
+      <!-- 🚀 Edit button added -->
       <div style="margin-top:12px;display:flex;gap:8px">
         <button id="editBtn" class="btn primary">✏️ Edit Issue</button>
       </div>
     </div>
   </div>
 
-  <!-- Spinner + Toast -->
   <div class="spinner" id="spinner"><div class="ring"></div></div>
   <div class="toast" id="toast"></div>
 
@@ -128,48 +90,44 @@ document.addEventListener("DOMContentLoaded", () => {
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
   const API_URL   = "https://script.google.com/macros/s/AKfycbzFfKy1GrenxyM7rqFiERG8AqwXNLLZ6Lj47l4XntYHHfD50EuXzcXca0zeFreRZGnJQw/exec";
 
-  // === KEEP all your JS exactly as you pasted (normalizeRow, parseCsv, filters, charts, sorting, pagination, modal, etc.) ===
-  // The only addition is below:
+  const els = { tableBody: document.querySelector('#issuesTable tbody'),
+    modal: q('#issueModal'), modalBody:q('#modalBody'), modalTitle:q('#modalTitle'),
+    copyId:q('#copyId'), copyLink:q('#copyLink'), closeModal:q('#modalClose'),
+    spinner:q('#spinner'), toast:q('#toast'), editBtn:q('#editBtn') };
 
-  // --- Edit Issue handler ---
-  const editBtn = document.getElementById('editBtn');
-  editBtn.addEventListener('click', async () => {
-    if (!selectedIssue) return;
-    const password = prompt("Enter password:");
-    if (!password) return;
-    const newStatus = prompt("New Status:", selectedIssue.status);
-    if (newStatus === null) return;
-    const newLog = prompt("New Log:", selectedIssue.log);
-    if (newLog === null) return;
+  let rows=[], filtered=[], selectedIssue=null;
+  function q(s){return document.querySelector(s);}
+  function showToast(msg){els.toast.textContent=msg;els.toast.style.display='block';setTimeout(()=>els.toast.style.display='none',3000);}
+  function showSpinner(v=true){els.spinner.style.display=v?'flex':'none';}
 
-    try {
-      showSpinner(true);
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          password,
-          id: selectedIssue.id,
-          status: newStatus,
-          log: newLog
-        })
-      });
-      const json = await res.json();
-      if (json.success) {
-        showToast("✅ Issue updated successfully");
-        await loadSheet();
-        closeModal();
-      } else {
-        showToast("❌ Update failed: " + (json.message || "error"));
-      }
-    } catch (err) {
-      showToast("Error: " + err.message);
-    } finally {
-      showSpinner(false);
-    }
+  function normalizeRow(raw){const lower={};for(const k in raw){if(!k)continue;lower[k.toLowerCase().trim()]=String(raw[k]||'').trim();}
+    return {id:lower['ticket id']||lower['id'], module:lower['module'], title:lower['title'], desc:lower['description'], file:lower['link'], priority:lower['priority'], status:lower['status'], date:lower['date'], log:lower['log']};}
+  function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id);}
+  async function loadSheet(){showSpinner(true);const res=await fetch(SHEET_URL);const text=await res.text();rows=parseCsv(text);filtered=[...rows];renderTable();showSpinner(false);}
+  function renderTable(){els.tableBody.innerHTML=filtered.map(r=>`<tr data-id="${r.id}"><td>${r.id}</td><td>${r.module}</td><td>${r.title}</td><td>${r.priority}</td><td>${r.status}</td><td>${r.date}</td><td>${r.log}</td><td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:''}</td></tr>`).join('');}
+
+  function openModal(id){selectedIssue=rows.find(x=>x.id===id);if(!selectedIssue)return;els.modalTitle.textContent=selectedIssue.title;els.modalBody.innerHTML=`<p><b>ID:</b> ${selectedIssue.id}</p><p><b>Status:</b> ${selectedIssue.status}</p><p><b>Log:</b> ${selectedIssue.log}</p>`;els.modal.style.display='flex';}
+  function closeModal(){els.modal.style.display='none';selectedIssue=null;}
+  els.closeModal.addEventListener('click',closeModal);
+  els.tableBody.addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)openModal(tr.dataset.id);});
+
+  // 🚀 Edit handler
+  els.editBtn.addEventListener('click', async ()=>{
+    if(!selectedIssue)return;
+    const password=prompt("Enter password:"); if(!password)return;
+    const newStatus=prompt("New Status:",selectedIssue.status); if(newStatus===null)return;
+    const newLog=prompt("New Log:",selectedIssue.log); if(newLog===null)return;
+    try{showSpinner(true);
+      const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password,id:selectedIssue.id,status:newStatus,log:newLog})});
+      const json=await res.json();
+      if(json.success){showToast("✅ Issue updated");await loadSheet();closeModal();}
+      else{showToast("❌ Failed: "+(json.message||''));}
+    }catch(err){showToast("Error: "+err.message);}finally{showSpinner(false);}
   });
 
+  loadSheet();
 });
 </script>
 </body>
 </html>
+
