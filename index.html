@@ -248,7 +248,7 @@
 
       filtered=rows.filter(r=>{
         const hay=(r.id+' '+r.module+' '+(r.title||'')+' '+(r.desc||'')).toLowerCase();
-        let keepDate=true;
+        let keepDate=true; 
         if(r.date){
           const d=new Date(r.date);
           if(startDate && d<startDate) keepDate=false;
