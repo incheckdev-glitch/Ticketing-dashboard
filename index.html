@@ -145,7 +145,7 @@
       const pick=(...keys)=>{ for(const key of keys){ if(lower[key.toLowerCase()]) return lower[key.toLowerCase()]; } return ''; };
 
       return {
-        id: pick('ticket id','id'), // ❌ no more fake ROW-xx IDs
+        id: pick('ticket id','id'),
         module: pick('impacted module','module','issue location') || 'Unspecified',
         title: pick('title'),
         desc: pick('description'),
@@ -157,12 +157,15 @@
       };
     }
 
-    // ✅ Filter out blank rows
+    // ✅ Strong filter: drop rows that have no real data
     function parseCsv(t){
       return Papa.parse(t,{header:true,skipEmptyLines:true}).data
         .map(normalizeRow)
         .filter(r => {
-          return Object.values(r).some(v => v && v.trim() !== "");
+          return (r.id && r.id.trim() !== "") ||
+                 (r.title && r.title.trim() !== "") ||
+                 (r.module && r.module.trim() !== "" && r.module.trim() !== "Unspecified") ||
+                 (r.desc && r.desc.trim() !== "");
         });
     }
 
