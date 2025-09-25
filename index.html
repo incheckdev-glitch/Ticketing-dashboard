@@ -17,13 +17,13 @@
       --accent:#2563eb; --danger:#dc2626; --ok:#059669; --warn:#d97706; --info:#1d4ed8; --purple:#7c3aed; --neutral:#374151;
     }
     body{margin:0;font-family:Inter,sans-serif;background:var(--bg);color:var(--text)}
-    header{display:flex;gap:8px;align-items:center;padding:12px 16px;position:sticky;top:0;background:var(--card);z-index:10}
+    header{display:flex;gap:8px;align-items:center;padding:12px 16px;position:sticky;top:0;background:var(--card);z-index:10;flex-wrap:wrap}
     header .title{font-weight:700;font-size:18px}
     .toolbar{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
     input,select,button{padding:6px 10px;border-radius:8px;font:inherit}
     button{cursor:pointer;font-weight:600}
     .toolbar label{display:flex;flex-direction:column;font-size:12px;color:var(--muted)}
-    .toolbar select{margin-top:2px}
+    .toolbar select,.toolbar input[type="date"]{margin-top:2px}
     .container{padding:20px;max-width:1200px;margin:0 auto}
     .grid{display:grid;gap:16px}
     .grid.cols-4{grid-template-columns:repeat(4,1fr)}
@@ -61,19 +61,24 @@
     <div class="toolbar">
       <input id="searchInput" type="search" placeholder="Search issues..." />
 
-      <label>
-        Module
+      <label>Module
         <select id="moduleFilter"></select>
       </label>
 
-      <label>
-        Priority
+      <label>Priority
         <select id="priorityFilter"></select>
       </label>
 
-      <label>
-        Status
+      <label>Status
         <select id="statusFilter"></select>
+      </label>
+
+      <label>Start Date
+        <input type="date" id="startDateFilter">
+      </label>
+
+      <label>End Date
+        <input type="date" id="endDateFilter">
       </label>
 
       <button id="refreshNow">Refresh</button>
@@ -100,7 +105,7 @@
       <div class="table-wrap">
         <table id="issuesTable">
           <thead><tr>
-            <th>ID</th><th>Module</th><th>Title</th><th>Priority</th><th>Status</th><th>Link</th>
+            <th>ID</th><th>Module</th><th>Title</th><th>Priority</th><th>Status</th><th>Date</th><th>Link</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -120,19 +125,22 @@
     let rows=[],filtered=[],charts={};
 
     function normalizeRow(raw){
-      const lower={}; for(const k in raw){if(k) lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
+      const lower={}; 
+      for(const k in raw){if(k) lower[k.toLowerCase().trim()]=String(raw[k]??'').trim();}
       const pick=(...keys)=>{for(const key of keys){if(lower[key]) return lower[key];}return'';}
       return {
         id: pick('ticket id','id'),
-        module: pick('impacted module','module','issue location'),
+        module: pick('impacted module'),
         title: pick('title'),
         desc: pick('description'),
         file: pick('file upload','link','url'),
         priority: pick('priority'),
         status: pick('status') || 'Not Started Yet',
-        type: pick('category','type')
+        type: pick('category','type'),
+        date: pick('timestamp','date','created at')
       };
     }
+
     function parseCsv(t){return Papa.parse(t,{header:true,skipEmptyLines:true}).data.map(normalizeRow).filter(r=>r.id);}
     function pill(text,cls){return `<span class="pill ${cls}">${text||'-'}</span>`;}
     function statusBadge(s){return pill(s,`status-${s.replace(/\s/g,'\\ ')}`);}
@@ -148,14 +156,14 @@
 
     function renderFilters(){
       const uniq=a=>[...new Set(a.filter(Boolean).map(x=>x.trim()))].sort((a,b)=>a.localeCompare(b));
-      const modules=uniq(rows.map(r=>r.module ? r.module.charAt(0).toUpperCase()+r.module.slice(1).toLowerCase() : ''));
+      const modules=uniq(rows.map(r=>r.module || "Unspecified"));
       els.moduleFilter.innerHTML=['All',...modules].map(v=>`<option value="${v}">${v}</option>`).join('');
-      els.priorityFilter.innerHTML=['All',...uniq(rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
-      els.statusFilter.innerHTML=['All',...uniq(rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');
+      els.priorityFilter.innerHTML=['All',...uniq(rows.map(r=>r.priority))].map(v=>`<option value="${v}">${v}</option>`).join('');
+      els.statusFilter.innerHTML=['All',...uniq(rows.map(r=>r.status))].map(v=>`<option value="${v}">${v}</option>`).join('');
     }
 
     function renderTable(){
-      els.tableBody.innerHTML=filtered.map(r=>`<tr onclick="openModal('${r.id}')"><td>${r.id}</td><td>${r.module}</td><td>${r.title}</td><td>${priorityBadge(r.priority)}</td><td>${statusBadge(r.status)}</td><td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td></tr>`).join('');
+      els.tableBody.innerHTML=filtered.map(r=>`<tr onclick="openModal('${r.id}')"><td>${r.id}</td><td>${r.module}</td><td>${r.title}</td><td>${priorityBadge(r.priority)}</td><td>${statusBadge(r.status)}</td><td>${r.date||'-'}</td><td>${r.file?`<a href="${r.file}" target="_blank">🔗</a>`:'-'}</td></tr>`).join('');
       els.rowCount.textContent=`${filtered.length} rows`;
     }
 
@@ -171,16 +179,36 @@
     function applyFilters(){
       const q=(document.getElementById('searchInput').value||'').toLowerCase();
       const m=els.moduleFilter.value,p=els.priorityFilter.value,s=els.statusFilter.value;
-      filtered=rows.filter(r=>{const txt=(r.id+' '+r.module+' '+r.title).toLowerCase();return(!q||txt.includes(q))&&(!m||m==='All'||r.module===m)&&(!p||p==='All'||r.priority===p)&&(!s||s==='All'||r.status===s);});
+      const startDate=document.getElementById('startDateFilter').value;
+      const endDate=document.getElementById('endDateFilter').value;
+
+      filtered=rows.filter(r=>{
+        const txt=(r.id+' '+r.module+' '+r.title).toLowerCase();
+        let keepDate=true;
+        if(r.date){
+          const issueDate=new Date(r.date);
+          if(startDate && issueDate < new Date(startDate)) keepDate=false;
+          if(endDate && issueDate > new Date(endDate)) keepDate=false;
+        }
+        return (!q||txt.includes(q))
+          &&(!m||m==='All'||r.module===m)
+          &&(!p||p==='All'||r.priority===p)
+          &&(!s||s==='All'||r.status===s)
+          && keepDate;
+      });
+
       renderKpis();renderTable();drawCharts();
     }
 
     async function loadSheet(){const res=await fetch(SHEET_URL);const text=await res.text();rows=parseCsv(text);filtered=[...rows];renderFilters();applyFilters();}
-    function openModal(id){const r=rows.find(x=>x.id===id);els.modalBody.innerHTML=`<h2>${r.title}</h2><p><b>ID:</b> ${r.id}</p><p><b>Module:</b> ${r.module}</p><p><b>Priority:</b> ${r.priority}</p><p><b>Status:</b> ${r.status}</p><p><b>Description:</b> ${r.desc}</p>${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;els.modal.style.display='flex';}
+    function openModal(id){const r=rows.find(x=>x.id===id);els.modalBody.innerHTML=`<h2>${r.title}</h2><p><b>ID:</b> ${r.id}</p><p><b>Module:</b> ${r.module}</p><p><b>Priority:</b> ${r.priority}</p><p><b>Status:</b> ${r.status}</p><p><b>Date:</b> ${r.date||'-'}</p><p><b>Description:</b> ${r.desc}</p>${r.file?`<p><b>Attachment:</b> <a href="${r.file}" target="_blank">${r.file}</a></p>`:''}`;els.modal.style.display='flex';}
     function closeModal(){els.modal.style.display='none';}
     document.getElementById('searchInput').addEventListener('input',applyFilters);
     els.moduleFilter.addEventListener('change',applyFilters);els.priorityFilter.addEventListener('change',applyFilters);els.statusFilter.addEventListener('change',applyFilters);
-    els.reset.onclick=()=>{document.getElementById('searchInput').value='';renderFilters();applyFilters();};
+    document.getElementById('startDateFilter').addEventListener('change',applyFilters);
+    document.getElementById('endDateFilter').addEventListener('change',applyFilters);
+
+    els.reset.onclick=()=>{document.getElementById('searchInput').value='';document.getElementById('startDateFilter').value='';document.getElementById('endDateFilter').value='';renderFilters();applyFilters();};
     els.refresh.onclick=loadSheet;
     loadSheet();
 
