@@ -369,21 +369,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-document.addEventListener("DOMContentLoaded", (const ADMIN_PASS = "ilovemywork";
-
-function askForAdmin() {
-  const pass = prompt("Enter admin passphrase:");
-  if (pass === ADMIN_PASS) {
-    alert("✅ Admin mode enabled");
-    document.body.classList.add("admin"); // show edit buttons
-  } else {
-    alert("❌ Incorrect passphrase");
-  }
-}
-
-// Attach to button
-document.querySelector("#adminBtn").addEventListener("click", askForAdmin);
-) => {
+document.addEventListener("DOMContentLoaded", () => {
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
 
   // OPTIONAL: if you set up Google Apps Script to persist edits, put its URL here:
