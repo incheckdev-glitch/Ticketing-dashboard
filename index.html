@@ -12,6 +12,18 @@
 
   <style>
     :root {
+  --status-resolved:#10b981;
+  --status-underdev:#3b82f6;
+  --status-rejected:#ef4444;
+  --status-onhold:#f59e0b;
+  --status-notstarted:#6b7280;
+  --status-sent:#8b5cf6;
+  --status-onstage:#0ea5e9;
+
+  --priority-high:#ef4444;
+  --priority-medium:#f59e0b;
+  --priority-low:#10b981;
+}
       --bg:#0b1020; --card:#0f1630; --muted:#9aa6d1; --text:#e8edff;
       --accent:#4f8cff; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
       --info:#3b82f6; --purple:#8b5cf6; --neutral:#6b7280; --border:#1e2643;
@@ -107,31 +119,17 @@
     th.sorted-desc::after { content:" ↓" }
 
     .pill { padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700; display:inline-block }
-   .status-Resolved {
-  background: var(--ok);        /* green */
-  color: #fff;
-}
-.status-Under\ Development {
-  background: var(--info);      /* blue */
-  color: #fff;
-}
-.status-Rejected {
-  background: var(--danger);    /* red */
-  color: #fff;
-}
-.status-On\ Hold {
-  background: var(--warn);      /* orange */
-  color: #fff; /* changed from black for better contrast */
-}
-.status-Not\ Started\ Yet {
-  background: var(--neutral);   /* gray */
-  color: #fff;
-}
-.status-Sent {
-  background: var(--purple);    /* purple */
-  color: #fff;
-}
+   .status-Resolved { background: var(--status-resolved); color:#fff }
+.status-Under\ Development { background: var(--status-underdev); color:#fff }
+.status-Rejected { background: var(--status-rejected); color:#fff }
+.status-On\ Hold { background: var(--status-onhold); color:#fff }
+.status-Not\ Started\ Yet { background: var(--status-notstarted); color:#fff }
+.status-Sent { background: var(--status-sent); color:#fff }
+.status-On\ Stage { background: var(--status-onstage); color:#fff }
 
+.priority-High { background: var(--priority-high); color:#fff }
+.priority-Medium { background: var(--priority-medium); color:#fff }
+.priority-Low { background: var(--priority-low); color:#fff }
 
     /* Modal */
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); align-items:center; justify-content:center; z-index:100 }
