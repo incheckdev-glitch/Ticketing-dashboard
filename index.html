@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -49,6 +50,18 @@
     }
     :focus-visible { outline: none; box-shadow: var(--focus); border-radius: 8px; }
 
+    .sr-only {
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
     /* Topbar */
     header {
       position:sticky; top:0; z-index:20; background:var(--card);
@@ -70,6 +83,7 @@
     .btn { cursor:pointer; font-weight:600; background:var(--card) }
     .btn.primary { background:var(--accent); border-color:transparent; color:#fff }
     .btn.ghost { border-color:transparent; background:transparent }
+    .btn.sm { padding:6px 10px; border-radius:8px; font-size:13px }
     .btn:hover { opacity:.92; transform:translateY(-1px) }
     .icon { font-size:18px; line-height:1 }
 
@@ -198,9 +212,13 @@
         <option value="light">Light</option>
       </select>
       <button id="refreshNow" class="btn" aria-label="Refresh from source"><span class="icon" aria-hidden="true">🔄</span> Refresh</button>
+      <button id="exportCsv" class="btn" aria-label="Export filtered issues as CSV"><span class="icon" aria-hidden="true">📥</span> Export CSV</button>
       <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket"><span class="icon" aria-hidden="true">➕</span> Create Ticket</button>
     </div>
   </header>
+
+  <!-- Loading status for screen readers -->
+  <div id="loadingStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <div class="wrap">
     <!-- Sidebar -->
@@ -238,7 +256,7 @@
 
       <div class="filter-group">
         <button id="resetBtn" class="btn ghost" aria-label="Reset all filters">Reset</button>
-        <span class="muted">Tip: click any KPI to filter by that status.</span>
+        <span class="muted">Tip: click any KPI to filter by that status (Total Issues resets all).</span>
       </div>
     </aside>
 
@@ -319,6 +337,9 @@
 document.addEventListener("DOMContentLoaded", () => {
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
 
+  function q(sel, root = document) { return root.querySelector(sel); }
+  function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
+
   // Elements
   const els = {
     table: q('#issuesTable'),
@@ -329,6 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
     statusFilter: q('#statusFilter'),
     reset: q('#resetBtn'),
     refresh: q('#refreshNow'),
+    exportCsv: q('#exportCsv'),
     kpis: q('#kpis'),
     modal: q('#issueModal'),
     modalBody: q('#modalBody'),
@@ -348,25 +370,66 @@ document.addEventListener("DOMContentLoaded", () => {
     lastPage: q('#lastPage'),
     pageInfo: q('#pageInfo'),
     pageSize: q('#pageSize'),
-    createTicket: q('#createTicketBtn')
+    createTicket: q('#createTicketBtn'),
+    startDateFilter: q('#startDateFilter'),
+    endDateFilter: q('#endDateFilter'),
+    loadingStatus: q('#loadingStatus')
   };
 
   // State
   let rows = [], filtered = [], charts = {};
   let sortKey = null, sortAsc = true;
-  let currentPage = 1, rowsPerPage = +els.pageSize.value;
+  let currentPage = 1;
+  let rowsPerPage = +(localStorage.getItem('pageSize') || els.pageSize.value);
+  els.pageSize.value = String(rowsPerPage);
   let selectedIssue = null;
   let lastFocusedBeforeModal = null;
 
-  // Utils
-  function q(s, r = document) { return r.querySelector(s); }
-  function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
   const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-  const showSpinner = (v=true)=> els.spinner.style.display = v ? 'flex' : 'none';
-  const showToast = (msg, ms=3500) => { els.toast.textContent = msg; els.toast.style.display = 'block'; setTimeout(()=>els.toast.style.display='none', ms); };
 
+  const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  const showSpinner = (v=true)=> {
+    els.spinner.style.display = v ? 'flex' : 'none';
+    if (els.loadingStatus) {
+      els.loadingStatus.textContent = v ? 'Loading issues…' : '';
+    }
+  };
+  const showToast = (msg, ms=3500) => {
+    els.toast.textContent = msg;
+    els.toast.style.display = 'block';
+    setTimeout(()=>els.toast.style.display='none', ms);
+  };
+
+  // Normalizers
+  function normalizeStatus(rawStatus) {
+    const s = (rawStatus || '').trim().toLowerCase();
+    if (!s) return 'Not Started Yet';
+    if (s.startsWith('resolved')) return 'Resolved';
+    if (s.startsWith('under')) return 'Under Development';
+    if (s.startsWith('rejected')) return 'Rejected';
+    if (s.startsWith('on hold')) return 'On Hold';
+    if (s.startsWith('not started')) return 'Not Started Yet';
+    if (s.startsWith('sent')) return 'Sent';
+    if (s.startsWith('on stage')) return 'On Stage';
+    return rawStatus || 'Not Started Yet';
+  }
+  function normalizePriority(rawPriority) {
+    const s = (rawPriority || '').trim().toLowerCase();
+    if (!s) return '';
+    if (s.startsWith('h')) return 'High';
+    if (s.startsWith('m')) return 'Medium';
+    if (s.startsWith('l')) return 'Low';
+    return rawPriority;
+  }
+
+  // Row normalization
   function normalizeRow(raw){
-    const lower={}; for(const k in raw){ if(!k) continue; lower[k.toLowerCase().replace(/\s+/g,' ').trim()]=String(raw[k]??'').trim(); }
+    const lower={};
+    for(const k in raw){
+      if(!k) continue;
+      lower[k.toLowerCase().replace(/\s+/g,' ').trim()] = String(raw[k] ?? '').trim();
+    }
     const pick=(...keys)=>{ for(const key of keys){ if(lower[key]) return lower[key]; } return ''; };
     return {
       id: pick('ticket id','id'),
@@ -374,36 +437,107 @@ document.addEventListener("DOMContentLoaded", () => {
       title: pick('title'),
       desc: pick('description'),
       file: pick('file upload','link','url'),
-      priority: pick('priority'),
-      status: pick('status')||'Not Started Yet',
+      priority: normalizePriority(pick('priority')),
+      status: normalizeStatus(pick('status') || 'Not Started Yet'),
       type: pick('category','type'),
       date: pick('timestamp','date','created at'),
       log: pick('log','logs','comment','notes')
     };
   }
- function parseCsv(t){ 
-  return Papa.parse(t,{header:true,skipEmptyLines:true})
-    .data
-    .map(normalizeRow)
-    .filter(r => r.id && r.id.trim() !== ""); // only keep rows with real IDs
-}
+
+  function parseCsv(t){
+    return Papa.parse(t,{header:true,skipEmptyLines:true})
+      .data
+      .map(normalizeRow)
+      .filter(r => r.id && r.id.trim() !== "");
+  }
 
   function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
   const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
   const priorityBadge = p => pill(p,`priority-${p||''}`);
 
   // Theme
-  const applyTheme = (mode) => {
-    if(mode==='system'){ localStorage.setItem('theme','system'); document.documentElement.removeAttribute('data-theme'); return; }
-    document.documentElement.setAttribute('data-theme',mode);
+  function applySystemThemeFromOS(){
+    if (!mediaQuery) return;
+    if (mediaQuery.matches) {
+      // OS dark
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      // OS light
+      document.documentElement.setAttribute('data-theme','light');
+    }
+  }
+
+  function applyTheme(mode) {
     localStorage.setItem('theme', mode);
-  };
-  const initTheme = () => {
+    if (mode === 'system') {
+      applySystemThemeFromOS();
+      return;
+    }
+    if (mode === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+    } else if (mode === 'light') {
+      document.documentElement.setAttribute('data-theme','light');
+    }
+  }
+
+  function initTheme() {
     const saved = localStorage.getItem('theme') || 'system';
     els.themeSelect.value = saved;
-    if(saved==='system'){ document.documentElement.removeAttribute('data-theme'); }
-    else { document.documentElement.setAttribute('data-theme', saved); }
-  };
+    if (saved === 'system') {
+      applySystemThemeFromOS();
+    } else {
+      applyTheme(saved);
+    }
+    if (mediaQuery) {
+      mediaQuery.addEventListener('change', () => {
+        const current = localStorage.getItem('theme') || 'system';
+        if (current === 'system') applySystemThemeFromOS();
+      });
+    }
+  }
+
+  // Filter persistence
+  function saveFilters(){
+    const state = {
+      search: els.search.value || '',
+      module: els.moduleFilter.value || 'All',
+      priority: els.priorityFilter.value || 'All',
+      status: els.statusFilter.value || 'All',
+      start: els.startDateFilter.value || '',
+      end: els.endDateFilter.value || ''
+    };
+    try {
+      localStorage.setItem('incheckFilters', JSON.stringify(state));
+    } catch(e){
+      // ignore storage errors
+    }
+  }
+
+  function loadFilters(){
+    try {
+      const raw = localStorage.getItem('incheckFilters');
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      els.search.value = s.search || '';
+
+      const setIfOptionExists = (select, value) => {
+        if (!value) return;
+        const options = Array.from(select.options);
+        if (options.some(o => o.value === value)) {
+          select.value = value;
+        }
+      };
+
+      setIfOptionExists(els.moduleFilter, s.module);
+      setIfOptionExists(els.priorityFilter, s.priority);
+      setIfOptionExists(els.statusFilter, s.status);
+      els.startDateFilter.value = s.start || '';
+      els.endDateFilter.value = s.end || '';
+    } catch(e){
+      console.error('Failed to restore filters', e);
+    }
+  }
 
   // KPI rendering with percentage
   function renderKpis(){
@@ -418,8 +552,27 @@ document.addEventListener("DOMContentLoaded", () => {
       d.setAttribute('tabindex','0');
       d.setAttribute('aria-label',`${label}: ${val} (${pct} percent)`);
       d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div><div class="sub">${pct}%</div>`;
-      d.onclick=()=>{ if(label!=='Total Issues'){ els.statusFilter.value=label; applyFilters(); } };
-      d.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); d.click(); }});
+      d.onclick=()=>{
+        if(label === 'Total Issues'){
+          // reset all filters
+          els.search.value = '';
+          els.startDateFilter.value = '';
+          els.endDateFilter.value = '';
+          els.moduleFilter.value = 'All';
+          els.priorityFilter.value = 'All';
+          els.statusFilter.value = 'All';
+        } else {
+          els.statusFilter.value = label;
+        }
+        saveFilters();
+        applyFilters();
+      };
+      d.addEventListener('keydown', e=>{
+        if(e.key==='Enter' || e.key===' '){
+          e.preventDefault();
+          d.click();
+        }
+      });
       els.kpis.appendChild(d);
     };
     add('Total Issues', total);
@@ -457,6 +610,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function updatePaginationControls(total){
     const totalPages = Math.max(1, Math.ceil(total/rowsPerPage));
+    if (currentPage > totalPages) currentPage = totalPages;
     els.pageInfo.textContent = `Page ${Math.min(currentPage,totalPages)} / ${totalPages}`;
     const atFirst = currentPage<=1;
     const atLast = currentPage>=totalPages;
@@ -477,7 +631,9 @@ document.addEventListener("DOMContentLoaded", () => {
     els.rowCount.textContent = `${total} row${total===1?'':'s'}`;
 
     if (!total){
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">No issues found. Adjust filters or search.</td></tr>`;
+      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">
+        No issues found. Try clearing filters or search.
+      </td></tr>`;
       updateSortedHeaders();
       return;
     }
@@ -498,20 +654,24 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${statusBadge(r.status||'-')}</td>
         <td>${r.date||'-'}</td>
         <td>${r.log||'-'}</td>
-        <td>${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener" aria-label="Open attachment link">🔗</a>`:'-'}</td>
+        <td>${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer" aria-label="Open attachment link">🔗</a>`:'-'}</td>
       </tr>
     `).join('');
 
     // Row keyboard opening
     els.tableBody.querySelectorAll('tr[data-id]').forEach(tr=>{
-      tr.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openModal(tr.getAttribute('data-id')); }});
+      tr.addEventListener('keydown', e=>{
+        if(e.key==='Enter' || e.key===' '){
+          e.preventDefault();
+          openModal(tr.getAttribute('data-id'));
+        }
+      });
     });
 
     updateSortedHeaders();
   }
 
   function updateSortedHeaders(){
-    // Reset classes & aria-sort
     qAll('#issuesTable thead th').forEach(th => {
       th.classList.remove('sorted-asc','sorted-desc');
       th.setAttribute('aria-sort','none');
@@ -598,7 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function applyFilters(){
     const qstr = (els.search.value||'').toLowerCase().trim();
     const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
-    const start = q('#startDateFilter').value, end = q('#endDateFilter').value;
+    const start = els.startDateFilter.value, end = els.endDateFilter.value;
     const startDate = start ? new Date(start) : null;
     const endDate = end ? (()=>{ const d=new Date(end); d.setDate(d.getDate()+1); return d; })() : null;
 
@@ -625,7 +785,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCharts();
   }
 
-  // Data
+  // Data load
   async function loadSheet(){
     try {
       showSpinner(true);
@@ -635,16 +795,29 @@ document.addEventListener("DOMContentLoaded", () => {
       rows = parseCsv(text);
       filtered = [...rows];
       renderFilters();
+      loadFilters();
       applyFilters();
     } catch(e) {
       showToast('Error loading data: '+e.message);
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="color:#ffb4b4;text-align:center">Error loading data.</td></tr>`;
+      els.tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" style="color:#ffb4b4;text-align:center">
+            Error loading data.
+            <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
+          </td>
+        </tr>`;
+      const retryBtn = q('#retryLoad');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          loadSheet();
+        });
+      }
     } finally {
       showSpinner(false);
     }
   }
 
-  // Modal
+  // Modal helpers
   function trapFocus(container, e){
     const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
     if(!focusables.length) return;
@@ -668,7 +841,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <p><b>Date:</b> ${escapeHtml(r.date || '-')}</p>
       <p><b>Description:</b><br>${escapeHtml(r.desc || '-')}</p>
       <p><b>Log:</b><br>${escapeHtml(r.log || '-')}</p>
-      ${r.file ? `<p><b>Attachment:</b> <a href="${escapeAttr(r.file)}" target="_blank" rel="noopener">Open link</a></p>` : ''}
+      ${r.file ? `<p><b>Attachment:</b> <a href="${escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer">Open link</a></p>` : ''}
     `;
     els.modal.style.display='flex';
     els.copyId.focus();
@@ -676,24 +849,60 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeModal(){
     els.modal.style.display='none';
     selectedIssue=null;
-    if(lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus==='function'){ lastFocusedBeforeModal.focus(); }
+    if(lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus==='function'){
+      lastFocusedBeforeModal.focus();
+    }
+  }
+
+  // Export CSV for current filtered data
+  function exportFilteredCsv(){
+    if (!filtered.length){
+      showToast('Nothing to export (no rows).');
+      return;
+    }
+    const headers = ['ID','Module','Title','Priority','Status','Date','Log','Link','Description'];
+    const lines = [headers.join(',')];
+    filtered.forEach(r=>{
+      const row = [
+        r.id, r.module, r.title, r.priority, r.status,
+        r.date, r.log, r.file, r.desc
+      ].map(v=>{
+        const s = String(v ?? '').replace(/"/g,'""');
+        return `"${s}"`;
+      });
+      lines.push(row.join(','));
+    });
+    const csvBlob = new Blob([lines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(csvBlob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `incheck_issues_${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Exported CSV of current filtered issues');
   }
 
   // Create ticket → Google Form
   els.createTicket.addEventListener('click', () => {
-    window.open("https://forms.gle/PPnEP1AQneoBT79s5", "_blank", "noopener");
+    window.open("https://forms.gle/PPnEP1AQneoBT79s5", "_blank", "noopener,noreferrer");
   });
 
-  // Events
+  // Table click (do not open modal when clicking links)
   q('#issuesTable').addEventListener('click', (ev)=>{
+    if (ev.target.closest('a')) return; // let links behave normally
     const tr = ev.target.closest('tr[data-id]');
     if(tr){ openModal(tr.getAttribute('data-id')); }
   });
   els.closeModal.addEventListener('click', closeModal);
   els.modal.addEventListener('click', (e)=>{ if(e.target===els.modal) closeModal(); });
-  document.addEventListener('keydown', (e)=>{ 
-    if(e.key==='Escape' && els.modal.style.display==='flex') closeModal();
-    if(e.key==='Tab' && els.modal.style.display==='flex'){ trapFocus(els.modal, e); }
+  document.addEventListener('keydown', (e)=>{
+    if(els.modal.style.display==='flex'){
+      if(e.key==='Escape') closeModal();
+      if(e.key==='Tab') trapFocus(els.modal, e);
+    }
   });
 
   els.copyId.addEventListener('click', async ()=>{
@@ -701,16 +910,23 @@ document.addEventListener("DOMContentLoaded", () => {
     try{
       await navigator.clipboard.writeText(selectedIssue.id || '');
       showToast('Issue ID copied');
-    }catch{ showToast('Unable to copy (clipboard blocked)'); }
+    }catch{
+      showToast('Unable to copy (clipboard blocked)');
+    }
   });
   els.copyLink.addEventListener('click', async ()=>{
     if(!selectedIssue) return;
     const link = selectedIssue.file || '';
-    if(!link){ showToast('No link on this issue'); return; }
+    if(!link){
+      showToast('No link on this issue');
+      return;
+    }
     try{
       await navigator.clipboard.writeText(link);
       showToast('Link copied');
-    }catch{ showToast('Unable to copy (clipboard blocked)'); }
+    }catch{
+      showToast('Unable to copy (clipboard blocked)');
+    }
   });
 
   // Sorting
@@ -721,7 +937,10 @@ document.addEventListener("DOMContentLoaded", () => {
       renderTable();
     });
     th.addEventListener('keydown', e=>{
-      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); th.click(); }
+      if(e.key==='Enter' || e.key===' '){
+        e.preventDefault();
+        th.click();
+      }
     });
     th.setAttribute('tabindex','0');
     th.setAttribute('role','button');
@@ -732,6 +951,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const updateAndRender = ()=>{ renderTable(); };
   els.pageSize.addEventListener('change', ()=>{
     rowsPerPage = +els.pageSize.value;
+    localStorage.setItem('pageSize', rowsPerPage);
     currentPage = 1;
     updateAndRender();
   });
@@ -754,16 +974,27 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Filters & search
-  const onFilterChange = ()=> applyFilters();
+  const onFilterChange = ()=>{
+    saveFilters();
+    applyFilters();
+  };
   [els.moduleFilter, els.priorityFilter, els.statusFilter].forEach(el=> el.addEventListener('change', onFilterChange));
-  q('#startDateFilter').addEventListener('change', onFilterChange);
-  q('#endDateFilter').addEventListener('change', onFilterChange);
+  els.startDateFilter.addEventListener('change', onFilterChange);
+  els.endDateFilter.addEventListener('change', onFilterChange);
   els.reset.addEventListener('click', ()=>{
-    els.search.value=''; q('#startDateFilter').value=''; q('#endDateFilter').value='';
-    renderFilters(); applyFilters();
+    els.search.value='';
+    els.startDateFilter.value='';
+    els.endDateFilter.value='';
+    localStorage.removeItem('incheckFilters');
+    renderFilters();
+    applyFilters();
   });
   els.refresh.addEventListener('click', loadSheet);
-  els.search.addEventListener('input', debounce(applyFilters, 250));
+  els.exportCsv.addEventListener('click', exportFilteredCsv);
+  els.search.addEventListener('input', debounce(()=>{
+    saveFilters();
+    applyFilters();
+  }, 250));
 
   // Theme select
   els.themeSelect.addEventListener('change', ()=> applyTheme(els.themeSelect.value));
@@ -779,7 +1010,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
   }
   function escapeAttr(s){
-    // Basic attribute escaping (quotes + ampersand)
     return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   }
 });
