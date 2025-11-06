@@ -291,6 +291,24 @@
     th.sorted-asc::after { border-bottom-color:var(--accent); border-top-color:transparent; transform:translateY(-1px); }
     th.sorted-desc::after { border-top-color:var(--accent); border-bottom-color:transparent; transform:translateY(1px); }
 
+    /* Skeleton loading row */
+    .skeleton-row td {
+      position:relative;
+      color:transparent;
+    }
+    .skeleton-row td::before {
+      content:"";
+      position:absolute;
+      inset:6px 9px;
+      border-radius:8px;
+      background:linear-gradient(90deg,
+        rgba(148,163,184,.15),
+        rgba(148,163,184,.3),
+        rgba(148,163,184,.15));
+      background-size:200% 100%;
+      animation:skeleton 1.2s infinite linear;
+    }
+
     .pill {
       padding:3px 9px;
       border-radius:999px;
@@ -444,6 +462,19 @@
     .fc-event.event-type-release { background-color:var(--ok); border-color:var(--ok); }
     .fc-event.event-type-other { background-color:var(--purple); border-color:var(--purple); }
 
+    /* Hide log column on small screens for better mobile UX */
+    @media(max-width:768px){
+      #issuesTable th:nth-child(7),
+      #issuesTable td:nth-child(7) {
+        display:none;
+      }
+    }
+
+    @keyframes skeleton {
+      0% { background-position:200% 0; }
+      100% { background-position:-200% 0; }
+    }
+
     @media (prefers-reduced-motion: reduce){
       * { transition:none !important; animation:none !important }
     }
@@ -569,7 +600,7 @@
                 <th scope="col">Link</th>
               </tr></thead>
               <tbody>
-                <tr><td colspan="8" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+                <tr class="skeleton-row"><td colspan="8">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -594,11 +625,25 @@
 
       <section id="calendarView" class="view" role="tabpanel" aria-labelledby="calendarTab">
         <div class="card" aria-label="Calendar">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
             <div>
               <strong>Deployments & Maintenance Calendar</strong>
               <div class="muted">
                 Plan deployments, maintenance windows, releases, and other operational events.
+              </div>
+              <div id="eventTypeFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
+                  <input type="checkbox" id="filterDeployment" checked /> Deployment
+                </label>
+                <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
+                  <input type="checkbox" id="filterMaintenance" checked /> Maintenance
+                </label>
+                <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
+                  <input type="checkbox" id="filterRelease" checked /> Release
+                </label>
+                <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
+                  <input type="checkbox" id="filterOther" checked /> Other
+                </label>
               </div>
             </div>
             <button id="addEventBtn" class="btn primary sm" type="button">
@@ -660,6 +705,11 @@
               </select>
             </div>
             <div class="filter-row">
+              <label class="muted" for="eventIssueId">Issue ID (optional)</label>
+              <input id="eventIssueId" class="input" type="text"
+                     placeholder="e.g. INC-123 or ticket ID" />
+            </div>
+            <div class="filter-row">
               <label class="muted" for="eventStart">Start</label>
               <input id="eventStart" class="input" type="datetime-local" required />
             </div>
@@ -674,6 +724,7 @@
                         style="border-radius:12px; resize:vertical;"></textarea>
             </div>
           </div>
+          <div id="eventIssueLinkedInfo" class="muted" style="margin-top:4px;display:none;font-size:12px;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -699,13 +750,21 @@
 document.addEventListener("DOMContentLoaded", () => {
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
 
-  // Your Google Apps Script Web App URL for calendar events
-const CALENDAR_API_URL =
-  "https://corsproxy.io/?" +
-  encodeURIComponent("https://script.google.com/macros/s/AKfycbwRcF-CbJY3dNfU9QQWixGL82a5BqCxVII4sGJSKunJ_fhDLLezL90kUXoqMrHuYytV/exec");
+  // Google Apps Script Web App URL for calendar events (wrapped via CORS proxy)
+  const CALENDAR_API_URL =
+    "https://corsproxy.io/?" +
+    encodeURIComponent("https://script.google.com/macros/s/AKfycbwRcF-CbJY3dNfU9QQWixGL82a5BqCxVII4sGJSKunJ_fhDLLezL90kUXoqMrHuYytV/exec");
 
-
-
+  // Centralized localStorage keys
+  const LS_KEYS = {
+    filters: 'incheckFilters',
+    theme: 'theme',
+    events: 'incheckEvents',
+    issues: 'incheckIssues',
+    issuesLastUpdated: 'incheckIssuesLastUpdated',
+    pageSize: 'pageSize',
+    view: 'incheckView'
+  };
 
   function q(sel, root = document) { return root.querySelector(sel); }
   function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
@@ -753,18 +812,24 @@ const CALENDAR_API_URL =
     eventForm: q('#eventForm'),
     eventTitle: q('#eventTitle'),
     eventType: q('#eventType'),
+    eventIssueId: q('#eventIssueId'),
     eventStart: q('#eventStart'),
     eventEnd: q('#eventEnd'),
     eventDescription: q('#eventDescription'),
     eventSave: q('#eventSave'),
     eventCancel: q('#eventCancel'),
-    eventDelete: q('#eventDelete')
+    eventDelete: q('#eventDelete'),
+    eventIssueLinkedInfo: q('#eventIssueLinkedInfo'),
+    eventFilterDeployment: q('#filterDeployment'),
+    eventFilterMaintenance: q('#filterMaintenance'),
+    eventFilterRelease: q('#filterRelease'),
+    eventFilterOther: q('#filterOther')
   };
 
   let rows = [], filtered = [], charts = {};
   let sortKey = null, sortAsc = true;
   let currentPage = 1;
-  let rowsPerPage = +(localStorage.getItem('pageSize') || els.pageSize.value);
+  let rowsPerPage = +(localStorage.getItem(LS_KEYS.pageSize) || els.pageSize.value);
   els.pageSize.value = String(rowsPerPage);
   let selectedIssue = null;
   let lastFocusedBeforeIssueModal = null;
@@ -853,7 +918,7 @@ const CALENDAR_API_URL =
   }
 
   function applyTheme(mode) {
-    localStorage.setItem('theme', mode);
+    localStorage.setItem(LS_KEYS.theme, mode);
     if (mode === 'system') {
       applySystemThemeFromOS();
       return;
@@ -866,7 +931,7 @@ const CALENDAR_API_URL =
   }
 
   function initTheme() {
-    const saved = localStorage.getItem('theme') || 'system';
+    const saved = localStorage.getItem(LS_KEYS.theme) || 'system';
     els.themeSelect.value = saved;
     if (saved === 'system') {
       applySystemThemeFromOS();
@@ -875,7 +940,7 @@ const CALENDAR_API_URL =
     }
     if (mediaQuery) {
       mediaQuery.addEventListener('change', () => {
-        const current = localStorage.getItem('theme') || 'system';
+        const current = localStorage.getItem(LS_KEYS.theme) || 'system';
         if (current === 'system') applySystemThemeFromOS();
       });
     }
@@ -891,13 +956,13 @@ const CALENDAR_API_URL =
       end: els.endDateFilter.value || ''
     };
     try {
-      localStorage.setItem('incheckFilters', JSON.stringify(state));
+      localStorage.setItem(LS_KEYS.filters, JSON.stringify(state));
     } catch(e){}
   }
 
   function loadFilters(){
     try {
-      const raw = localStorage.getItem('incheckFilters');
+      const raw = localStorage.getItem(LS_KEYS.filters);
       if (!raw) return;
       const s = JSON.parse(raw);
       els.search.value = s.search || '';
@@ -1000,11 +1065,39 @@ const CALENDAR_API_URL =
     });
   }
 
+  function loadIssuesFromStorage(){
+    try{
+      const raw = localStorage.getItem(LS_KEYS.issues);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch(e){
+      console.error('Failed to load cached issues', e);
+      return [];
+    }
+  }
+  function saveIssuesToStorage(list){
+    try{
+      localStorage.setItem(LS_KEYS.issues, JSON.stringify(list));
+      localStorage.setItem(LS_KEYS.issuesLastUpdated, new Date().toISOString());
+    } catch(e){
+      console.error('Failed to save cached issues', e);
+    }
+  }
+  function getIssuesLastUpdatedLabel(){
+    const iso = localStorage.getItem(LS_KEYS.issuesLastUpdated);
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return `Last updated: ${d.toLocaleString()}`;
+  }
+
   function renderTable(){
     const list = sortData(filtered);
     const total = list.length;
     updatePaginationControls(total);
-    els.rowCount.textContent = `${total} row${total===1?'':'s'}`;
+    const lastUpdated = getIssuesLastUpdatedLabel();
+    els.rowCount.textContent =
+      `${total} row${total===1?'':'s'}${lastUpdated ? ' • ' + lastUpdated : ''}`;
 
     if (!total){
       els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">
@@ -1159,30 +1252,46 @@ const CALENDAR_API_URL =
   }
 
   async function loadSheet(){
+    // Use cached issues first if available
+    const cached = loadIssuesFromStorage();
+    if (cached.length && !rows.length) {
+      rows = cached;
+      filtered = [...rows];
+      renderFilters();
+      loadFilters();
+      applyFilters();
+    }
+
     try {
       showSpinner(true);
       const res = await fetch(SHEET_URL, { cache:'no-store' });
       if(!res.ok) throw new Error(`Failed to fetch (${res.status})`);
       const text = await res.text();
-      rows = parseCsv(text);
+      const parsed = parseCsv(text);
+      if (!parsed.length) throw new Error('No data rows in sheet');
+      rows = parsed;
       filtered = [...rows];
+      saveIssuesToStorage(rows);
       renderFilters();
       loadFilters();
       applyFilters();
     } catch(e) {
+      console.error(e);
       showToast('Error loading data: '+e.message);
-      els.tableBody.innerHTML = `
-        <tr>
-          <td colspan="8" style="color:#ffb4b4;text-align:center">
-            Error loading data.
-            <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
-          </td>
-        </tr>`;
-      const retryBtn = q('#retryLoad');
-      if (retryBtn) {
-        retryBtn.addEventListener('click', () => {
-          loadSheet();
-        });
+      if (!rows.length) {
+        els.tableBody.innerHTML = `
+          <tr>
+            <td colspan="8" style="color:#ffb4b4;text-align:center">
+              Error loading data and no cached data found.
+              <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
+            </td>
+          </tr>`;
+        const retryBtn = q('#retryLoad');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', () => {
+            loadSheet();
+          });
+        }
       }
     } finally {
       showSpinner(false);
@@ -1227,14 +1336,14 @@ const CALENDAR_API_URL =
 
   function loadEventsFromStorage(){
     try {
-      return JSON.parse(localStorage.getItem('incheckEvents') || '[]');
+      return JSON.parse(localStorage.getItem(LS_KEYS.events) || '[]');
     } catch(e) {
       return [];
     }
   }
   function saveEventsToStorage(){
     try {
-      localStorage.setItem('incheckEvents', JSON.stringify(eventsData));
+      localStorage.setItem(LS_KEYS.events, JSON.stringify(eventsData));
     } catch(e) {}
   }
 
@@ -1261,40 +1370,43 @@ const CALENDAR_API_URL =
     }
   }
 
-async function saveEventToSheet(event) {
-  try {
-    const res = await fetch(CALENDAR_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "save", event }),
-    });
-
-    // Try to parse response safely
-    let data;
+  async function saveEventToSheet(event) {
+    showSpinner(true);
     try {
-      data = await res.json();
-    } catch (jsonErr) {
-      console.error("Invalid JSON returned:", jsonErr);
-      const text = await res.text();
-      alert("❌ Script returned invalid JSON:\n" + text);
-      return;
-    }
+      const res = await fetch(CALENDAR_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", event }),
+      });
 
-    // Handle success and error
-    if (data.ok) {
-      console.log("✅ Event saved:", data.event);
-      alert("✅ Event saved successfully!");
-      return data.event;
-    } else {
-      console.error("❌ Backend error:", data);
-      alert("❌ Backend error: " + JSON.stringify(data, null, 2));
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.error("Invalid JSON returned:", jsonErr);
+        const text = await res.text();
+        console.error("Raw response:", text);
+        showToast("Calendar: invalid JSON from backend");
+        return null;
+      }
+
+      if (data.ok) {
+        console.log("Event saved:", data.event);
+        showToast("Event saved");
+        return data.event;
+      } else {
+        console.error("Backend error:", data);
+        showToast("Error saving event: " + (data.error || "Unknown error"));
+        return null;
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      showToast("Network error saving event: " + err.message);
       return null;
+    } finally {
+      showSpinner(false);
     }
-  } catch (err) {
-    console.error("❌ Network error:", err);
-    alert("❌ Network error: " + err.message);
   }
-}
 
   async function deleteEventFromSheet(id) {
     showSpinner(true);
@@ -1318,16 +1430,33 @@ async function saveEventToSheet(event) {
 
   function renderEventsOnCalendar(){
     if (!calendar) return;
+
+    const activeTypes = new Set();
+    if (!els.eventFilterDeployment || !els.eventFilterMaintenance ||
+        !els.eventFilterRelease || !els.eventFilterOther) {
+      // No filters found, show all
+    } else {
+      if (els.eventFilterDeployment.checked) activeTypes.add('Deployment');
+      if (els.eventFilterMaintenance.checked) activeTypes.add('Maintenance');
+      if (els.eventFilterRelease.checked) activeTypes.add('Release');
+      if (els.eventFilterOther.checked) activeTypes.add('Other');
+    }
+
     calendar.removeAllEvents();
     eventsData.forEach(ev => {
-      const type = (ev.type || 'Other');
+      const type = ev.type || 'Other';
+      if (activeTypes.size && !activeTypes.has(type)) return;
       const cls = 'event-type-' + type.toLowerCase().replace(/\s+/g,'-');
       calendar.addEvent({
         id: ev.id,
         title: ev.title,
         start: ev.start,
         end: ev.end || null,
-        extendedProps: { type: type, description: ev.description },
+        extendedProps: {
+          type,
+          description: ev.description,
+          issueId: ev.issueId || ''
+        },
         classNames: [cls]
       });
     });
@@ -1363,7 +1492,8 @@ async function saveEventToSheet(event) {
             type: info.event.extendedProps.type || 'Other',
             start: info.event.start,
             end: info.event.end,
-            description: info.event.extendedProps.description || ''
+            description: info.event.extendedProps.description || '',
+            issueId: info.event.extendedProps.issueId || ''
           });
         }
       },
@@ -1404,9 +1534,18 @@ async function saveEventToSheet(event) {
 
     els.eventTitle.value = data && data.title ? data.title : '';
     els.eventType.value = data && data.type ? data.type : 'Deployment';
+    els.eventIssueId.value = data && data.issueId ? data.issueId : '';
     els.eventStart.value = data && data.start ? toLocalInputValue(data.start) : '';
     els.eventEnd.value = data && data.end ? toLocalInputValue(data.end) : '';
     els.eventDescription.value = data && data.description ? data.description : '';
+
+    if (data && data.issueId) {
+      els.eventIssueLinkedInfo.style.display = 'block';
+      els.eventIssueLinkedInfo.textContent = `Linked issue ID: ${data.issueId}`;
+    } else {
+      els.eventIssueLinkedInfo.style.display = 'none';
+      els.eventIssueLinkedInfo.textContent = '';
+    }
 
     els.eventModal.style.display = 'flex';
     els.eventTitle.focus();
@@ -1424,6 +1563,7 @@ async function saveEventToSheet(event) {
     e.preventDefault();
     const title = els.eventTitle.value.trim();
     const type = els.eventType.value || 'Deployment';
+    const issueId = els.eventIssueId.value.trim();
     const start = els.eventStart.value;
     const end = els.eventEnd.value || null;
     const description = els.eventDescription.value.trim();
@@ -1441,6 +1581,7 @@ async function saveEventToSheet(event) {
       id: editingEventId || '',
       title,
       type,
+      issueId,
       start,
       end,
       description
@@ -1448,6 +1589,7 @@ async function saveEventToSheet(event) {
 
     try {
       const saved = await saveEventToSheet(eventObj);
+      if (!saved) return;
       const idx = eventsData.findIndex(ev => ev.id === saved.id);
       if (idx === -1) {
         eventsData.push(saved);
@@ -1456,7 +1598,6 @@ async function saveEventToSheet(event) {
       }
       saveEventsToStorage();
       renderEventsOnCalendar();
-      showToast('Event saved');
       closeEventModal();
     } catch (err) {
       console.error(err);
@@ -1476,7 +1617,6 @@ async function saveEventToSheet(event) {
         saveEventsToStorage();
         renderEventsOnCalendar();
       }
-      showToast('Event deleted');
     } catch (err) {
       console.error(err);
     }
@@ -1591,7 +1731,7 @@ async function saveEventToSheet(event) {
   const updateAndRender = ()=>{ renderTable(); };
   els.pageSize.addEventListener('change', ()=>{
     rowsPerPage = +els.pageSize.value;
-    localStorage.setItem('pageSize', rowsPerPage);
+    localStorage.setItem(LS_KEYS.pageSize, rowsPerPage);
     currentPage = 1;
     updateAndRender();
   });
@@ -1623,7 +1763,7 @@ async function saveEventToSheet(event) {
     els.search.value='';
     els.startDateFilter.value='';
     els.endDateFilter.value='';
-    localStorage.removeItem('incheckFilters');
+    localStorage.removeItem(LS_KEYS.filters);
     renderFilters();
     applyFilters();
   });
@@ -1637,24 +1777,27 @@ async function saveEventToSheet(event) {
   els.themeSelect.addEventListener('change', ()=> applyTheme(els.themeSelect.value));
   initTheme();
 
+  function setActiveView(view) {
+    const isIssues = view === 'issues';
+    els.issuesView.classList.toggle('active', isIssues);
+    els.calendarView.classList.toggle('active', !isIssues);
+    els.viewTabs.forEach(b => {
+      const active = b.dataset.view === view;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    localStorage.setItem(LS_KEYS.view, view);
+    if (view === 'calendar') ensureCalendar();
+  }
+
   els.viewTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      els.viewTabs.forEach(b => {
-        const active = b === btn;
-        b.classList.toggle('active', active);
-        b.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      if(view === 'issues'){
-        els.issuesView.classList.add('active');
-        els.calendarView.classList.remove('active');
-      } else {
-        els.issuesView.classList.remove('active');
-        els.calendarView.classList.add('active');
-        ensureCalendar();
-      }
+      setActiveView(btn.dataset.view);
     });
   });
+
+  const savedView = localStorage.getItem(LS_KEYS.view) || 'issues';
+  setActiveView(savedView);
 
   if (els.addEventBtn) {
     els.addEventBtn.addEventListener('click', () => {
@@ -1665,6 +1808,12 @@ async function saveEventToSheet(event) {
       });
     });
   }
+
+  // Event type filter toggles
+  [els.eventFilterDeployment, els.eventFilterMaintenance, els.eventFilterRelease, els.eventFilterOther]
+    .forEach(input => {
+      if (input) input.addEventListener('change', () => renderEventsOnCalendar());
+    });
 
   eventsData = [];
   fetchEventsFromSheet();
@@ -1680,7 +1829,7 @@ async function saveEventToSheet(event) {
     return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   }
 
-  // Optional: auto-refresh events every 5 minutes
+  // Auto-refresh events every 5 minutes
   setInterval(fetchEventsFromSheet, 5 * 60 * 1000);
 });
 </script>
