@@ -426,3 +426,71 @@ th.sorted-desc::after{border-top-color:var(--accent);border-bottom-color:transpa
 @media (prefers-reduced-motion: reduce){
   *{transition:none!important;animation:none!important}
 }
+
+/* =========================================================
+   AI – Per-module risk insights card
+   (full-width, no inner scroll, “pro” table styling)
+   ========================================================= */
+
+.card:has(#aiModulesTableBody){
+  /* span full grid width like "Top risks this week" */
+  grid-column:1 / -1;
+  max-height:none;
+}
+
+/* If there's any wrapper div adding scroll, kill it */
+.card:has(#aiModulesTableBody) > div{
+  max-height:none;
+  overflow:visible;
+}
+
+/* Table styling just for this card */
+.card:has(#aiModulesTableBody) table{
+  width:100%;
+  border-collapse:collapse;
+  border-spacing:0;
+}
+
+.card:has(#aiModulesTableBody) thead th{
+  position:static;
+  background:transparent;
+  border-bottom:1px solid rgba(148,163,184,.45);
+  padding:6px 10px;
+  font-size:11px;
+  cursor:default;
+}
+
+.card:has(#aiModulesTableBody) tbody td{
+  padding:8px 10px;
+  border-bottom:1px solid rgba(15,23,42,.55);
+  font-size:13px;
+}
+
+/* zebra + hover */
+.card:has(#aiModulesTableBody) tbody tr:nth-child(odd){
+  background:rgba(15,23,42,.7);
+}
+.card:has(#aiModulesTableBody) tbody tr:nth-child(even){
+  background:rgba(15,23,42,.45);
+}
+.card:has(#aiModulesTableBody) tbody tr:hover{
+  background:rgba(37,99,235,.25);
+}
+
+/* numeric columns right-aligned */
+.card:has(#aiModulesTableBody) td:nth-child(2),
+.card:has(#aiModulesTableBody) td:nth-child(3),
+.card:has(#aiModulesTableBody) td:nth-child(4){
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+/* smaller inline risk bar inside the cell */
+.card:has(#aiModulesTableBody) .risk-bar-wrap{
+  margin-top:2px;
+  height:4px;
+}
+.card:has(#aiModulesTableBody) .risk-bar{
+  height:4px;
+  border-radius:999px;
+}
