@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>InCheck Issues & Operations Dashboard</title>
+  <title>InCheck — Issues · Ops · AI Copilot</title>
 
   <!-- Fonts & Libs -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
       --priority-medium:#f59e0b;
       --priority-low:#10b981;
 
-      /* Theme colors */
+      /* Theme */
       --bg:#050816;
       --card:rgba(11,22,45,0.96);
       --muted:#9aa6d1;
@@ -45,12 +45,17 @@
       --border:#1b2645;
       --shadow:0 18px 40px rgba(0,0,0,.55);
       --focus:0 0 0 3px rgba(79,140,255,.5);
+
+      /* Extra */
+      --chip:#0c142b;
+      --skeleton:#0f1a38;
+      --shimmer:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
     }
     :root[data-theme="light"] {
       --bg:#f4f6ff;
       --card:#ffffff;
       --muted:#5a678c;
-      --text:#0d1326;
+      --text:#0b1022;
       --accent:#2563eb;
       --danger:#dc2626;
       --ok:#059669;
@@ -61,6 +66,9 @@
       --border:#e0e4f3;
       --shadow:0 16px 32px rgba(15,23,42,.12);
       --focus:0 0 0 3px rgba(37,99,235,.35);
+      --chip:#eef2ff;
+      --skeleton:#eef2ff;
+      --shimmer:linear-gradient(90deg, transparent, rgba(0,0,0,.06), transparent);
     }
 
     * { box-sizing:border-box }
@@ -77,19 +85,12 @@
     }
     :focus-visible { outline:none; box-shadow:var(--focus); border-radius:8px; }
 
-    .sr-only {
-      position:absolute;
-      width:1px;
-      height:1px;
-      padding:0;
-      margin:-1px;
-      overflow:hidden;
-      clip:rect(0,0,0,0);
-      white-space:nowrap;
-      border:0;
+    .sr-only{
+      position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+      overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
     }
 
-    /* Topbar */
+    /* Header */
     header {
       position:sticky; top:0; z-index:20;
       background:linear-gradient(90deg, rgba(11,22,45,.98), rgba(24,35,70,.96));
@@ -98,385 +99,349 @@
       display:flex; align-items:center; gap:12px; padding:10px 16px;
       box-shadow:var(--shadow);
     }
-    .brand { display:flex; align-items:center; gap:10px; font-weight:700; }
-    .brand .logo {
-      width:30px; height:30px; border-radius:10px;
-      display:grid; place-items:center;
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700}
+    .brand .logo{
+      width:30px;height:30px;border-radius:10px;
+      display:grid;place-items:center;
       background:conic-gradient(from 160deg, var(--accent), #9b8cff, #22c55e, var(--accent));
-      color:#fff; font-weight:800;
+      color:#fff;font-weight:800;
       box-shadow:0 10px 30px rgba(79,140,255,.55);
     }
-    .brand-text { display:flex; flex-direction:column; }
-    .brand-text span:first-child { font-size:14px; text-transform:uppercase; letter-spacing:.16em; color:var(--muted); }
-    .brand-text span:last-child { font-size:16px; }
+    .brand-text{display:flex;flex-direction:column}
+    .brand-text span:first-child{font-size:14px;text-transform:uppercase;letter-spacing:.16em;color:var(--muted)}
+    .brand-text span:last-child{font-size:16px}
 
-    .toolbar { margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap }
-    .btn, .select, .input {
-      padding:8px 12px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      background:rgba(8,16,32,.92);
-      color:inherit;
-      font:inherit;
+    .toolbar{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn,.select,.input{
+      padding:8px 12px;border-radius:999px;border:1px solid var(--border);
+      background:rgba(8,16,32,.92);color:inherit;font:inherit;
     }
-    .btn {
-      cursor:pointer;
-      font-weight:600;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
+    .btn{
+      cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;
       box-shadow:0 8px 20px rgba(15,23,42,.25);
     }
-    .btn.primary {
-      background:linear-gradient(135deg,var(--accent),#7c3aed);
-      border-color:transparent;
-      color:#fff;
+    .btn.primary{background:linear-gradient(135deg,var(--accent),#7c3aed);border-color:transparent;color:#fff}
+    .btn.ghost{border-color:transparent;background:transparent;box-shadow:none}
+    .btn.sm{padding:6px 10px;border-radius:999px;font-size:13px}
+    .btn:hover{opacity:.95;transform:translateY(-1px)}
+    .btn:active{transform:translateY(0);opacity:.9}
+    .input,.select{background:rgba(5,10,24,.85);box-shadow:inset 0 0 0 1px rgba(15,23,42,.35)}
+    .input::placeholder{color:var(--muted)}
+    .icon{font-size:18px;line-height:1}
+
+    #accentColor{
+      padding:4px;
+      width:40px;
+      min-width:40px;
+      border-radius:999px;
     }
-    .btn.ghost {
-      border-color:transparent;
-      background:transparent;
-      box-shadow:none;
+
+    .statusline{display:flex;gap:10px;align-items:center;margin-left:8px}
+    .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .ok{background:var(--ok)} .warn{background:var(--warn)} .err{background:var(--danger)}
+    .chip{
+      padding:4px 8px;border-radius:999px;background:var(--chip);
+      border:1px solid var(--border);font-size:12px;color:var(--muted)
     }
-    .btn.sm { padding:6px 10px; border-radius:999px; font-size:13px }
-    .btn:hover { opacity:.95; transform:translateY(-1px); }
-    .btn:active { transform:translateY(0); opacity:.9; }
-    .input, .select {
-      background:rgba(5,10,24,.85);
-      box-shadow: inset 0 0 0 1px rgba(15,23,42,.35);
-    }
-    .input::placeholder { color:var(--muted); }
-    .icon { font-size:18px; line-height:1 }
+    .chip.online{border-color:var(--ok);color:var(--ok)}
+    .chip.offline{border-color:var(--warn);color:var(--warn)}
 
     /* Layout */
-    .wrap {
-      display:grid; grid-template-columns:280px minmax(0,1fr);
-      gap:18px; padding:18px;
-      max-width:1440px; margin:0 auto;
+    .wrap{
+      display:grid;grid-template-columns:300px minmax(0,1fr);
+      gap:18px;padding:18px;max-width:1440px;margin:0 auto;
     }
-    @media(max-width:980px){ .wrap { grid-template-columns:1fr } }
+    @media(max-width:980px){.wrap{grid-template-columns:1fr}}
 
     /* Sidebar */
-    .sidebar {
+    .sidebar{
       background:linear-gradient(145deg, rgba(11,23,45,.96), rgba(13,28,60,.98));
       border:1px solid rgba(148,163,184,.25);
-      border-radius:18px;
-      padding:16px;
-      position:sticky; top:82px;
-      height:fit-content;
-      max-height:calc(100vh - 102px);
-      overflow:auto;
-      box-shadow:var(--shadow);
+      border-radius:18px;padding:16px;
+      position:sticky;top:82px;height:fit-content;
+      max-height:calc(100vh - 102px);overflow:auto;box-shadow:var(--shadow);
     }
-    :root[data-theme="light"] .sidebar {
-      background:var(--card);
-      border-color:var(--border);
+    :root[data-theme="light"] .sidebar{background:var(--card);border-color:var(--border)}
+    .sidebar h3{
+      margin:0 0 10px;font-size:13px;color:var(--muted);
+      text-transform:uppercase;letter-spacing:.12em;
     }
-    .sidebar h3 {
-      margin:0 0 10px 0;
-      font-size:13px; color:var(--muted);
-      text-transform:uppercase; letter-spacing:.12em;
-    }
-    .filter-group { display:grid; gap:10px; margin-bottom:16px }
-    .filter-row { display:grid; gap:6px }
-    .muted { color:var(--muted); font-size:12px }
-    .divider { height:1px; background:var(--border); margin:8px 0 14px; opacity:.7 }
+    .filter-group{display:grid;gap:10px;margin-bottom:16px}
+    .filter-row{display:grid;gap:6px}
+    .muted{color:var(--muted);font-size:12px}
+    .divider{height:1px;background:var(--border);margin:8px 0 14px;opacity:.7}
 
-    /* Content */
-    .content { display:flex; flex-direction:column; gap:16px }
-
-    .view-tabs {
-      display:inline-flex;
-      align-self:flex-start;
-      background:rgba(10,18,40,.98);
-      border-radius:999px;
-      border:1px solid var(--border);
-      box-shadow:0 16px 40px rgba(15,23,42,.45);
-      padding:4px;
+    /* Content & tabs */
+    .content{display:flex;flex-direction:column;gap:16px}
+    .view-tabs{
+      display:inline-flex;align-self:flex-start;
+      background:rgba(10,18,40,.98);border-radius:999px;
+      border:1px solid var(--border);box-shadow:0 16px 40px rgba(15,23,42,.45);padding:4px;
     }
-    .view-tab {
-      border:none;
-      background:transparent;
-      color:var(--muted);
-      padding:6px 14px;
-      border-radius:999px;
-      font-size:13px;
-      cursor:pointer;
-      display:flex; align-items:center; gap:6px;
+    .view-tab{
+      border:none;background:transparent;color:var(--muted);
+      padding:6px 14px;border-radius:999px;font-size:13px;cursor:pointer;
+      display:flex;align-items:center;gap:6px;
     }
-    .view-tab .icon { font-size:16px; }
-    .view-tab.active {
+    .view-tab .icon{font-size:16px}
+    .view-tab.active{
       background:linear-gradient(135deg,var(--accent),#7c3aed);
-      color:#fff;
-      box-shadow:0 10px 26px rgba(79,140,255,.6);
+      color:#fff;box-shadow:0 10px 26px rgba(79,140,255,.6);
     }
 
-    .view { display:none; }
-    .view.active { display:block; }
-    .view > * + * { margin-top:16px; }
+    .view{display:none}
+    .view.active{display:block}
+    .view>*+*{margin-top:16px}
 
-    .grid { display:grid; gap:16px }
-    .grid.cols-4 { grid-template-columns:repeat(4, minmax(0,1fr)) }
-    @media(max-width:980px){ .grid.cols-4{ grid-template-columns:repeat(2, minmax(0,1fr)) } }
-    @media(max-width:600px){ .grid.cols-4{ grid-template-columns:1fr } }
+    .grid{display:grid;gap:16px}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media(max-width:980px){.grid.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:640px){.grid.cols-4{grid-template-columns:1fr}}
 
     /* Cards */
-    .card {
-      background:radial-gradient(circle at 0 0, rgba(79,140,255,.16), transparent 55%), var(--card);
+    .card{
+      background:radial-gradient(circle at 0 0, rgba(79,140,255,.16), transparent 55%),var(--card);
       border:1px solid rgba(148,163,184,.35);
-      border-radius:18px;
-      padding:16px;
+      border-radius:18px;padding:16px;
       box-shadow:var(--shadow);
       transition:transform .2s, box-shadow .2s, border-color .2s, background .2s;
     }
-    :root[data-theme="light"] .card {
-      background:var(--card);
-      border-color:var(--border);
-    }
-    .card:hover {
+    :root[data-theme="light"] .card{background:var(--card);border-color:var(--border)}
+    .card:hover{
       transform:translateY(-2px);
       box-shadow:0 20px 50px rgba(15,23,42,.4);
       border-color:rgba(99,102,241,.9);
     }
 
+    .summary-bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      font-size:13px;
+      flex-wrap:wrap;
+    }
+    .shortcut-chip{font-size:11px;color:var(--muted)}
+
     /* KPIs */
-    .kpi {
-      cursor:pointer;
-      text-align:left;
-      position:relative;
-      overflow:hidden;
-    }
-    .kpi::before {
-      content:"";
-      position:absolute;
-      inset:auto -40% 0;
-      height:60%;
+    .kpi{cursor:pointer;text-align:left;position:relative;overflow:hidden}
+    .kpi::before{
+      content:"";position:absolute;inset:auto -40% 0;height:60%;
       background:radial-gradient(circle at 20% 0, rgba(79,140,255,.45), transparent 55%);
-      opacity:0;
-      transition:opacity .25s, transform .25s;
-      transform:translateY(16px);
+      opacity:0;transition:.25s;transform:translateY(16px);
     }
-    .kpi:hover::before {
-      opacity:1;
-      transform:translateY(0);
-    }
-    .kpi .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em }
-    .kpi .value { font-size:26px; font-weight:800; margin-top:6px }
-    .kpi .sub { font-size:12px; color:var(--muted); margin-top:4px }
+    .kpi:hover::before{opacity:1;transform:translateY(0)}
+    .kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+    .kpi .value{font-size:26px;font-weight:800;margin-top:6px}
+    .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
 
     /* Charts */
-    .charts { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px }
-    @media(max-width:980px){ .charts{ grid-template-columns:1fr } }
+    .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    @media(max-width:980px){.charts{grid-template-columns:1fr}}
 
-    /* Table */
-    table { width:100%; border-collapse:separate; border-spacing:0; font-size:14px }
-    thead th {
-      position:sticky; top:0; z-index:5;
+    /* Table & skeleton */
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+    thead th{
+      position:sticky;top:0;z-index:5;
       background:rgba(9,15,32,.98);
-      text-align:left; padding:10px 9px;
+      text-align:left;padding:10px 9px;
       border-bottom:1px solid var(--border);
-      user-select:none; cursor:pointer;
-      font-size:12px; color:var(--muted);
+      user-select:none;cursor:pointer;
+      font-size:12px;color:var(--muted);
     }
-    :root[data-theme="light"] thead th { background:var(--card); }
-    tbody td { padding:10px 9px; border-bottom:1px solid rgba(148,163,184,.22); }
-    tr:hover { background:rgba(255,255,255,.03) }
-    .table-wrap {
-      max-height:460px;
-      overflow:auto;
-      border-radius:14px;
+    :root[data-theme="light"] thead th{background:var(--card)}
+    tbody td{padding:10px 9px;border-bottom:1px solid rgba(148,163,184,.22)}
+    tr:hover{background:rgba(255,255,255,.03)}
+    .table-wrap{
+      max-height:460px;overflow:auto;border-radius:14px;
       border:1px solid rgba(148,163,184,.35);
       background:radial-gradient(circle at 0 0, rgba(79,140,255,.08), transparent 55%);
     }
-    th.sortable::after { content:""; margin-left:6px; border:4px solid transparent; border-top-color:var(--muted); display:inline-block; transform:translateY(1px); }
-    th.sorted-asc::after { border-bottom-color:var(--accent); border-top-color:transparent; transform:translateY(-1px); }
-    th.sorted-desc::after { border-top-color:var(--accent); border-bottom-color:transparent; transform:translateY(1px); }
-
-    /* Skeleton loading row */
-    .skeleton-row td {
-      position:relative;
-      color:transparent;
+    th.sortable::after{
+      content:"";margin-left:6px;border:4px solid transparent;
+      border-top-color:var(--muted);display:inline-block;transform:translateY(1px);
     }
-    .skeleton-row td::before {
-      content:"";
-      position:absolute;
-      inset:6px 9px;
-      border-radius:8px;
-      background:linear-gradient(90deg,
-        rgba(148,163,184,.15),
-        rgba(148,163,184,.3),
-        rgba(148,163,184,.15));
-      background-size:200% 100%;
-      animation:skeleton 1.2s infinite linear;
+    th.sorted-asc::after{border-bottom-color:var(--accent);border-top-color:transparent;transform:translateY(-1px)}
+    th.sorted-desc::after{border-top-color:var(--accent);border-bottom-color:transparent;transform:translateY(1px)}
+
+    .skeleton{position:relative;overflow:hidden;background:var(--skeleton)}
+    .skeleton::after{
+      content:"";position:absolute;inset:0;
+      animation:shimmer 1.2s infinite;
+      background:var(--shimmer);
+    }
+    @keyframes shimmer{
+      0%{transform:translateX(-100%)}100%{transform:translateX(100%)}
     }
 
-    .pill {
-      padding:3px 9px;
+    .pill{
+      padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;
+      display:inline-block;letter-spacing:.04em;text-transform:uppercase;
+    }
+    .status-Resolved{background:var(--status-resolved);color:#fff}
+    .status-Under\ Development{background:var(--status-underdev);color:#fff}
+    .status-Rejected{background:var(--status-rejected);color:#fff}
+    .status-On\ Hold{background:var(--status-onhold);color:#fff}
+    .status-Not\ Started\ Yet{background:var(--status-notstarted);color:#fff}
+    .status-Sent{background:var(--status-sent);color:#fff}
+    .status-On\ Stage{background:var(--status-onstage);color:#fff}
+
+    .priority-High{background:var(--priority-high);color:#fff}
+    .priority-Medium{background:var(--priority-medium);color:#fff}
+    .priority-Low{background:var(--priority-low);color:#fff}
+
+    .filter-chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-bottom:6px;
+    }
+    .filter-chip{
+      padding:4px 8px;
       border-radius:999px;
+      border:1px solid var(--border);
+      background:var(--chip);
       font-size:11px;
-      font-weight:700;
-      display:inline-block;
-      letter-spacing:.04em;
-      text-transform:uppercase;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      cursor:pointer;
+      color:var(--muted);
     }
-    .status-Resolved { background: var(--status-resolved); color:#fff }
-    .status-Under\ Development { background: var(--status-underdev); color:#fff }
-    .status-Rejected { background: var(--status-rejected); color:#fff }
-    .status-On\ Hold { background: var(--status-onhold); color:#fff }
-    .status-Not\ Started\ Yet { background: var(--status-notstarted); color:#fff }
-    .status-Sent { background: var(--status-sent); color:#fff }
-    .status-On\ Stage { background: var(--status-onstage); color:#fff }
+    .filter-chip:hover{
+      border-color:var(--accent);
+      color:var(--text);
+    }
 
-    .priority-High { background: var(--priority-high); color:#fff }
-    .priority-Medium { background: var(--priority-medium); color:#fff }
-    .priority-Low { background: var(--priority-low); color:#fff }
+    .risk-bar-wrap{
+      width:100%;
+      height:6px;
+      border-radius:999px;
+      background:rgba(148,163,184,.25);
+      overflow:hidden;
+      margin-top:4px;
+    }
+    .risk-bar{
+      height:100%;
+      transform-origin:left center;
+      background:linear-gradient(90deg,var(--accent),var(--danger));
+    }
 
     /* Modal */
-    .modal {
-      display:none;
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.58);
-      align-items:center; justify-content:center;
-      z-index:100;
+    .modal{
+      display:none;position:fixed;inset:0;
+      background:rgba(0,0,0,.58);align-items:center;justify-content:center;z-index:100;
     }
-    .modal-content {
-      background:var(--card); color:var(--text);
+    .modal-content{
+      background:var(--card);color:var(--text);
       border:1px solid rgba(148,163,184,.35);
-      padding:18px; border-radius:18px;
-      max-width:760px; width:92%;
-      max-height:90%; overflow:auto;
+      padding:18px;border-radius:18px;
+      max-width:760px;width:92%;max-height:90%;overflow:auto;
       box-shadow:var(--shadow);
     }
-    .modal .header {
-      display:flex; align-items:center;
-      gap:10px; justify-content:space-between;
-      margin-bottom:8px;
+    .modal .header{
+      display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:8px;
     }
-    .modal .actions { display:flex; gap:8px; flex-wrap:wrap; }
-    .modal-close {
-      cursor:pointer;
-      border:none;
-      background:transparent;
-      color:var(--muted);
-      font-size:20px;
-    }
+    .modal .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .modal-close{cursor:pointer;border:none;background:transparent;color:var(--muted);font-size:20px}
 
     /* Pagination */
-    .table-actions {
-      display:flex; gap:10px;
-      align-items:center; justify-content:space-between;
-      margin-top:10px; flex-wrap:wrap;
+    .table-actions{
+      display:flex;gap:10px;align-items:center;justify-content:space-between;
+      margin-top:10px;flex-wrap:wrap;
     }
-    .pagination { display:flex; gap:6px; align-items:center }
-    .chip {
-      padding:6px 10px;
-      border-radius:999px;
-      background:rgba(9,14,30,.95);
-      border:1px solid(var(--border));
-      cursor:pointer;
-      font-size:12px;
+    .pagination{display:flex;gap:6px;align-items:center}
+    .chip-btn{
+      padding:6px 10px;border-radius:999px;background:rgba(9,14,30,.95);
+      border:1px solid var(--border);cursor:pointer;font-size:12px;
     }
-    .chip[disabled] { opacity:.45; cursor:not-allowed }
-    .chip.active { background:var(--accent); color:#fff; border-color:transparent }
-    .select.sm, .input.sm { padding:6px 8px; border-radius:999px; font-size:13px }
+    .chip-btn[disabled]{opacity:.45;cursor:not-allowed}
+    .chip-btn.active{background:var(--accent);color:#fff;border-color:transparent}
+    .select.sm,.input.sm{padding:6px 8px;border-radius:999px;font-size:13px}
 
     /* Drawer */
-    .drawer-toggle { display:none }
+    .drawer-toggle{display:none}
     @media(max-width:980px){
-      .drawer-toggle { display:inline-flex }
-      .sidebar {
-        position:fixed; inset:82px 0 0 auto;
-        width:88%; max-width:360px;
-        transform:translateX(110%);
-        transition:transform .25s;
+      .drawer-toggle{display:inline-flex}
+      .sidebar{
+        position:fixed;inset:82px 0 0 auto;width:88%;max-width:360px;
+        transform:translateX(110%);transition:transform .25s;
       }
-      .sidebar.open { transform:translateX(0) }
+      .sidebar.open{transform:translateX(0)}
     }
 
     /* Spinner & Toast */
-    .spinner {
-      display:none;
-      position:fixed; inset:0;
-      background:rgba(5,10,25,.65);
-      z-index:120;
-      align-items:center; justify-content:center;
+    .spinner{
+      display:none;position:fixed;inset:0;
+      background:rgba(5,10,25,.65);z-index:120;
+      align-items:center;justify-content:center;
     }
-    .spinner .ring {
-      width:56px; height:56px;
-      border:5px solid var(--border);
-      border-top-color:var(--accent);
-      border-radius:50%;
-      animation:spin 1s linear infinite;
-      background:transparent;
+    .spinner .ring{
+      width:56px;height:56px;border:5px solid var(--border);
+      border-top-color:var(--accent);border-radius:50%;
+      animation:spin 1s linear infinite;background:transparent;
       box-shadow:0 0 0 1px rgba(15,23,42,.4);
     }
-    @keyframes spin { to { transform:rotate(360deg) } }
-
-    .toast {
-      position:fixed; right:16px; bottom:16px;
-      background:var(--card);
-      border:1px solid var(--accent);
-      color:#fff;
-      padding:10px 12px;
-      border-radius:12px;
-      z-index:130;
-      box-shadow:var(--shadow);
-      display:none;
-      font-size:13px;
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .toast{
+      position:fixed;right:16px;bottom:16px;
+      background:var(--card);border:1px solid var(--accent);color:#fff;
+      padding:10px 12px;border-radius:12px;z-index:130;
+      box-shadow:var(--shadow);display:none;font-size:13px;
     }
 
-    /* Calendar styling */
-    #calendar { margin-top:8px; min-height:520px; }
-    .fc { font-size:13px; }
-    .fc .fc-toolbar-title { font-size:16px; }
+    /* Calendar */
+    #calendar{margin-top:8px;min-height:520px}
+    .fc{font-size:13px}
+    .fc .fc-toolbar-title{font-size:16px}
     .fc-theme-standard .fc-scrollgrid,
     .fc-theme-standard td,
-    .fc-theme-standard th {
-      border-color:var(--border);
-    }
+    .fc-theme-standard th{border-color:var(--border)}
     .fc .fc-col-header-cell-cushion,
-    .fc .fc-daygrid-day-number {
-      color:var(--muted);
-    }
-    .fc .fc-daygrid-day.fc-day-today {
-      background:rgba(79,140,255,.09);
-    }
-    .fc .fc-button {
-      background:rgba(9,14,30,.98);
-      border-color:var(--border);
-      color:var(--text);
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:12px;
+    .fc .fc-daygrid-day-number{color:var(--muted)}
+    .fc .fc-daygrid-day.fc-day-today{background:rgba(79,140,255,.09)}
+    .fc .fc-button{
+      background:rgba(9,14,30,.98);border-color:var(--border);
+      color:var(--text);border-radius:999px;padding:4px 10px;font-size:12px;
     }
     .fc .fc-button-primary:not(:disabled).fc-button-active,
     .fc .fc-button-primary:not(:disabled):active,
     .fc .fc-button-primary:not(:disabled):focus,
-    .fc .fc-button-primary:not(:disabled):hover {
-      background:var(--accent);
-      border-color:var(--accent);
+    .fc .fc-button-primary:not(:disabled):hover{
+      background:var(--accent);border-color:var(--accent);
     }
-    .fc .fc-toolbar.fc-header-toolbar { margin-bottom:12px; }
+    .fc .fc-toolbar.fc-header-toolbar{margin-bottom:12px}
+    .fc-event.event-type-deployment{background-color:var(--info);border-color:var(--info)}
+    .fc-event.event-type-maintenance{background-color:var(--warn);border-color:var(--warn)}
+    .fc-event.event-type-release{background-color:var(--ok);border-color:var(--ok)}
+    .fc-event.event-type-other{background-color:var(--purple);border-color:var(--purple)}
 
-    .fc-event.event-type-deployment { background-color:var(--info); border-color:var(--info); }
-    .fc-event.event-type-maintenance { background-color:var(--warn); border-color:var(--warn); }
-    .fc-event.event-type-release { background-color:var(--ok); border-color:var(--ok); }
-    .fc-event.event-type-other { background-color:var(--purple); border-color:var(--purple); }
+    /* Calendar env & risk signals */
+    .fc-event.event-env-prod .fc-event-main{border-left:3px solid var(--ok);}
+    .fc-event.event-env-staging .fc-event-main{border-left:3px solid var(--info);}
+    .fc-event.event-env-dev .fc-event-main{border-left:3px solid var(--neutral);}
+    .fc-event.event-env-other .fc-event-main{border-left:3px solid var(--purple);}
+    .fc-event.event-collision .fc-event-main{box-shadow:0 0 0 1px var(--danger) inset;}
+    .fc-event.event-freeze .fc-event-main{box-shadow:0 0 0 1px var(--warn) inset;}
+    .fc-event.event-hot .fc-event-main{box-shadow:0 0 0 2px var(--danger) inset;}
 
-    /* Hide log column on small screens for better mobile UX */
+    .event-risk-badge{
+      margin-left:6px;padding:0 6px;border-radius:6px;font-size:10px;
+      border:1px solid rgba(255,255,255,.2);
+    }
+    .risk-low{background:rgba(16,185,129,.18)}
+    .risk-med{background:rgba(245,158,11,.2)}
+    .risk-high{background:rgba(239,68,68,.22)}
+    .risk-crit{background:rgba(239,68,68,.38)}
+
+    /* Hide log col on small screens */
     @media(max-width:768px){
       #issuesTable th:nth-child(7),
-      #issuesTable td:nth-child(7) {
-        display:none;
-      }
-    }
-
-    @keyframes skeleton {
-      0% { background-position:200% 0; }
-      100% { background-position:-200% 0; }
+      #issuesTable td:nth-child(7){display:none}
     }
 
     @media (prefers-reduced-motion: reduce){
-      * { transition:none !important; animation:none !important }
+      *{transition:none!important;animation:none!important}
     }
   </style>
 </head>
@@ -486,7 +451,7 @@
       <div class="logo" aria-hidden="true">IC</div>
       <div class="brand-text">
         <span>INCHECK</span>
-        <span>Issues & Ops</span>
+        <span>Issues · Ops · Copilot</span>
       </div>
     </div>
 
@@ -495,21 +460,38 @@
     </button>
 
     <div class="toolbar">
-      <input id="searchInput" class="input" type="search" placeholder="Search ID, title, description, log…" aria-label="Search issues" />
+      <input id="searchInput" class="input" type="search"
+             placeholder="Search ID, title, description, log…  ( / to focus )"
+             aria-label="Search issues" />
+
       <select id="themeSelect" class="select" aria-label="Theme">
         <option value="system">System</option>
         <option value="dark">Dark</option>
         <option value="light">Light</option>
       </select>
+
+      <input id="accentColor" class="input" type="color" aria-label="Accent color" />
+
       <button id="refreshNow" class="btn" aria-label="Refresh from source">
         <span class="icon" aria-hidden="true">🔄</span> Refresh
       </button>
       <button id="exportCsv" class="btn" aria-label="Export filtered issues as CSV">
-        <span class="icon" aria-hidden="true">📥</span> Export CSV
+        <span class="icon" aria-hidden="true">📥</span> Export
       </button>
       <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket">
         <span class="icon" aria-hidden="true">➕</span> Create Ticket
       </button>
+
+      <button id="shortcutsHelp" class="btn ghost sm" type="button" title="Keyboard shortcuts">
+        <span class="icon" aria-hidden="true">⌨️</span>
+      </button>
+
+      <span class="chip online" id="onlineStatusChip" aria-live="polite">Online</span>
+
+      <div class="statusline">
+        <span class="chip" id="syncIssuesText">Issues: never</span><span class="dot err" id="syncIssuesDot"></span>
+        <span class="chip" id="syncEventsText">Events: never</span><span class="dot err" id="syncEventsDot"></span>
+      </div>
     </div>
   </header>
 
@@ -533,7 +515,7 @@
         </div>
       </div>
 
-      <div class="divider" role="separator" aria-hidden="true"></div>
+      <div class="divider" role="separator"></div>
 
       <div class="filter-group" role="group" aria-label="Date range">
         <div class="filter-row">
@@ -546,7 +528,7 @@
         </div>
       </div>
 
-      <div class="divider" role="separator" aria-hidden="true"></div>
+      <div class="divider" role="separator"></div>
 
       <div class="filter-group">
         <button id="resetBtn" class="btn ghost" aria-label="Reset all filters">Reset</button>
@@ -566,9 +548,19 @@
                 role="tab" aria-selected="false" aria-controls="calendarView">
           <span class="icon" aria-hidden="true">📅</span> Calendar
         </button>
+        <button id="insightsTab" class="view-tab" data-view="insights"
+                role="tab" aria-selected="false" aria-controls="insightsView">
+          <span class="icon" aria-hidden="true">🤖</span> AI Insights
+        </button>
       </div>
 
+      <!-- Issues view -->
       <section id="issuesView" class="view active" role="tabpanel" aria-labelledby="issuesTab">
+        <div class="card summary-bar" id="issuesSummaryCard">
+          <span id="issuesSummaryText" aria-live="polite">Loading summary…</span>
+          <span class="shortcut-chip">Shortcuts: 1/2/3 tabs · / search · Ctrl+K AI</span>
+        </div>
+
         <div class="grid cols-4" id="kpis" aria-live="polite"></div>
 
         <div class="charts" aria-label="Charts">
@@ -587,6 +579,8 @@
             <span id="rowCount" class="muted" aria-live="polite"></span>
           </div>
 
+          <div id="activeFiltersChips" class="filter-chips" aria-live="polite"></div>
+
           <div class="table-wrap" role="region" aria-label="Scrollable issues table">
             <table id="issuesTable">
               <thead><tr>
@@ -599,22 +593,30 @@
                 <th data-key="log" class="sortable" scope="col" aria-sort="none">Log</th>
                 <th scope="col">Link</th>
               </tr></thead>
-              <tbody>
-                <tr class="skeleton-row"><td colspan="8">Loading…</td></tr>
+              <tbody id="tbodySkeleton">
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
+                <tr><td colspan="8"><div class="skeleton" style="height:16px;border-radius:6px"></div></td></tr>
               </tbody>
+              <tbody id="issuesTbody" style="display:none"></tbody>
             </table>
           </div>
 
           <div class="table-actions">
             <div class="pagination" role="group" aria-label="Table pagination">
-              <button id="firstPage" class="chip" aria-label="First page">« First</button>
-              <button id="prevPage" class="chip" aria-label="Previous page">‹ Prev</button>
+              <button id="firstPage" class="chip-btn" aria-label="First page">« First</button>
+              <button id="prevPage" class="chip-btn" aria-label="Previous page">‹ Prev</button>
               <span id="pageInfo" class="muted" aria-live="polite"></span>
-              <button id="nextPage" class="chip" aria-label="Next page">Next ›</button>
-              <button id="lastPage" class="chip" aria-label="Last page">Last »</button>
+              <button id="nextPage" class="chip-btn" aria-label="Next page">Next ›</button>
+              <button id="lastPage" class="chip-btn" aria-label="Last page">Last »</button>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
-              <label for="pageSize" class="muted">Rows per page</label>
+              <label for="pageSize" class="muted">Rows</label>
               <select id="pageSize" class="select sm" aria-label="Rows per page">
                 <option>10</option><option selected>20</option><option>50</option><option>100</option>
               </select>
@@ -623,6 +625,7 @@
         </div>
       </section>
 
+      <!-- Calendar view -->
       <section id="calendarView" class="view" role="tabpanel" aria-labelledby="calendarTab">
         <div class="card" aria-label="Calendar">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
@@ -631,18 +634,19 @@
               <div class="muted">
                 Plan deployments, maintenance windows, releases, and other operational events.
               </div>
+              <div id="calendarTz" class="muted" style="font-size:11px;margin-top:4px;"></div>
               <div id="eventTypeFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
                 <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
-                  <input type="checkbox" id="filterDeployment" checked /> Deployment
+                  <input type="checkbox" id="eventFilterDeployment" checked /> Deployment
                 </label>
                 <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
-                  <input type="checkbox" id="filterMaintenance" checked /> Maintenance
+                  <input type="checkbox" id="eventFilterMaintenance" checked /> Maintenance
                 </label>
                 <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
-                  <input type="checkbox" id="filterRelease" checked /> Release
+                  <input type="checkbox" id="eventFilterRelease" checked /> Release
                 </label>
                 <label class="muted" style="display:flex;align-items:center;gap:4px;font-size:12px">
-                  <input type="checkbox" id="filterOther" checked /> Other
+                  <input type="checkbox" id="eventFilterOther" checked /> Other
                 </label>
               </div>
             </div>
@@ -651,6 +655,116 @@
             </button>
           </div>
           <div id="calendar" aria-label="Deployment & maintenance calendar"></div>
+        </div>
+      </section>
+
+      <!-- AI Insights view -->
+      <section id="insightsView" class="view" role="tabpanel" aria-labelledby="insightsTab">
+        <div class="card">
+          <strong>AI Insights / Copilot</strong>
+          <div class="muted" style="margin-top:4px;">
+            Heuristic, explainable analytics on issues text (no external AI). Risk breakdown, clustering,
+            trends, triage & calendar risk.
+          </div>
+          <div id="aiAnalyzing" class="skeleton" style="height:6px;border-radius:6px;margin-top:10px;display:none"></div>
+        </div>
+
+        <div class="grid cols-4">
+          <div class="card">
+            <strong>Top terms (recent)</strong>
+            <ul id="aiPatternsList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+          <div class="card">
+            <strong>Suggested categories</strong>
+            <ul id="aiLabelsList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+          <div class="card">
+            <strong>Dataset used</strong>
+            <div id="aiScopeText" class="muted" style="font-size:13px;margin-top:6px;"></div>
+          </div>
+          <div class="card">
+            <strong>Signals</strong>
+            <div id="aiSignalsText" class="muted" style="font-size:13px;margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <div class="grid cols-4">
+          <div class="card">
+            <strong>Trends & bursts (last 14 days)</strong>
+            <ul id="aiTrendsList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+          <div class="card">
+            <strong>Incident-like issues</strong>
+            <ul id="aiIncidentsList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+          <div class="card">
+            <strong>Emerging vs Stable themes</strong>
+            <ul id="aiEmergingStable" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+          <div class="card">
+            <strong>Ops Cockpit</strong>
+            <ul id="aiOpsCockpit" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <strong>Per-module risk insights</strong>
+          <div class="table-wrap" role="region" aria-label="AI per-module insights" style="max-height:320px;">
+            <table id="aiModulesTable">
+              <thead>
+                <tr><th>Module</th><th>Open</th><th>High P</th><th>Risk sum</th><th>Top term</th></tr>
+              </thead>
+              <tbody id="aiModulesTableBody">
+                <tr><td colspan="5" style="text-align:center;color:var(--muted)">Waiting for data…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <strong>Top risks this week</strong>
+          <ul id="aiRisksList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+        </div>
+
+        <div class="card">
+          <strong>Similar issue clusters</strong>
+          <div id="aiClusters" style="margin-top:6px;display:grid;gap:10px;"></div>
+        </div>
+
+        <div class="card">
+          <strong>Triage queue (issues needing attention)</strong>
+          <div class="muted" style="font-size:12px;margin-top:4px;">
+            Missing fields, misaligned priority, ordered by risk. Suggestions are heuristic.
+          </div>
+          <ul id="aiTriageList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+        </div>
+
+        <div class="card">
+          <strong>Upcoming risky events (next 7 days)</strong>
+          <div class="muted" style="font-size:12px;margin-top:4px;">
+            Combines calendar events with open, high-risk issues in related modules and change collision signals.
+          </div>
+          <ul id="aiEventsList" class="muted" style="font-size:13px;margin-top:6px;padding-left:18px;"></ul>
+        </div>
+
+        <div class="card">
+          <strong>AI Commands (pro)</strong>
+          <div class="muted" style="font-size:12px;margin-top:4px;">
+            Filters: <code>module:</code> <code>status:</code> <code>priority:</code> <code>id:</code> <code>type:</code> <code>missing:</code><br/>
+            Risk: <code>risk&gt;=9</code> <code>severity&gt;=3</code> <code>impact&gt;=3</code> <code>urgency&gt;=3</code><br/>
+            Time: <code>last:7d</code> <code>age&gt;14d</code> · Events: <code>event:next7d</code> <code>event:today</code><br/>
+            Sort: <code>sort:risk|date|priority</code><br/>
+            Examples: <code>payments risk&gt;8 last:7d sort:risk</code> · <code>missing:priority module:billing</code> · <code>status:open cluster:timeout</code>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+            <input id="aiQueryInput" class="input" type="text"
+                   placeholder="Ask or query…  ( Ctrl + K )"
+                   style="flex:1;min-width:260px;">
+            <button id="aiQueryRun" class="btn sm" type="button">Run</button>
+            <button id="aiQueryApplyFilters" class="btn ghost sm" type="button" title="Apply to Issues">Apply to Issues</button>
+            <button id="aiQueryExport" class="btn ghost sm" type="button" title="Export query results as CSV">Export CSV</button>
+          </div>
+          <div id="aiQueryResults" class="muted" style="font-size:13px;margin-top:8px;"></div>
         </div>
       </section>
     </main>
@@ -676,7 +790,7 @@
     </div>
   </div>
 
-  <!-- Event Modal -->
+  <!-- Event Modal (extended: env / owner / modules / impact) -->
   <div id="eventModal" class="modal" role="dialog" aria-modal="true"
        aria-labelledby="eventModalTitle" aria-describedby="eventModalBody">
     <div class="modal-content">
@@ -705,6 +819,43 @@
               </select>
             </div>
             <div class="filter-row">
+              <label class="muted" for="eventEnv">Environment</label>
+              <select id="eventEnv" class="select">
+                <option value="Prod">Prod</option>
+                <option value="Staging">Staging</option>
+                <option value="Dev">Dev</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="eventStatus">Change status</label>
+              <select id="eventStatus" class="select">
+                <option value="Planned">Planned</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="eventOwner">Owner</label>
+              <input id="eventOwner" class="input" type="text"
+                     placeholder="On-call / squad / owner" />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="eventModules">Modules</label>
+              <input id="eventModules" class="input" type="text"
+                     placeholder="Comma-separated e.g. Payments, Auth" />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="eventImpactType">Impact</label>
+              <select id="eventImpactType" class="select">
+                <option value="No downtime expected">No downtime expected</option>
+                <option value="Customer visible">Customer visible</option>
+                <option value="Internal only">Internal only</option>
+                <option value="High risk change">High risk change</option>
+              </select>
+            </div>
+            <div class="filter-row">
               <label class="muted" for="eventIssueId">Issue ID (optional)</label>
               <input id="eventIssueId" class="input" type="text"
                      placeholder="e.g. INC-123 or ticket ID" />
@@ -712,6 +863,12 @@
             <div class="filter-row">
               <label class="muted" for="eventStart">Start</label>
               <input id="eventStart" class="input" type="datetime-local" required />
+            </div>
+            <div class="filter-row">
+              <label class="muted" style="display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" id="eventAllDay" />
+                All-day event
+              </label>
             </div>
             <div class="filter-row">
               <label class="muted" for="eventEnd">End (optional)</label>
@@ -724,7 +881,8 @@
                         style="border-radius:12px; resize:vertical;"></textarea>
             </div>
           </div>
-          <div id="eventIssueLinkedInfo" class="muted" style="margin-top:4px;display:none;font-size:12px;"></div>
+          <div id="eventIssueLinkedInfo" class="muted"
+               style="margin-top:4px;display:none;font-size:12px;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -747,141 +905,171 @@
   <div class="spinner" id="spinner" aria-hidden="true"><div class="ring"></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv";
+/**
+ * InCheck Pro Dashboard — Issues · Ops · AI Copilot
+ * Single-file architecture:
+ *  - CONFIG / LS_KEYS
+ *  - DataStore (issues + text analytics)
+ *  - Risk engine (technical + biz + ops + severity/impact/urgency)
+ *  - DSL query parser & matcher
+ *  - Calendar risk (events + collisions + freezes + hot issues)
+ */
 
-  // Google Apps Script Web App URL for calendar events (wrapped via CORS proxy)
-  const CALENDAR_API_URL =
+const CONFIG = {
+  DATA_VERSION: '2',
+
+  SHEET_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv",
+  CALENDAR_API_URL:
     "https://corsproxy.io/?" +
-    encodeURIComponent("https://script.google.com/macros/s/AKfycbwRcF-CbJY3dNfU9QQWixGL82a5BqCxVII4sGJSKunJ_fhDLLezL90kUXoqMrHuYytV/exec");
+    encodeURIComponent("https://script.google.com/macros/s/AKfycbwRcF-CbJY3dNfU9QQWixGL82a5BqCxVII4sGJSKunJ_fhDLLezL90kUXoqMrHuYytV/exec"),
 
-  // Centralized localStorage keys
-  const LS_KEYS = {
-    filters: 'incheckFilters',
-    theme: 'theme',
-    events: 'incheckEvents',
-    issues: 'incheckIssues',
-    issuesLastUpdated: 'incheckIssuesLastUpdated',
-    pageSize: 'pageSize',
-    view: 'incheckView'
-  };
+  TREND_DAYS_RECENT: 7,
+  TREND_DAYS_WINDOW: 14,
 
-  function q(sel, root = document) { return root.querySelector(sel); }
-  function qAll(sel){ return Array.from(document.querySelectorAll(sel)); }
+  RISK: {
+    priorityWeight: { High: 3, Medium: 2, Low: 1, "": 1 },
+    techBoosts: [
+      ['timeout',3],['time out',3],['latency',2],['slow',2],['performance',2],
+      ['crash',3],['error',2],['exception',2],['down',3]
+    ],
+    bizBoosts: [
+      ['payment',3],['payments',3],['billing',2],['invoice',1],
+      ['checkout',2],['refund',2],['revenue',3],['vip',2]
+    ],
+    opsBoosts: [
+      ['prod ',2],['production',2],['deploy',2],['deployment',2],
+      ['rollback',2],['incident',3],['p0',3],['p1',2],['sla',2]
+    ],
+    statusBoosts: { 'on stage':2, 'under':1 },
+    misalignedDelta: 1,
+    highRisk: 9,
+    critRisk: 13,
+    staleDays: 10
+  },
 
-  const els = {
-    table: q('#issuesTable'),
-    tableBody: q('#issuesTable tbody'),
-    rowCount: q('#rowCount'),
-    moduleFilter: q('#moduleFilter'),
-    priorityFilter: q('#priorityFilter'),
-    statusFilter: q('#statusFilter'),
-    reset: q('#resetBtn'),
-    refresh: q('#refreshNow'),
-    exportCsv: q('#exportCsv'),
-    kpis: q('#kpis'),
-    modal: q('#issueModal'),
-    modalBody: q('#modalBody'),
-    modalTitle: q('#modalTitle'),
-    copyId: q('#copyId'),
-    copyLink: q('#copyLink'),
-    closeModalBtn: q('#modalClose'),
-    drawerBtn: q('#drawerBtn'),
-    sidebar: q('#sidebar'),
-    spinner: q('#spinner'),
-    toast: q('#toast'),
-    search: q('#searchInput'),
-    themeSelect: q('#themeSelect'),
-    firstPage: q('#firstPage'),
-    prevPage: q('#prevPage'),
-    nextPage: q('#nextPage'),
-    lastPage: q('#lastPage'),
-    pageInfo: q('#pageInfo'),
-    pageSize: q('#pageSize'),
-    createTicket: q('#createTicketBtn'),
-    startDateFilter: q('#startDateFilter'),
-    endDateFilter: q('#endDateFilter'),
-    loadingStatus: q('#loadingStatus'),
-    viewTabs: qAll('.view-tab'),
-    issuesView: q('#issuesView'),
-    calendarView: q('#calendarView'),
-    addEventBtn: q('#addEventBtn'),
-    eventModal: q('#eventModal'),
-    eventModalTitle: q('#eventModalTitle'),
-    eventModalClose: q('#eventModalClose'),
-    eventForm: q('#eventForm'),
-    eventTitle: q('#eventTitle'),
-    eventType: q('#eventType'),
-    eventIssueId: q('#eventIssueId'),
-    eventStart: q('#eventStart'),
-    eventEnd: q('#eventEnd'),
-    eventDescription: q('#eventDescription'),
-    eventSave: q('#eventSave'),
-    eventCancel: q('#eventCancel'),
-    eventDelete: q('#eventDelete'),
-    eventIssueLinkedInfo: q('#eventIssueLinkedInfo'),
-    eventFilterDeployment: q('#filterDeployment'),
-    eventFilterMaintenance: q('#filterMaintenance'),
-    eventFilterRelease: q('#filterRelease'),
-    eventFilterOther: q('#filterOther')
-  };
+  LABEL_KEYWORDS: {
+    'Authentication / Login': ['login','signin','sign in','password','auth','token','session','otp'],
+    'Payments / Billing': ['payment','payments','billing','invoice','card','credit','charge','checkout','refund'],
+    'Performance / Latency': ['slow','slowness','latency','performance','perf','timeout','time out','lag'],
+    'Reliability / Errors': ['error','errors','exception','500','503','fail','failed','crash','down','unavailable'],
+    'UI / UX': ['button','screen','page','layout','css','ui','ux','alignment','typo'],
+    'Data / Sync': ['sync','synchron','cache','cached','replica','replication','consistency','out of date']
+  },
 
-  let rows = [], filtered = [], charts = {};
-  let sortKey = null, sortAsc = true;
-  let currentPage = 1;
-  let rowsPerPage = +(localStorage.getItem(LS_KEYS.pageSize) || els.pageSize.value);
-  els.pageSize.value = String(rowsPerPage);
-  let selectedIssue = null;
-  let lastFocusedBeforeIssueModal = null;
-  let lastFocusedBeforeEventModal = null;
-
-  let eventsData = [];
-  let calendar = null;
-  let calendarInitialized = false;
-  let editingEventId = null;
-
-  const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-  const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-
-  const showSpinner = (v=true)=> {
-    els.spinner.style.display = v ? 'flex' : 'none';
-    if (els.loadingStatus) {
-      els.loadingStatus.textContent = v ? 'Loading…' : '';
-    }
-  };
-  const showToast = (msg, ms=3500) => {
-    els.toast.textContent = msg;
-    els.toast.style.display = 'block';
-    setTimeout(()=>els.toast.style.display='none', ms);
-  };
-
-  function normalizeStatus(rawStatus) {
-    const s = (rawStatus || '').trim().toLowerCase();
-    if (!s) return 'Not Started Yet';
-    if (s.startsWith('resolved')) return 'Resolved';
-    if (s.startsWith('under')) return 'Under Development';
-    if (s.startsWith('rejected')) return 'Rejected';
-    if (s.startsWith('on hold')) return 'On Hold';
-    if (s.startsWith('not started')) return 'Not Started Yet';
-    if (s.startsWith('sent')) return 'Sent';
-    if (s.startsWith('on stage')) return 'On Stage';
-    return rawStatus || 'Not Started Yet';
+  CHANGE: {
+    overlapLookbackMinutes: 60,
+    hotIssueRecentDays: 7,
+    freezeWindows: [
+      { dow:[5], startHour:16, endHour:23 }, // Friday evening
+      { dow:[6], startHour:0, endHour:23 }   // Saturday
+    ]
   }
-  function normalizePriority(rawPriority) {
-    const s = (rawPriority || '').trim().toLowerCase();
-    if (!s) return '';
-    if (s.startsWith('h')) return 'High';
-    if (s.startsWith('m')) return 'Medium';
-    if (s.startsWith('l')) return 'Low';
-    return rawPriority;
-  }
+};
 
-  function normalizeRow(raw){
+const LS_KEYS = {
+  filters: 'incheckFilters',
+  theme: 'theme',
+  events: 'incheckEvents',
+  issues: 'incheckIssues',
+  issuesLastUpdated: 'incheckIssuesLastUpdated',
+  dataVersion: 'incheckDataVersion',
+  pageSize: 'pageSize',
+  view: 'incheckView',
+  accentColor: 'incheckAccent'
+};
+
+const STOPWORDS = new Set([
+  'the','a','an','and','or','but','for','with','this','that','from','into','onto','when','what','where','how','why',
+  'can','could','should','would','will','just','have','has','had','been','are','is','was','were',
+  'to','in','on','of','at','by','as','it','its','be','we','you','they','our','your','their',
+  'not','no','if','else','then','than','about','after','before','more','less','also','only','very',
+  'get','got','see','seen','use','used','using','user','issue','bug','ticket','inc'
+]);
+
+const U = {
+  q:(s,r=document)=>r.querySelector(s),
+  qAll:(s,r=document)=>Array.from(r.querySelectorAll(s)),
+  now:()=>Date.now(),
+  fmtTS:(d)=>{
+    const x=(d instanceof Date)?d:new Date(d);
+    if(isNaN(x)) return '—';
+    return x.toISOString().replace('T',' ').slice(0,16);
+  },
+  escapeHtml:(s)=> String(s).replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])),
+  escapeAttr:(s)=> String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'),
+  pad:(n)=>String(n).padStart(2,'0'),
+  dateAddDays:(d,days)=>{
+    const base=(d instanceof Date)? d : new Date(d);
+    return new Date(base.getTime()+days*86400000);
+  },
+  daysAgo:(n)=> new Date(Date.now()-n*86400000),
+  isBetween:(d,a,b)=>{
+    const x = (d instanceof Date)? d : new Date(d);
+    if(isNaN(x)) return false;
+    const min = a ? (a instanceof Date ? a : new Date(a)) : null;
+    const max = b ? (b instanceof Date ? b : new Date(b)) : null;
+    if(min && x < min) return false;
+    if(max && x >= max) return false;
+    return true;
+  }
+};
+
+/** Filters persisted */
+const Filters = {
+  state: { search:'', module:'All', priority:'All', status:'All', start:'', end:'' },
+  load(){
+    try{
+      const raw=localStorage.getItem(LS_KEYS.filters);
+      if(raw) this.state=JSON.parse(raw);
+    }catch{}
+  },
+  save(){
+    try{ localStorage.setItem(LS_KEYS.filters, JSON.stringify(this.state)); }catch{}
+  }
+};
+
+function UndefaultCount(arr){
+  const m=new Map();
+  arr.forEach(t=> m.set(t,(m.get(t)||0)+1));
+  return m;
+}
+
+/** DataStore */
+const DataStore = {
+  rows: [],
+  computed: new Map(), // id -> { tokens:Set, tf:Map, idf:Map, risk, suggestions }
+  byId: new Map(),
+  byModule: new Map(),
+  byStatus: new Map(),
+  byPriority: new Map(),
+  df: new Map(),
+  N: 0,
+  events: [],
+  etag: null,
+
+  normalizeStatus(s){
+    const i=(s||'').trim().toLowerCase();
+    if(!i) return 'Not Started Yet';
+    if(i.startsWith('resolved')) return 'Resolved';
+    if(i.startsWith('under')) return 'Under Development';
+    if(i.startsWith('rejected')) return 'Rejected';
+    if(i.startsWith('on hold')) return 'On Hold';
+    if(i.startsWith('not started')) return 'Not Started Yet';
+    if(i.startsWith('sent')) return 'Sent';
+    if(i.startsWith('on stage')) return 'On Stage';
+    return s||'Not Started Yet';
+  },
+  normalizePriority(p){
+    const i=(p||'').trim().toLowerCase();
+    if(!i) return '';
+    if(i.startsWith('h')) return 'High';
+    if(i.startsWith('m')) return 'Medium';
+    if(i.startsWith('l')) return 'Low';
+    return p;
+  },
+  normalizeRow(raw){
     const lower={};
-    for(const k in raw){
-      if(!k) continue;
-      lower[k.toLowerCase().replace(/\s+/g,' ').trim()] = String(raw[k] ?? '').trim();
-    }
+    for(const k in raw){ if(!k) continue; lower[k.toLowerCase().replace(/\s+/g,' ').trim()]=String(raw[k]??'').trim(); }
     const pick=(...keys)=>{ for(const key of keys){ if(lower[key]) return lower[key]; } return ''; };
     return {
       id: pick('ticket id','id'),
@@ -889,286 +1077,673 @@ document.addEventListener("DOMContentLoaded", () => {
       title: pick('title'),
       desc: pick('description'),
       file: pick('file upload','link','url'),
-      priority: normalizePriority(pick('priority')),
-      status: normalizeStatus(pick('status') || 'Not Started Yet'),
+      priority: DataStore.normalizePriority(pick('priority')),
+      status: DataStore.normalizeStatus(pick('status') || 'Not Started Yet'),
       type: pick('category','type'),
       date: pick('timestamp','date','created at'),
       log: pick('log','logs','comment','notes')
     };
+  },
+  tokenize(issue){
+    const text = [issue.title,issue.desc,issue.log].filter(Boolean).join(' ').toLowerCase();
+    return text.replace(/[^a-z0-9]+/g,' ')
+      .split(/\s+/)
+      .filter(w=>w && w.length>2 && !STOPWORDS.has(w));
+  },
+  hydrate(csvText){
+    const parsed = Papa.parse(csvText,{header:true,skipEmptyLines:true}).data
+      .map(DataStore.normalizeRow)
+      .filter(r=>r.id && r.id.trim()!=="");
+    this.hydrateFromRows(parsed);
+  },
+  hydrateFromRows(parsed){
+    this.rows = parsed || [];
+    this.byId.clear(); this.byModule.clear(); this.byStatus.clear(); this.byPriority.clear();
+    this.computed.clear(); this.df.clear(); this.N = this.rows.length;
+
+    this.rows.forEach(r=>{
+      this.byId.set(r.id,r);
+      if(!this.byModule.has(r.module)) this.byModule.set(r.module,[]);
+      this.byModule.get(r.module).push(r);
+      if(!this.byStatus.has(r.status)) this.byStatus.set(r.status,[]);
+      this.byStatus.get(r.status).push(r);
+      if(!this.byPriority.has(r.priority)) this.byPriority.set(r.priority,[]);
+      this.byPriority.get(r.priority).push(r);
+
+      const toks = DataStore.tokenize(r);
+      const uniq = new Set(toks);
+      uniq.forEach(t=> this.df.set(t,(this.df.get(t)||0)+1));
+      this.computed.set(r.id,{ tokens:new Set(toks), tf:UndefaultCount(toks) });
+    });
+
+    const idf = new Map();
+    this.df.forEach((df,term)=> idf.set(term, Math.log((this.N+1)/(df+1))+1));
+    this.computed.forEach(meta=> meta.idf = idf);
+
+    // risk & suggestions
+    this.rows.forEach(r=>{
+      const risk = Risk.computeRisk(r);
+      const categories = Risk.suggestCategories(r);
+      const sPrio = Risk.suggestPriority(r, risk.total);
+      const reasons = Risk.explainRisk(r);
+      const meta = this.computed.get(r.id);
+      meta.risk = {...risk,reasons};
+      meta.suggestions = { priority:sPrio, categories };
+    });
   }
+};
 
-  function parseCsv(t){
-    return Papa.parse(t,{header:true,skipEmptyLines:true})
-      .data
-      .map(normalizeRow)
-      .filter(r => r.id && r.id.trim() !== "");
+const IssuesCache = {
+  load(){
+    try{
+      const storedVersion = localStorage.getItem(LS_KEYS.dataVersion);
+      if(storedVersion && storedVersion !== CONFIG.DATA_VERSION) return null;
+      const raw = localStorage.getItem(LS_KEYS.issues);
+      if(!raw) return null;
+      const data = JSON.parse(raw);
+      return Array.isArray(data)? data : null;
+    }catch{return null;}
+  },
+  save(rows){
+    try{
+      localStorage.setItem(LS_KEYS.issues, JSON.stringify(rows||[]));
+      localStorage.setItem(LS_KEYS.issuesLastUpdated, new Date().toISOString());
+      localStorage.setItem(LS_KEYS.dataVersion, CONFIG.DATA_VERSION);
+    }catch{}
+  },
+  lastLabel(){
+    const iso = localStorage.getItem(LS_KEYS.issuesLastUpdated);
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d)) return '';
+    return `Last updated: ${d.toLocaleString()}`;
   }
+};
 
-  function pill(text,cls){ return `<span class="pill ${cls}">${text||'-'}</span>`; }
-  const statusBadge = s => pill(s,`status-${(s||'').replace(/\s/g,'\\ ')}`);
-  const priorityBadge = p => pill(p,`priority-${p||''}`);
+function prioMap(p){ return {High:3,Medium:2,Low:1}[p]||0; }
+function prioGap(suggested,current){ return prioMap(suggested)-prioMap(current); }
 
-  function applySystemThemeFromOS(){
-    if (!mediaQuery) return;
-    if (mediaQuery.matches) {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme','light');
+/** Risk engine (with severity / impact / urgency) */
+const Risk = {
+  scoreFromBoosts(text,rules){
+    let s=0; for(const [kw,val] of rules){ if (text.includes(kw)) s+=val; } return s;
+  },
+  computeRisk(issue){
+    const txt = [issue.title,issue.desc,issue.log].filter(Boolean).join(' ').toLowerCase()+' ';
+    const basePriority = CONFIG.RISK.priorityWeight[issue.priority||""] || 1;
+
+    const tech = basePriority + this.scoreFromBoosts(txt, CONFIG.RISK.techBoosts);
+    const biz  = this.scoreFromBoosts(txt, CONFIG.RISK.bizBoosts);
+    const ops  = this.scoreFromBoosts(txt, CONFIG.RISK.opsBoosts);
+
+    let total = tech+biz+ops;
+
+    const st=(issue.status||'').toLowerCase();
+    for(const k in CONFIG.RISK.statusBoosts){
+      if(st.startsWith(k)) total+=CONFIG.RISK.statusBoosts[k];
     }
-  }
 
-  function applyTheme(mode) {
-    localStorage.setItem(LS_KEYS.theme, mode);
-    if (mode === 'system') {
-      applySystemThemeFromOS();
-      return;
-    }
-    if (mode === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else if (mode === 'light') {
-      document.documentElement.setAttribute('data-theme','light');
-    }
-  }
+    let timeRisk = 0;
+    let ageDays = null;
+    let isOpen = !(st.startsWith('resolved')||st.startsWith('rejected'));
 
-  function initTheme() {
-    const saved = localStorage.getItem(LS_KEYS.theme) || 'system';
-    els.themeSelect.value = saved;
-    if (saved === 'system') {
-      applySystemThemeFromOS();
-    } else {
-      applyTheme(saved);
-    }
-    if (mediaQuery) {
-      mediaQuery.addEventListener('change', () => {
-        const current = localStorage.getItem(LS_KEYS.theme) || 'system';
-        if (current === 'system') applySystemThemeFromOS();
-      });
-    }
-  }
-
-  function saveFilters(){
-    const state = {
-      search: els.search.value || '',
-      module: els.moduleFilter.value || 'All',
-      priority: els.priorityFilter.value || 'All',
-      status: els.statusFilter.value || 'All',
-      start: els.startDateFilter.value || '',
-      end: els.endDateFilter.value || ''
-    };
-    try {
-      localStorage.setItem(LS_KEYS.filters, JSON.stringify(state));
-    } catch(e){}
-  }
-
-  function loadFilters(){
-    try {
-      const raw = localStorage.getItem(LS_KEYS.filters);
-      if (!raw) return;
-      const s = JSON.parse(raw);
-      els.search.value = s.search || '';
-
-      const setIfOptionExists = (select, value) => {
-        if (!value) return;
-        const options = Array.from(select.options);
-        if (options.some(o => o.value === value)) {
-          select.value = value;
+    if(issue.date){
+      const d = new Date(issue.date);
+      if(!isNaN(d)){
+        ageDays = (Date.now() - d.getTime()) / 86400000;
+        if(isOpen && total >= CONFIG.RISK.highRisk){
+          if(ageDays <= 14) timeRisk += 2;      // fresh risky
+          if(ageDays >= 30) timeRisk += 3;      // stale high-risk
         }
-      };
+      }
+    }
+    total += timeRisk;
 
-      setIfOptionExists(els.moduleFilter, s.module);
-      setIfOptionExists(els.priorityFilter, s.priority);
-      setIfOptionExists(els.statusFilter, s.status);
-      els.startDateFilter.value = s.start || '';
-      els.endDateFilter.value = s.end || '';
-    } catch(e){
-      console.error('Failed to restore filters', e);
+    // severity: how bad is the scenario
+    let severity = basePriority;
+    if(/p0|sev0|outage|down|data loss|breach|security/i.test(txt)) severity += 3;
+    if(/p1|sev1|incident|sla/i.test(txt)) severity += 2;
+    if(/p2|degraded/i.test(txt)) severity += 1;
+
+    // impact: how much money / users
+    let impact = 1;
+    if(/payment|billing|checkout|revenue|invoice|subscription|signup|onboarding/i.test(txt)) impact += 2;
+    if(/login|auth|authentication|token|session/i.test(txt)) impact += 1.5;
+    if(/admin|internal|report/i.test(txt)) impact += 0.5;
+
+    // urgency: time sensitivity
+    let urgency = 1;
+    if(/today|now|immediately|urgent|sla/i.test(txt)) urgency += 1.5;
+    if(ageDays!=null){
+      if(ageDays <= 1) urgency += 1;
+      if(ageDays >= 14 && isOpen) urgency += 0.5;
+    }
+
+    const sevScore = Math.round(severity);
+    const impScore = Math.round(impact*1.5);
+    const urgScore = Math.round(urgency*1.5);
+
+    total += sevScore + impScore + urgScore;
+
+    return {
+      technical:tech,
+      business:biz,
+      operational:ops,
+      time:timeRisk,
+      total,
+      severity:sevScore,
+      impact:impScore,
+      urgency:urgScore
+    };
+  },
+  suggestCategories(issue){
+    const text = [issue.title,issue.desc,issue.log].filter(Boolean).join(' ').toLowerCase();
+    const res=[];
+    Object.entries(CONFIG.LABEL_KEYWORDS).forEach(([label,kws])=>{
+      let hits=0; kws.forEach(k=>{ if(text.includes(k)) hits++; });
+      if(hits) res.push({label,score:hits});
+    });
+    res.sort((a,b)=>b.score-a.score);
+    return res;
+  },
+  suggestPriority(issue,totalRisk){
+    if (issue.priority) return issue.priority;
+    const s = totalRisk!=null? totalRisk : this.computeRisk(issue).total;
+    if (s>=CONFIG.RISK.highRisk) return 'High';
+    if (s>=6) return 'Medium';
+    return 'Low';
+  },
+  explainRisk(issue){
+    const txt = [issue.title,issue.desc,issue.log].filter(Boolean).join(' ').toLowerCase()+' ';
+    const picks=[];
+    const push=(kw)=>{ if(txt.includes(kw)) picks.push(kw); };
+    [...CONFIG.RISK.techBoosts,...CONFIG.RISK.bizBoosts,...CONFIG.RISK.opsBoosts].forEach(([kw])=>push(kw));
+    if ((issue.status||'').toLowerCase().startsWith('on stage')) picks.push('on stage');
+    if ((issue.status||'').toLowerCase().startsWith('under')) picks.push('under development');
+
+    if(issue.date){
+      const d = new Date(issue.date);
+      if(!isNaN(d)){
+        const ageDays = (Date.now() - d.getTime()) / 86400000;
+        if(ageDays <= 14) picks.push('recent');
+        else if(ageDays >= 30) picks.push('stale');
+      }
+    }
+
+    return Array.from(new Set(picks)).slice(0,6);
+  }
+};
+
+/** Command DSL parser */
+const DSL = {
+  parse(text){
+    const lower=(text||'').toLowerCase();
+    let w=' '+lower+' ';
+    const out={
+      module:null,status:null,priority:null,id:null,type:null,missing:null,
+      riskOp:null,riskVal:null,
+      severityOp:null,severityVal:null,
+      impactOp:null,impactVal:null,
+      urgencyOp:null,urgencyVal:null,
+      ageOp:null,ageVal:null,
+      lastDays:null,cluster:null,sort:null,
+      eventScope:null,
+      words:[]
+    };
+    const eat=(re,key,fn=v=>v)=>{
+      const m=w.match(re); if(m){ out[key]=fn(m[1].trim()); w=w.replace(m[0],' '); }
+    };
+    eat(/\bmodule:([^\s]+)/,'module');
+    eat(/\bstatus:([^\s]+)/,'status');
+    eat(/\bpriority:([^\s]+)/,'priority');
+    eat(/\bid:([^\s]+)/,'id');
+    eat(/\btype:([^\s]+)/,'type');
+    eat(/\bmissing:([^\s]+)/,'missing');
+
+    const rv=lower.match(/\brisk([><=]{1,2})(\d+)/);
+    if(rv){ out.riskOp=rv[1]; out.riskVal=+rv[2]; w=w.replace(rv[0],' '); }
+
+    const sv=lower.match(/\bseverity([><=]{1,2})(\d+)/);
+    if(sv){ out.severityOp=sv[1]; out.severityVal=+sv[2]; w=w.replace(sv[0],' '); }
+    const iv=lower.match(/\bimpact([><=]{1,2})(\d+)/);
+    if(iv){ out.impactOp=iv[1]; out.impactVal=+iv[2]; w=w.replace(iv[0],' '); }
+    const uv=lower.match(/\burgency([><=]{1,2})(\d+)/);
+    if(uv){ out.urgencyOp=uv[1]; out.urgencyVal=+uv[2]; w=w.replace(uv[0],' '); }
+
+    eat(/\blast:(\d+)d/,'lastDays',n=>+n);
+    const av=lower.match(/\bage([><=]{1,2})(\d+)d/);
+    if(av){ out.ageOp=av[1]; out.ageVal=+av[2]; w=w.replace(av[0],' '); }
+
+    eat(/\bcluster:([^\s]+)/,'cluster');
+    eat(/\bsort:(risk|date|priority)/,'sort');
+    eat(/\bevent:(\S+)/,'eventScope');
+
+    out.words = w.split(/\s+/).filter(Boolean).filter(t=>t.length>2 && !STOPWORDS.has(t));
+    return out;
+  },
+  matches(issue,meta,q){
+    if (q.module && !(issue.module||'').toLowerCase().includes(q.module)) return false;
+    if (q.priority){
+      const p=q.priority[0].toUpperCase();
+      if(['H','M','L'].includes(p)){ if((issue.priority||'')[0]!==p) return false; }
+      else if(!(issue.priority||'').toLowerCase().includes(q.priority)) return false;
+    }
+    if (q.status){
+      const st=(issue.status||'').toLowerCase();
+      if(q.status==='open'){
+        const closed = st.startsWith('resolved')||st.startsWith('rejected');
+        if(closed) return false;
+      }else if(q.status==='closed'){
+        const closed = st.startsWith('resolved')||st.startsWith('rejected');
+        if(!closed) return false;
+      }else if(!st.includes(q.status)) return false;
+    }
+    if (q.id && !((issue.id||'').toLowerCase().includes(q.id))) return false;
+    if (q.type && !((issue.type||'').toLowerCase().includes(q.type))) return false;
+    if (q.missing){
+      const m=q.missing;
+      if(m==='priority' && issue.priority) return false;
+      if(m==='module' && issue.module && issue.module!=='Unspecified') return false;
+      if(m==='type' && issue.type) return false;
+    }
+    if (q.lastDays){
+      const after=U.daysAgo(q.lastDays);
+      if(!U.isBetween(issue.date,after,null)) return false;
+    }
+    if (q.ageOp && q.ageVal!=null){
+      if(!issue.date) return false;
+      const d=new Date(issue.date); if(isNaN(d)) return false;
+      const ageDays=(Date.now()-d.getTime())/86400000;
+      const op=q.ageOp, b=q.ageVal;
+      let pass=false;
+      if(op==='>') pass=ageDays>b;
+      else if(op==='>=') pass=ageDays>=b;
+      else if(op==='<') pass=ageDays<b;
+      else if(op==='<=') pass=ageDays<=b;
+      else if(op==='='||op==='==') pass=Math.round(ageDays)===b;
+      if(!pass) return false;
+    }
+    if (q.cluster){
+      const t=q.cluster.toLowerCase();
+      if(!meta.tokens || !Array.from(meta.tokens).some(x=>x.includes(t))) return false;
+    }
+    const risk = meta.risk || {};
+    if (q.riskOp){
+      const rv=risk.total||0;
+      const op=q.riskOp, b=q.riskVal;
+      let pass=false;
+      if(op==='>') pass=rv>b;
+      else if(op==='>=') pass=rv>=b;
+      else if(op==='<') pass=rv<b;
+      else if(op==='<=') pass=rv<=b;
+      else if(op==='='||op==='==') pass=rv===b;
+      if(!pass) return false;
+    }
+    const cmpNum = (val,op,b)=>{
+      const v=val||0;
+      if(op==='>') return v>b;
+      if(op==='>=') return v>=b;
+      if(op==='<') return v<b;
+      if(op==='<=') return v<=b;
+      if(op==='='||op==='==') return v===b;
+      return true;
+    };
+    if(q.severityOp && !cmpNum(risk.severity,q.severityOp,q.severityVal)) return false;
+    if(q.impactOp && !cmpNum(risk.impact,q.impactOp,q.impactVal)) return false;
+    if(q.urgencyOp && !cmpNum(risk.urgency,q.urgencyOp,q.urgencyVal)) return false;
+
+    if (q.words && q.words.length){
+      const txt=[issue.title,issue.desc,issue.log].filter(Boolean).join(' ').toLowerCase();
+      for(const w of q.words){ if(!txt.includes(w)) return false; }
+    }
+    return true;
+  }
+};
+
+/** Calendar helpers */
+const CalendarLink = {
+  riskBadgeClass(score){
+    if(score>=CONFIG.RISK.critRisk) return 'risk-crit';
+    if(score>=CONFIG.RISK.highRisk) return 'risk-high';
+    if(score>=6) return 'risk-med';
+    return 'risk-low';
+  }
+};
+
+/** Events + risk (issues + events) */
+function computeEventsRisk(issues,events){
+  const now=new Date(), limit=U.dateAddDays(now,7);
+  const openIssues=issues.filter(i=>{
+    const st=(i.status||'').toLowerCase();
+    return !(st.startsWith('resolved')||st.startsWith('rejected'));
+  });
+  const modules=Array.from(new Set(openIssues.map(i=>i.module).filter(Boolean)));
+  const res=[];
+  events.forEach(ev=>{
+    if(!ev.start) return;
+    const d=new Date(ev.start); if(isNaN(d)||d<now||d>limit) return;
+    const title=(ev.title||'').toLowerCase();
+    const impacted=modules.filter(m=>title.includes((m||'').toLowerCase()));
+    let rel=[];
+    if(impacted.length) rel=openIssues.filter(i=>impacted.includes(i.module));
+    else if((ev.type||'').toLowerCase()!=='other'){
+      const recentOpen=openIssues.filter(i=>U.isBetween(i.date,U.daysAgo(7),null));
+      rel=recentOpen.filter(i=>(DataStore.computed.get(i.id)?.risk?.total||0)>=CONFIG.RISK.highRisk);
+    }
+    if(!rel.length) return;
+    const risk=rel.reduce((s,i)=>s+(DataStore.computed.get(i.id)?.risk?.total||0),0);
+    res.push({event:ev,modules:impacted,issues:rel,risk,date:d});
+  });
+  res.sort((a,b)=>b.risk-a.risk);
+  return res.slice(0,5);
+}
+
+/** Change collisions, freeze windows, hot issues flags */
+function computeChangeCollisions(issues,events){
+  const flagsById = new Map();
+  const byId = id=>{
+    let f = flagsById.get(id);
+    if(!f){ f={collision:false,freeze:false,hotIssues:false}; flagsById.set(id,f); }
+    return f;
+  };
+  if(!events || !events.length) return {collisions:[],flagsById};
+
+  const openIssues = issues.filter(i=>{
+    const st=(i.status||'').toLowerCase();
+    return !(st.startsWith('resolved')||st.startsWith('rejected'));
+  });
+
+  const highRiskIssues = openIssues.filter(i=>{
+    const meta = DataStore.computed.get(i.id) || {};
+    const risk = meta.risk?.total || 0;
+    if(risk < CONFIG.RISK.highRisk) return false;
+    if(!i.date) return true;
+    const d=new Date(i.date); if(isNaN(d)) return true;
+    return U.isBetween(d, U.daysAgo(CONFIG.CHANGE.hotIssueRecentDays), null);
+  });
+
+  const normalized = events.map(ev=>{
+    const start = ev.start ? new Date(ev.start) : null;
+    const end   = ev.end ? new Date(ev.end) : null;
+    return {...ev,_start:start,_end:end};
+  }).filter(ev=>ev._start && !isNaN(ev._start));
+  normalized.sort((a,b)=>a._start-b._start);
+
+  const collisions=[];
+  const defaultDurMs = CONFIG.CHANGE.overlapLookbackMinutes*60000;
+  for(let i=0;i<normalized.length;i++){
+    const a=normalized[i];
+    const aEnd = a._end || new Date(a._start.getTime()+defaultDurMs);
+    for(let j=i+1;j<normalized.length;j++){
+      const b=normalized[j];
+      if(a.env && b.env && a.env !== b.env) continue;
+      if(b._start >= aEnd) break;
+      const bEnd = b._end || new Date(b._start.getTime()+defaultDurMs);
+      if(b._start < aEnd && a._start < bEnd){
+        collisions.push([a.id,b.id]);
+        byId(a.id).collision = true;
+        byId(b.id).collision = true;
+      }
     }
   }
 
-  function renderKpis(){
-    const total = filtered.length; const counts = {};
-    filtered.forEach(r=>{ counts[r.status]=(counts[r.status]||0)+1; });
-    els.kpis.innerHTML='';
+  if(CONFIG.CHANGE.freezeWindows && CONFIG.CHANGE.freezeWindows.length){
+    events.forEach(ev=>{
+      if(!ev.start) return;
+      const d=new Date(ev.start); if(isNaN(d)) return;
+      const dow=d.getDay(); // 0=Sun
+      const hour=d.getHours();
+      const inFreeze = CONFIG.CHANGE.freezeWindows.some(win =>
+        win.dow.includes(dow) && hour>=win.startHour && hour<win.endHour
+      );
+      if(inFreeze) byId(ev.id).freeze = true;
+    });
+  }
+
+  events.forEach(ev=>{
+    const flags = byId(ev.id);
+    const modulesArr = Array.isArray(ev.modules)
+      ? ev.modules
+      : (typeof ev.modules==='string'
+         ? ev.modules.split(',').map(s=>s.trim()).filter(Boolean)
+         : []);
+    let rel=[];
+    if(modulesArr.length){
+      rel = highRiskIssues.filter(i=>modulesArr.includes(i.module));
+    }else{
+      const title=(ev.title||'').toLowerCase();
+      rel = highRiskIssues.filter(i=>(i.module||'') && title.includes((i.module||'').toLowerCase()));
+    }
+    if(rel.length) flags.hotIssues = true;
+  });
+
+  return {collisions,flagsById};
+}
+
+function toLocalInputValue(date){
+  const d=(date instanceof Date)?date:new Date(date);
+  if(isNaN(d)) return '';
+  return `${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}T${U.pad(d.getHours())}:${U.pad(d.getMinutes())}`;
+}
+function toLocalDateValue(date){
+  const d=(date instanceof Date)?date:new Date(date);
+  if(isNaN(d)) return '';
+  return `${d.getFullYear()}-${U.pad(d.getMonth()+1)}-${U.pad(d.getDate())}`;
+}
+/* ---------- Elements cache ---------- */
+const E = {};
+function cacheEls(){
+  [
+    'issuesTable','issuesTbody','tbodySkeleton','rowCount',
+    'moduleFilter','priorityFilter','statusFilter','resetBtn',
+    'refreshNow','exportCsv','kpis','issueModal','modalBody','modalTitle',
+    'copyId','copyLink','modalClose','drawerBtn','sidebar','spinner','toast',
+    'searchInput','themeSelect','firstPage','prevPage','nextPage','lastPage',
+    'pageInfo','pageSize','createTicketBtn','startDateFilter','endDateFilter',
+    'issuesTab','calendarTab','insightsTab','issuesView','calendarView','insightsView',
+    'addEventBtn','eventModal','eventModalTitle','eventModalClose','eventForm',
+    'eventTitle','eventType','eventIssueId','eventStart','eventEnd','eventDescription',
+    'eventSave','eventCancel','eventDelete','eventIssueLinkedInfo',
+    'aiPatternsList','aiLabelsList','aiRisksList','aiClusters','aiScopeText','aiSignalsText',
+    'aiTrendsList','aiModulesTableBody','aiTriageList','aiEventsList','aiQueryInput',
+    'aiQueryRun','aiQueryResults','aiQueryApplyFilters','aiIncidentsList','aiEmergingStable',
+    'aiOpsCockpit','syncIssuesText','syncIssuesDot','syncEventsText','syncEventsDot',
+    'aiAnalyzing','eventFilterDeployment','eventFilterMaintenance','eventFilterRelease',
+    'eventFilterOther','loadingStatus','issuesSummaryText','activeFiltersChips',
+    'calendarTz','onlineStatusChip','accentColor','shortcutsHelp','aiQueryExport','eventAllDay',
+    'eventEnv','eventOwner','eventStatus','eventModules','eventImpactType'
+  ].forEach(id=> E[id]=document.getElementById(id));
+}
+/** UI helpers */
+const UI = {
+  toast(msg,ms=3500){
+    if(!E.toast) return;
+    E.toast.textContent=msg;
+    E.toast.style.display='block';
+    setTimeout(()=>{ if(E.toast) E.toast.style.display='none'; },ms);
+  },
+  spinner(v=true){
+    if(E.spinner) E.spinner.style.display=v?'flex':'none';
+    if(E.loadingStatus) E.loadingStatus.textContent = v ? 'Loading…' : '';
+  },
+  setSync(which,ok,when){
+    const txt = which==='issues'?E.syncIssuesText:E.syncEventsText;
+    const dot = which==='issues'?E.syncIssuesDot:E.syncEventsDot;
+    if(!txt||!dot) return;
+    txt.textContent = `${which==='issues'?'Issues':'Events'}: ${when?U.fmtTS(when):'never'}`;
+    dot.className = 'dot '+(ok?'ok':'err');
+  },
+  setAnalyzing(v){ if(E.aiAnalyzing) E.aiAnalyzing.style.display=v?'block':'none'; },
+  skeleton(show){
+    if(!E.issuesTbody||!E.tbodySkeleton) return;
+    E.tbodySkeleton.style.display = show?'':'none';
+    E.issuesTbody.style.display = show?'none':'';
+  }
+};
+
+const GridState = {
+  sortKey:null,
+  sortAsc:true,
+  page:1,
+  pageSize:+(localStorage.getItem(LS_KEYS.pageSize)||20)
+};
+
+/** Issues UI */
+UI.Issues = {
+  renderFilters(){
+    const uniq=a=>[...new Set(a.filter(Boolean).map(v=>v.trim()))].sort((a,b)=>a.localeCompare(b));
+    if(E.moduleFilter) E.moduleFilter.innerHTML = ['All',...uniq(DataStore.rows.map(r=>r.module))].map(v=>`<option>${v}</option>`).join('');
+    if(E.priorityFilter) E.priorityFilter.innerHTML = ['All',...uniq(DataStore.rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
+    if(E.statusFilter) E.statusFilter.innerHTML = ['All',...uniq(DataStore.rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');
+  },
+  applyFilters(){
+    const s=Filters.state;
+    const qstr=(s.search||'').toLowerCase().trim();
+    const terms = qstr ? qstr.split(/\s+/).filter(Boolean) : [];
+    const start = s.start ? new Date(s.start) : null;
+    const end   = s.end ? U.dateAddDays(s.end,1) : null;
+
+    return DataStore.rows.filter(r=>{
+      const hay=[r.id,r.module,r.title,r.desc,r.log].filter(Boolean).join(' ').toLowerCase();
+      if(terms.length && !terms.every(t=>hay.includes(t))) return false;
+
+      let keepDate=true;
+      if(r.date){
+        const d=new Date(r.date);
+        if(!isNaN(d)){
+          if(start && d<start) keepDate=false;
+          if(end && d>=end) keepDate=false;
+        }
+      }else if(start||end){ keepDate=false; }
+
+      return (!s.module || s.module==='All' || r.module===s.module)
+        && (!s.priority || s.priority==='All' || r.priority===s.priority)
+        && (!s.status || s.status==='All' || r.status===s.status)
+        && keepDate;
+    });
+  },
+  renderKPIs(list){
+    if(!E.kpis) return;
+    const total=list.length, counts={};
+    list.forEach(r=> counts[r.status]=(counts[r.status]||0)+1 );
+    E.kpis.innerHTML='';
     const add=(label,val)=>{
-      const pct = total ? Math.round((val*100)/total) : 0;
+      const pct= total?Math.round((val*100)/total):0;
       const d=document.createElement('div');
-      d.className='card kpi';
-      d.setAttribute('role','button');
-      d.setAttribute('tabindex','0');
+      d.className='card kpi'; d.tabIndex=0; d.setAttribute('role','button');
       d.setAttribute('aria-label',`${label}: ${val} (${pct} percent)`);
       d.innerHTML=`<div class="label">${label}</div><div class="value">${val}</div><div class="sub">${pct}%</div>`;
       d.onclick=()=>{
-        if(label === 'Total Issues'){
-          els.search.value = '';
-          els.startDateFilter.value = '';
-          els.endDateFilter.value = '';
-          els.moduleFilter.value = 'All';
-          els.priorityFilter.value = 'All';
-          els.statusFilter.value = 'All';
-        } else {
-          els.statusFilter.value = label;
+        if(label==='Total Issues'){
+          Filters.state={search:'',module:'All',priority:'All',status:'All',start:'',end:''};
+        }else{
+          Filters.state.status=label;
+          Filters.state.search='';
         }
-        saveFilters();
-        applyFilters();
+        Filters.save(); UI.refreshAll();
       };
-      d.addEventListener('keydown', e=>{
-        if(e.key==='Enter' || e.key===' '){
-          e.preventDefault();
-          d.click();
-        }
-      });
-      els.kpis.appendChild(d);
+      d.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); d.click(); }});
+      E.kpis.appendChild(d);
     };
-    add('Total Issues', total);
-    Object.entries(counts).forEach(([s,v])=> add(s, v));
-  }
-
-  function uniqueSorted(arr){ return [...new Set(arr.filter(Boolean).map(v=>v.trim()))].sort((a,b)=>a.localeCompare(b)); }
-  function renderFilters(){
-    els.moduleFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.module))].map(v=>`<option>${v}</option>`).join('');
-    els.priorityFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.priority))].map(v=>`<option>${v}</option>`).join('');
-    els.statusFilter.innerHTML = ['All',...uniqueSorted(rows.map(r=>r.status))].map(v=>`<option>${v}</option>`).join('');
-  }
-
-  function sortData(list){
-    if(!sortKey) return list;
-    const sorted=[...list].sort((a,b)=>{
+    add('Total Issues',total);
+    Object.entries(counts).forEach(([s,v])=>add(s,v));
+  },
+  renderTable(list){
+    if(!E.issuesTbody) return;
+    const {sortKey,sortAsc}=GridState;
+    const sorted = sortKey ? [...list].sort((a,b)=>{
       const va=a[sortKey]||"", vb=b[sortKey]||"";
       if(sortKey==='date'){
         const da=new Date(va), db=new Date(vb);
         if(isNaN(da)&&isNaN(db)) return 0;
         if(isNaN(da)) return 1;
         if(isNaN(db)) return -1;
-        return da - db;
+        return da-db;
       }
-      return String(va).localeCompare(String(vb), undefined, {numeric:true, sensitivity:'base'});
-    });
-    return sortAsc ? sorted : sorted.reverse();
-  }
+      return String(va).localeCompare(String(vb),undefined,{numeric:true,sensitivity:'base'});
+    }) : list;
+    const rows = sortAsc?sorted:sorted.reverse();
 
-  function paginate(list){
-    const start=(currentPage-1)*rowsPerPage;
-    return list.slice(start, start+rowsPerPage);
-  }
-  function updatePaginationControls(total){
-    const totalPages = Math.max(1, Math.ceil(total/rowsPerPage));
-    if (currentPage > totalPages) currentPage = totalPages;
-    els.pageInfo.textContent = `Page ${Math.min(currentPage,totalPages)} / ${totalPages}`;
-    const atFirst = currentPage<=1;
-    const atLast = currentPage>=totalPages;
-    els.firstPage.disabled = atFirst;
-    els.prevPage.disabled = atFirst;
-    els.nextPage.disabled = atLast;
-    els.lastPage.disabled = atLast;
-    [els.firstPage, els.prevPage, els.nextPage, els.lastPage].forEach(btn=>{
+    const total=rows.length, size=GridState.pageSize, page=GridState.page;
+    const pages=Math.max(1,Math.ceil(total/size));
+    if(GridState.page>pages) GridState.page=pages;
+    const start=(GridState.page-1)*size;
+    const pageData=rows.slice(start,start+size);
+
+    const firstRow = total ? start+1 : 0;
+    const lastRow = total ? Math.min(total,start+pageData.length) : 0;
+
+    if(E.rowCount){
+      E.rowCount.textContent = total
+        ? `Showing ${firstRow}-${lastRow} of ${total}`
+        : 'No rows';
+    }
+    if(E.pageInfo) E.pageInfo.textContent=`Page ${GridState.page} / ${pages}`;
+    ['firstPage','prevPage','nextPage','lastPage'].forEach(id=>{
+      const btn=E[id]; if(!btn) return;
+      const atFirst=GridState.page<=1, atLast=GridState.page>=pages;
+      if(id==='firstPage'||id==='prevPage') btn.disabled=atFirst; else btn.disabled=atLast;
       if(btn.disabled) btn.setAttribute('disabled','true'); else btn.removeAttribute('disabled');
     });
-  }
 
-  function loadIssuesFromStorage(){
-    try{
-      const raw = localStorage.getItem(LS_KEYS.issues);
-      if (!raw) return [];
-      return JSON.parse(raw);
-    } catch(e){
-      console.error('Failed to load cached issues', e);
-      return [];
-    }
-  }
-  function saveIssuesToStorage(list){
-    try{
-      localStorage.setItem(LS_KEYS.issues, JSON.stringify(list));
-      localStorage.setItem(LS_KEYS.issuesLastUpdated, new Date().toISOString());
-    } catch(e){
-      console.error('Failed to save cached issues', e);
-    }
-  }
-  function getIssuesLastUpdatedLabel(){
-    const iso = localStorage.getItem(LS_KEYS.issuesLastUpdated);
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d)) return '';
-    return `Last updated: ${d.toLocaleString()}`;
-  }
+    const badgeStatus=s=>`<span class="pill status-${(s||'').replace(/\s/g,'\\ ')}">${U.escapeHtml(s||'-')}</span>`;
+    const badgePrio=p=>`<span class="pill priority-${p||''}">${U.escapeHtml(p||'-')}</span>`;
 
-  function renderTable(){
-    const list = sortData(filtered);
-    const total = list.length;
-    updatePaginationControls(total);
-    const lastUpdated = getIssuesLastUpdatedLabel();
-    els.rowCount.textContent =
-      `${total} row${total===1?'':'s'}${lastUpdated ? ' • ' + lastUpdated : ''}`;
-
-    if (!total){
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">
-        No issues found. Try clearing filters or search.
-      </td></tr>`;
-      updateSortedHeaders();
-      return;
-    }
-
-    const pageData = paginate(list);
-    if (!pageData.length){
-      els.tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted)">No issues on this page.</td></tr>`;
-      updateSortedHeaders();
-      return;
-    }
-
-    els.tableBody.innerHTML = pageData.map(r=>`
-      <tr role="button" tabindex="0" aria-label="Open issue ${r.id||'without ID'}" data-id="${r.id}">
-        <td>${r.id||'-'}</td>
-        <td>${r.module||'-'}</td>
-        <td>${r.title||'-'}</td>
-        <td>${priorityBadge(r.priority||'-')}</td>
-        <td>${statusBadge(r.status||'-')}</td>
-        <td>${r.date||'-'}</td>
-        <td>${r.log||'-'}</td>
-        <td>${r.file?`<a href="${escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer" aria-label="Open attachment link">🔗</a>`:'-'}</td>
-      </tr>
-    `).join('');
-
-    els.tableBody.querySelectorAll('tr[data-id]').forEach(tr=>{
-      tr.addEventListener('keydown', e=>{
-        if(e.key==='Enter' || e.key===' '){
-          e.preventDefault();
-          openIssueModal(tr.getAttribute('data-id'));
-        }
+    if(pageData.length){
+      E.issuesTbody.innerHTML = pageData.map(r=>`
+        <tr role="button" tabindex="0" aria-label="Open issue ${U.escapeHtml(r.id||'')}" data-id="${U.escapeAttr(r.id)}">
+          <td>${U.escapeHtml(r.id||'-')}</td>
+          <td>${U.escapeHtml(r.module||'-')}</td>
+          <td>${U.escapeHtml(r.title||'-')}</td>
+          <td>${badgePrio(r.priority||'-')}</td>
+          <td>${badgeStatus(r.status||'-')}</td>
+          <td>${U.escapeHtml(r.date||'-')}</td>
+          <td>${U.escapeHtml(r.log||'-')}</td>
+          <td>${r.file?`<a href="${U.escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer" aria-label="Open attachment link">🔗</a>`:'-'}</td>
+        </tr>
+      `).join('');
+    }else{
+      const parts=[];
+      if(Filters.state.search) parts.push(`search "${Filters.state.search}"`);
+      if(Filters.state.module && Filters.state.module!=='All') parts.push(`module = ${Filters.state.module}`);
+      if(Filters.state.priority && Filters.state.priority!=='All') parts.push(`priority = ${Filters.state.priority}`);
+      if(Filters.state.status && Filters.state.status!=='All') parts.push(`status = ${Filters.state.status}`);
+      if(Filters.state.start) parts.push(`from ${Filters.state.start}`);
+      if(Filters.state.end) parts.push(`to ${Filters.state.end}`);
+      const desc = parts.length ? parts.join(', ') : 'no filters';
+      E.issuesTbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align:center;color:var(--muted)">
+            No issues found for ${U.escapeHtml(desc)}.
+            <button type="button" class="btn sm" id="clearFiltersBtn" style="margin-left:8px">Clear filters</button>
+          </td>
+        </tr>`;
+      const clearBtn=document.getElementById('clearFiltersBtn');
+      if(clearBtn) clearBtn.addEventListener('click',()=>{
+        Filters.state={search:'',module:'All',priority:'All',status:'All',start:'',end:''};
+        Filters.save();
+        if(E.searchInput) E.searchInput.value='';
+        if(E.startDateFilter) E.startDateFilter.value='';
+        if(E.endDateFilter) E.endDateFilter.value='';
+        UI.Issues.renderFilters();
+        UI.refreshAll();
       });
-    });
-
-    updateSortedHeaders();
-  }
-
-  function updateSortedHeaders(){
-    qAll('#issuesTable thead th').forEach(th => {
-      th.classList.remove('sorted-asc','sorted-desc');
-      th.setAttribute('aria-sort','none');
-    });
-    if(sortKey){
-      const th = q(`#issuesTable thead th[data-key="${sortKey}"]`);
-      if(th){
-        th.classList.add(sortAsc?'sorted-asc':'sorted-desc');
-        th.setAttribute('aria-sort', sortAsc ? 'ascending' : 'descending');
-      }
     }
-  }
 
-  function groupCount(list,key){
-    return list.reduce((acc, r) => {
-      const k=r[key]||'Unspecified';
-      acc[k]=(acc[k]||0)+1;
-      return acc;
-    },{});
-  }
-  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    E.issuesTbody.querySelectorAll('tr[data-id]').forEach(tr=>{
+      tr.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); UI.Modals.openIssue(tr.getAttribute('data-id')); }});
+      tr.addEventListener('click',e=>{ if(!e.target.closest('a')) UI.Modals.openIssue(tr.getAttribute('data-id')); });
+    });
 
-  function drawCharts(){
-    const priorityColors = {
-      High: cssVar('--priority-high'),
-      Medium: cssVar('--priority-medium'),
-      Low: cssVar('--priority-low')
-    };
-
+    U.qAll('#issuesTable thead th').forEach(th=>{ th.classList.remove('sorted-asc','sorted-desc'); th.setAttribute('aria-sort','none'); });
+    if(GridState.sortKey){
+      const th=U.q(`#issuesTable thead th[data-key="${GridState.sortKey}"]`);
+      if(th){ th.classList.add(GridState.sortAsc?'sorted-asc':'sorted-desc'); th.setAttribute('aria-sort',GridState.sortAsc?'ascending':'descending'); }
+    }
+  },
+  renderCharts(list){
+    if(typeof Chart==='undefined') return;
+    const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
     const statusColors = {
       "Resolved": cssVar('--status-resolved'),
       "Under Development": cssVar('--status-underdev'),
@@ -1178,660 +1753,1342 @@ document.addEventListener("DOMContentLoaded", () => {
       "Sent": cssVar('--status-sent'),
       "On Stage": cssVar('--status-onstage')
     };
-
-    const make = (id, type, data, colorMap={}) => {
-      if(charts[id]) charts[id].destroy();
-      const labels = Object.keys(data);
-      const values = Object.values(data);
-      charts[id] = new Chart(q('#'+id), {
+    const priorityColors={ High:cssVar('--priority-high'),Medium:cssVar('--priority-medium'),Low:cssVar('--priority-low') };
+    const group=(arr,k)=>arr.reduce((m,r)=>{const key=r[k]||'Unspecified';m[key]=(m[key]||0)+1;return m;},{});
+    const make=(id,type,data,colors={})=>{
+      const el=U.q('#'+id); if(!el) return;
+      UI._charts=UI._charts||{};
+      if(UI._charts[id]) UI._charts[id].destroy();
+      const labels=Object.keys(data), values=Object.values(data);
+      UI._charts[id]=new Chart(el,{
         type,
-        data: {
-          labels,
-          datasets: [{
-            data: values,
-            backgroundColor: labels.map(k => colorMap[k] || cssVar('--accent'))
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: type !== 'bar' },
-            tooltip: {
-              callbacks: {
-                label: ctx => {
-                  const total = values.reduce((a,b)=>a+b,0) || 1;
-                  const pct = Math.round((ctx.raw*100)/total);
-                  return `${ctx.raw} (${pct}%)`;
-                }
-              }
-            }
-          },
-          scales: type === 'bar' ? {
-            x: { grid: { color: 'rgba(128,128,128,.1)' } },
-            y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.12)' } }
-          } : {}
+        data:{labels,datasets:[{data:values,backgroundColor:labels.map(l=>colors[l]||cssVar('--accent'))}]},
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:type!=='bar'},tooltip:{callbacks:{label:ctx=>{
+            const total=values.reduce((a,b)=>a+b,0)||1;
+            return `${ctx.raw} (${Math.round((ctx.raw*100)/total)}%)`;
+          }}}},
+          scales:type==='bar'?{x:{grid:{color:'rgba(128,128,128,.1)'}},y:{beginAtZero:true,grid:{color:'rgba(128,128,128,.12)'}}}:{}
         }
       });
     };
+    make('byModule','bar',group(list,'module'));
+    make('byPriority','doughnut',group(list,'priority'),priorityColors);
+    make('byStatus','bar',group(list,'status'),statusColors);
+    make('byType','bar',group(list,'type'));
+  }
+};
 
-    make('byModule', 'bar', groupCount(filtered,'module'));
-    make('byPriority', 'doughnut', groupCount(filtered,'priority'), priorityColors);
-    make('byStatus', 'bar', groupCount(filtered,'status'), statusColors);
-    make('byType', 'bar', groupCount(filtered,'type'));
+UI.Issues.renderFilterChips = function(){
+  if(!E.activeFiltersChips) return;
+  const chips=[];
+  const addChip=(label,value,key)=>{
+    if(!value) return;
+    chips.push(`<button type="button" class="filter-chip" data-filter-key="${key}">
+      <span>${label}: ${U.escapeHtml(value)}</span>
+      <span aria-hidden="true">✕</span>
+    </button>`);
+  };
+  const s=Filters.state;
+  if(s.search) addChip('Search',s.search,'search');
+  if(s.module && s.module!=='All') addChip('Module',s.module,'module');
+  if(s.priority && s.priority!=='All') addChip('Priority',s.priority,'priority');
+  if(s.status && s.status!=='All') addChip('Status',s.status,'status');
+  if(s.start) addChip('From',s.start,'start');
+  if(s.end) addChip('To',s.end,'end');
+
+  if(chips.length){
+    E.activeFiltersChips.innerHTML = chips.join('');
+  }else{
+    E.activeFiltersChips.innerHTML = '<span class="muted" style="font-size:11px;">No filters applied.</span>';
   }
 
-  function applyFilters(){
-    const qstr = (els.search.value||'').toLowerCase().trim();
-    const m = els.moduleFilter.value, p = els.priorityFilter.value, s = els.statusFilter.value;
-    const start = els.startDateFilter.value, end = els.endDateFilter.value;
-    const startDate = start ? new Date(start) : null;
-    const endDate = end ? (()=>{ const d=new Date(end); d.setDate(d.getDate()+1); return d; })() : null;
+  E.activeFiltersChips.querySelectorAll('[data-filter-key]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const key=btn.getAttribute('data-filter-key');
+      if(!key) return;
+      if(key==='search') Filters.state.search='';
+      if(key==='module') Filters.state.module='All';
+      if(key==='priority') Filters.state.priority='All';
+      if(key==='status') Filters.state.status='All';
+      if(key==='start') Filters.state.start='';
+      if(key==='end') Filters.state.end='';
 
-    filtered = rows.filter(r=>{
-      const hay = [r.id,r.module,r.title,r.desc,r.log].filter(Boolean).join(' ').toLowerCase();
-      let keepDate = true;
-      if(r.date){
-        const d = new Date(r.date);
-        if(!isNaN(d)){
-          if(startDate && d < startDate) keepDate = false;
-          if(endDate && d >= endDate) keepDate = false;
-        }
-      } else if(startDate || endDate){ keepDate = false; }
-      return (!qstr || hay.includes(qstr))
-        && (!m || m==='All' || r.module===m)
-        && (!p || p==='All' || r.priority===p)
-        && (!s || s==='All' || r.status===s)
-        && keepDate;
+      Filters.save();
+      if(E.searchInput && key==='search') E.searchInput.value='';
+      if(E.moduleFilter && key==='module') E.moduleFilter.value='All';
+      if(E.priorityFilter && key==='priority') E.priorityFilter.value='All';
+      if(E.statusFilter && key==='status') E.statusFilter.value='All';
+      if(E.startDateFilter && key==='start') E.startDateFilter.value='';
+      if(E.endDateFilter && key==='end') E.endDateFilter.value='';
+
+      UI.refreshAll();
     });
+  });
+};
 
-    currentPage = 1;
-    renderKpis();
-    renderTable();
-    drawCharts();
-  }
+UI.Issues.renderSummary = function(list){
+  if(!E.issuesSummaryText) return;
+  const total = list.length;
+  let open = 0;
+  let highRisk = 0;
+  list.forEach(r=>{
+    const st=(r.status||'').toLowerCase();
+    const isClosed = st.startsWith('resolved') || st.startsWith('rejected');
+    if(!isClosed) open++;
+    const risk = DataStore.computed.get(r.id)?.risk?.total || 0;
+    if(risk >= CONFIG.RISK.highRisk) highRisk++;
+  });
+  const last = IssuesCache.lastLabel();
+  E.issuesSummaryText.textContent =
+    `${total} issue${total===1?'':'s'} · ${open} open · ${highRisk} high-risk` +
+    (last ? ` · ${last}` : '');
+};
 
-  async function loadSheet(){
-    // Use cached issues first if available
-    const cached = loadIssuesFromStorage();
-    if (cached.length && !rows.length) {
-      rows = cached;
-      filtered = [...rows];
-      renderFilters();
-      loadFilters();
-      applyFilters();
-    }
+/** Analytics (AI tab) */
+const Analytics = {
+  _debounce:null,
+  refresh(list){
+    clearTimeout(this._debounce);
+    UI.setAnalyzing(true);
+    this._debounce=setTimeout(()=>this._render(list),80);
+  },
+  _render(list){
+    // Top terms recent
+    const recentCut=CONFIG.TREND_DAYS_RECENT;
+    const recent=list.filter(r=>U.isBetween(r.date,U.daysAgo(recentCut),null));
+    const termCounts=new Map();
+    recent.forEach(r=>{
+      const t=DataStore.computed.get(r.id)?.tokens||new Set();
+      t.forEach(w=>termCounts.set(w,(termCounts.get(w)||0)+1));
+    });
+    const topTerms=Array.from(termCounts.entries()).filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    E.aiPatternsList.innerHTML = topTerms.length? topTerms.map(([t,c])=>`<li><strong>${U.escapeHtml(t)}</strong> – ${c}</li>`).join('') : '<li>No strong repeated terms recently.</li>';
 
-    try {
-      showSpinner(true);
-      const res = await fetch(SHEET_URL, { cache:'no-store' });
-      if(!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-      const text = await res.text();
-      const parsed = parseCsv(text);
-      if (!parsed.length) throw new Error('No data rows in sheet');
-      rows = parsed;
-      filtered = [...rows];
-      saveIssuesToStorage(rows);
-      renderFilters();
-      loadFilters();
-      applyFilters();
-    } catch(e) {
-      console.error(e);
-      showToast('Error loading data: '+e.message);
-      if (!rows.length) {
-        els.tableBody.innerHTML = `
-          <tr>
-            <td colspan="8" style="color:#ffb4b4;text-align:center">
-              Error loading data and no cached data found.
-              <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
-            </td>
-          </tr>`;
-        const retryBtn = q('#retryLoad');
-        if (retryBtn) {
-          retryBtn.addEventListener('click', () => {
-            loadSheet();
-          });
-        }
-      }
-    } finally {
-      showSpinner(false);
-    }
-  }
+    // Suggested categories frequency
+    const catCount=new Map();
+    list.forEach(r=>{
+      const cats=DataStore.computed.get(r.id)?.suggestions?.categories||[];
+      cats.forEach(c=>catCount.set(c.label,(catCount.get(c.label)||0)+1));
+    });
+    const topCats=Array.from(catCount.entries()).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    E.aiLabelsList.innerHTML = topCats.length? topCats.map(([l,n])=>`<li><strong>${U.escapeHtml(l)}</strong> – ${n}</li>`).join('') : '<li>No clear category suggestions yet.</li>';
 
-  function trapFocus(container, e){
-    const focusables = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-    if(!focusables.length) return;
-    const first = focusables[0], last = focusables[focusables.length-1];
-    if(e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
-    else if(!e.shiftKey && document.activeElement === last){ first.focus(); e.preventDefault(); }
-  }
+    // Scope & signals
+    E.aiScopeText.textContent=`Analyzing ${list.length} issues (${recent.length} recent, ~last ${recentCut} days).`;
+    const signals=['timeout','payments','billing','login','auth','error','crash'].filter(t=>termCounts.has(t));
+    E.aiSignalsText.textContent=signals.length?`Recent mentions: ${signals.join(', ')}.`:'No strong recurring signals.';
 
-  function openIssueModal(id){
-    const r = rows.find(x=>x.id===id);
-    if(!r) return;
-    selectedIssue = r;
-    lastFocusedBeforeIssueModal = document.activeElement;
-
-    els.modalTitle.textContent = r.title || r.id || 'Issue';
-    els.modalBody.innerHTML = `
-      <p><b>ID:</b> ${escapeHtml(r.id || '-')}</p>
-      <p><b>Module:</b> ${escapeHtml(r.module || '-')}</p>
-      <p><b>Priority:</b> ${escapeHtml(r.priority || '-')}</p>
-      <p><b>Status:</b> ${escapeHtml(r.status || '-')}</p>
-      <p><b>Date:</b> ${escapeHtml(r.date || '-')}</p>
-      <p><b>Description:</b><br>${escapeHtml(r.desc || '-')}</p>
-      <p><b>Log:</b><br>${escapeHtml(r.log || '-')}</p>
-      ${r.file ? `<p><b>Attachment:</b> <a href="${escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer">Open link</a></p>` : ''}
-    `;
-    els.modal.style.display='flex';
-    els.copyId.focus();
-  }
-  function closeIssueModal(){
-    els.modal.style.display='none';
-    selectedIssue=null;
-    if(lastFocusedBeforeIssueModal && typeof lastFocusedBeforeIssueModal.focus==='function'){
-      lastFocusedBeforeIssueModal.focus();
-    }
-  }
-
-  function loadEventsFromStorage(){
-    try {
-      return JSON.parse(localStorage.getItem(LS_KEYS.events) || '[]');
-    } catch(e) {
-      return [];
-    }
-  }
-  function saveEventsToStorage(){
-    try {
-      localStorage.setItem(LS_KEYS.events, JSON.stringify(eventsData));
-    } catch(e) {}
-  }
-
-  async function fetchEventsFromSheet() {
-    try {
-      showSpinner(true);
-      const res = await fetch(CALENDAR_API_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load events');
-      const data = await res.json();
-      eventsData = data.events || [];
-      saveEventsToStorage();
-      showToast('Calendar synced');
-    } catch (e) {
-      console.error(e);
-      eventsData = loadEventsFromStorage();
-      if (eventsData.length) {
-        showToast('Using cached calendar events (API error).');
-      } else {
-        showToast('Unable to load calendar events.');
-      }
-    } finally {
-      showSpinner(false);
-      renderEventsOnCalendar();
-    }
-  }
-
-  async function saveEventToSheet(event) {
-    showSpinner(true);
-    try {
-      const res = await fetch(CALENDAR_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", event }),
-      });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch (jsonErr) {
-        console.error("Invalid JSON returned:", jsonErr);
-        const text = await res.text();
-        console.error("Raw response:", text);
-        showToast("Calendar: invalid JSON from backend");
-        return null;
-      }
-
-      if (data.ok) {
-        console.log("Event saved:", data.event);
-        showToast("Event saved");
-        return data.event;
-      } else {
-        console.error("Backend error:", data);
-        showToast("Error saving event: " + (data.error || "Unknown error"));
-        return null;
-      }
-    } catch (err) {
-      console.error("Network error:", err);
-      showToast("Network error saving event: " + err.message);
+    // Trends
+    const oldStart=U.daysAgo(CONFIG.TREND_DAYS_WINDOW), mid=U.daysAgo(CONFIG.TREND_DAYS_RECENT);
+    const oldCounts=new Map(), newCounts=new Map();
+    const inHalf=r=>{
+      const d=new Date(r.date); if(isNaN(d)) return null;
+      if(d<mid && d>=oldStart) return 'old';
+      if(d>=mid) return 'new';
       return null;
-    } finally {
-      showSpinner(false);
-    }
-  }
-
-  async function deleteEventFromSheet(id) {
-    showSpinner(true);
-    try {
-      const res = await fetch(CALENDAR_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', event: { id } })
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Delete failed');
-      showToast('Event deleted');
-    } catch (err) {
-      console.error(err);
-      showToast('Error deleting event: ' + err.message);
-      throw err;
-    } finally {
-      showSpinner(false);
-    }
-  }
-
-  function renderEventsOnCalendar(){
-    if (!calendar) return;
-
-    const activeTypes = new Set();
-    if (!els.eventFilterDeployment || !els.eventFilterMaintenance ||
-        !els.eventFilterRelease || !els.eventFilterOther) {
-      // No filters found, show all
-    } else {
-      if (els.eventFilterDeployment.checked) activeTypes.add('Deployment');
-      if (els.eventFilterMaintenance.checked) activeTypes.add('Maintenance');
-      if (els.eventFilterRelease.checked) activeTypes.add('Release');
-      if (els.eventFilterOther.checked) activeTypes.add('Other');
-    }
-
-    calendar.removeAllEvents();
-    eventsData.forEach(ev => {
-      const type = ev.type || 'Other';
-      if (activeTypes.size && !activeTypes.has(type)) return;
-      const cls = 'event-type-' + type.toLowerCase().replace(/\s+/g,'-');
-      calendar.addEvent({
-        id: ev.id,
-        title: ev.title,
-        start: ev.start,
-        end: ev.end || null,
-        extendedProps: {
-          type,
-          description: ev.description,
-          issueId: ev.issueId || ''
-        },
-        classNames: [cls]
-      });
+    };
+    list.forEach(r=>{
+      const half=inHalf(r); if(!half) return;
+      const toks=DataStore.computed.get(r.id)?.tokens||new Set();
+      const tgt=half==='old'?oldCounts:newCounts;
+      new Set(toks).forEach(t=>tgt.set(t,(tgt.get(t)||0)+1));
     });
-  }
+    const trendTerms=new Set([...oldCounts.keys(),...newCounts.keys()]);
+    const trend=[];
+    trendTerms.forEach(t=>{
+      const a=oldCounts.get(t)||0, b=newCounts.get(t)||0;
+      const d=b-a;
+      const ratio=a===0?(b>=2?Infinity:0):b/a;
+      if((b>=2 && ratio>=2) || d>=2) trend.push({t,old:a,new:b,delta:d,ratio});
+    });
+    trend.sort((x,y)=> (y.ratio===Infinity)-(x.ratio===Infinity) || y.delta-x.delta || y.new-x.new);
+    E.aiTrendsList.innerHTML = trend.length? trend.slice(0,8).map(o=>
+      `<li><strong>${U.escapeHtml(o.t)}</strong> – ${o.new} vs ${o.old} <span class="muted">(Δ ${o.delta>=0?`+${o.delta}`:o.delta})</span></li>`
+    ).join('') : '<li>No strong increases.</li>';
 
-  function initCalendar(){
-    const calendarEl = document.getElementById('calendar');
-    if(!calendarEl || typeof FullCalendar === 'undefined') {
-      showToast('Calendar library failed to load');
-      return;
-    }
-    calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
-      selectable: true,
-      editable: false,
-      height: 'auto',
-      headerToolbar: {
-        left: 'title',
-        center: '',
-        right: 'dayGridMonth,timeGridWeek,listWeek today prev,next'
-      },
-      select: info => {
-        openEventModal({ start: info.start, end: info.end });
-      },
-      eventClick: info => {
-        const ev = eventsData.find(e => e.id === info.event.id);
-        if(ev) {
-          openEventModal(ev);
-        } else {
-          openEventModal({
-            id: info.event.id,
-            title: info.event.title,
-            type: info.event.extendedProps.type || 'Other',
-            start: info.event.start,
-            end: info.event.end,
-            description: info.event.extendedProps.description || '',
-            issueId: info.event.extendedProps.issueId || ''
-          });
+    // Incidents
+    const incidentWords=['incident','outage','p0','p1','major','sla'];
+    const incidents=list.filter(r=>{
+      const txt=[r.title,r.desc,r.log].filter(Boolean).join(' ').toLowerCase();
+      return incidentWords.some(w=>txt.includes(w));
+    }).slice(0,10);
+    E.aiIncidentsList.innerHTML = incidents.length? incidents.map(r=>`
+      <li><button class="btn sm" data-open="${U.escapeAttr(r.id)}">${U.escapeHtml(r.id)}</button> ${U.escapeHtml(r.title||'')}</li>
+    `).join(''):'<li>No incident-like issues detected.</li>';
+
+    // Emerging vs stable
+    const emerg=trend.slice(0,5).map(t=>t.t);
+    const stable=topTerms.filter(([t])=>!emerg.includes(t)).slice(0,5).map(([t])=>t);
+    E.aiEmergingStable.innerHTML=`
+      <li><strong>Emerging:</strong> ${emerg.length?emerg.join(', '):'—'}</li>
+      <li><strong>Stable:</strong> ${stable.length?stable.join(', '):'—'}</li>
+    `;
+
+    // Ops cockpit
+    const misaligned=list.filter(r=>{
+      const meta=DataStore.computed.get(r.id);
+      if(!meta) return false;
+      const gap=prioGap(meta.suggestions?.priority, r.priority);
+      return gap>=CONFIG.RISK.misalignedDelta;
+    });
+    const missingPriority=list.filter(r=>!r.priority);
+    const missingModule=list.filter(r=>!r.module || r.module==='Unspecified');
+    const staleHigh=list.filter(r=>{
+      const meta=DataStore.computed.get(r.id); if(!meta) return false;
+      const risk=meta.risk?.total||0;
+      const old=U.daysAgo(CONFIG.RISK.staleDays);
+      const st=(r.status||'').toLowerCase();
+      return risk>=CONFIG.RISK.highRisk && U.isBetween(r.date,null,old) && !(st.startsWith('resolved')||st.startsWith('rejected'));
+    });
+    E.aiOpsCockpit.innerHTML=`
+      <li>Untagged issues (missing category/type): ${list.filter(r=>!r.type).length}</li>
+      <li>Missing priority: ${missingPriority.length}</li>
+      <li>Missing module: ${missingModule.length}</li>
+      <li>Misaligned priority: ${misaligned.length}</li>
+      <li>Stale high-risk (&gt;=${CONFIG.RISK.highRisk}) &gt; ${CONFIG.RISK.staleDays}d: ${staleHigh.length}</li>
+    `;
+
+    // Module insights
+    const modules=(()=>{
+      const map=new Map();
+      list.forEach(r=>{
+        let m=map.get(r.module);
+        if(!m){ m={module:r.module,total:0,open:0,high:0,risk:0,tokens:new Map()}; map.set(r.module,m); }
+        m.total++;
+        const st=(r.status||'').toLowerCase();
+        if(!st.startsWith('resolved')&&!st.startsWith('rejected')){
+          m.open++; if(r.priority==='High') m.high++;
         }
-      },
-      eventDidMount: info => {
-        if(info.event.extendedProps && info.event.extendedProps.description) {
-          info.el.setAttribute('title', info.event.extendedProps.description);
+        const rs=DataStore.computed.get(r.id)?.risk?.total||0; m.risk+=rs;
+        (DataStore.computed.get(r.id)?.tokens||new Set()).forEach(t=>m.tokens.set(t,(m.tokens.get(t)||0)+1));
+      });
+      return Array.from(map.values()).map(m=>{
+        const tt=m.tokens.size?Array.from(m.tokens.entries()).sort((a,b)=>b[1]-a[1])[0][0]:'';
+        return {module:m.module,open:m.open,high:m.high,risk:m.risk,topTerm:tt};
+      }).sort((a,b)=>b.risk-a.risk||b.open-a.open).slice(0,8);
+    })();
+
+    const maxModuleRisk = modules.reduce((max,m)=>Math.max(max,m.risk),0) || 1;
+
+    E.aiModulesTableBody.innerHTML = modules.length? modules.map(m=>{
+      const ratio = m.risk / maxModuleRisk;
+      return `
+        <tr>
+          <td>${U.escapeHtml(m.module)}</td>
+          <td>${m.open}</td>
+          <td>${m.high}</td>
+          <td>
+            ${m.risk}
+            <div class="risk-bar-wrap"><div class="risk-bar" style="transform:scaleX(${ratio.toFixed(2)});"></div></div>
+          </td>
+          <td>${U.escapeHtml(m.topTerm||'-')}</td>
+        </tr>
+      `;
+    }).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No modules.</td></tr>';
+
+    // Top risks
+    const topRisks=recent.map(r=>({r,score:DataStore.computed.get(r.id)?.risk?.total||0}))
+      .sort((a,b)=>b.score-a.score).slice(0,5).filter(x=>x.score>2);
+    E.aiRisksList.innerHTML = topRisks.length? topRisks.map(({r,score})=>{
+      const badgeClass = CalendarLink.riskBadgeClass(score);
+      const meta = DataStore.computed.get(r.id)?.risk || {};
+      return `
+        <li style="margin-bottom:4px;">
+          <strong>[${U.escapeHtml(r.priority||'-')}] ${U.escapeHtml(r.id||'')}</strong>
+          <span class="event-risk-badge ${badgeClass}">RISK ${score}</span>
+          <span class="muted"> · sev ${meta.severity ?? 0} · imp ${meta.impact ?? 0} · urg ${meta.urgency ?? 0}</span>
+          <br><span class="muted">Status ${U.escapeHtml(r.status||'-')}</span>
+          <br>${U.escapeHtml(r.title||'')}
+        </li>`;
+    }).join(''):'<li>No high-risk recent issues.</li>';
+
+    // Clusters
+    const clusters=buildClustersWeighted(list);
+    E.aiClusters.innerHTML = clusters.length? clusters.map(c=>`
+      <div class="card" style="padding:10px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">
+          Pattern: <strong>${U.escapeHtml(c.signature||'(no pattern)')}</strong> • ${c.issues.length} issues
+        </div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;">
+          ${c.issues.slice(0,5).map(i=>`
+            <li><button class="btn sm" style="padding:3px 6px;margin-right:4px;" data-open="${U.escapeAttr(i.id)}">${U.escapeHtml(i.id)}</button> ${U.escapeHtml(i.title||'')}</li>
+          `).join('')}
+          ${c.issues.length>5?`<li class="muted">+ ${c.issues.length-5} more…</li>`:''}
+        </ul>
+      </div>
+    `).join(''):'<div class="muted">No similar issue groups ≥2.</div>';
+
+    // Triage queue
+    const tri=list.filter(r=>{
+      const meta=DataStore.computed.get(r.id)||{};
+      const missing=(!r.priority)||(!r.module||r.module==='Unspecified')||(!r.type);
+      const gap=prioGap(meta.suggestions?.priority, r.priority);
+      return missing || gap>=CONFIG.RISK.misalignedDelta;
+    }).sort((a,b)=> (DataStore.computed.get(b.id)?.risk?.total||0)-(DataStore.computed.get(a.id)?.risk?.total||0)).slice(0,15);
+    E.aiTriageList.innerHTML = tri.length? tri.map(i=>{
+      const meta=DataStore.computed.get(i.id)||{};
+      const miss=[];
+      if(!i.priority) miss.push('priority');
+      if(!i.module||i.module==='Unspecified') miss.push('module');
+      if(!i.type) miss.push('type');
+      const cats=(meta.suggestions?.categories||[]).slice(0,2).map(c=>c.label).join(', ')||'n/a';
+      const note=`Suggested priority: ${meta.suggestions?.priority||'-'}; categories: ${cats}`;
+      return `<li style="margin-bottom:6px;">
+        <strong>${U.escapeHtml(i.id)}</strong> — ${U.escapeHtml(i.title||'')}
+        <div class="muted">Missing: ${miss.join(', ')||'—'} · ${U.escapeHtml(note)}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn sm" data-open="${U.escapeAttr(i.id)}">Open</button>
+          <button class="btn ghost sm" data-copy="${U.escapeAttr(i.id)}">Copy suggestion</button>
+        </div>
+      </li>`;
+    }).join(''):'<li>No issues requiring triage.</li>';
+
+    // Upcoming risky events
+    const evs=computeEventsRisk(DataStore.rows, DataStore.events);
+    E.aiEventsList.innerHTML = evs.length? evs.map(r=>{
+      const badge=CalendarLink.riskBadgeClass(r.risk);
+      const ev=r.event;
+      return `<li style="margin-bottom:6px;">
+        <strong>${U.escapeHtml(ev.title||'(no title)')}</strong>
+        <span class="event-risk-badge ${badge}">RISK ${r.risk}</span>
+        <div class="muted">${U.fmtTS(r.date)} · Env: ${U.escapeHtml(ev.env||'Prod')} · Modules: ${r.modules.length?r.modules.map(U.escapeHtml).join(', '):'n/a'} · Related issues: ${r.issues.length}</div>
+      </li>`;
+    }).join(''):'<li>No notable risk in next 7 days.</li>';
+
+    // Wire AI buttons
+    U.qAll('[data-open]').forEach(b=> b.addEventListener('click',()=>UI.Modals.openIssue(b.getAttribute('data-open'))));
+    U.qAll('[data-copy]').forEach(b=> b.addEventListener('click',()=>{
+      const id=b.getAttribute('data-copy'); const r=DataStore.byId.get(id); const meta=DataStore.computed.get(id)||{};
+      const text=`Issue ${r.id}
+Title: ${r.title}
+Suggested Priority: ${meta.suggestions?.priority}
+Suggested Categories: ${(meta.suggestions?.categories||[]).map(c=>c.label).join(', ')}
+Reasons: ${(meta.risk?.reasons||[]).join(', ')}`;
+      navigator.clipboard.writeText(text).then(()=>UI.toast('Suggestion copied')).catch(()=>UI.toast('Clipboard blocked'));
+    }));
+
+    UI.setAnalyzing(false);
+  }
+};
+
+function buildClustersWeighted(list){
+  const max=Math.min(list.length,400);
+  const docs=list.slice(-max).map(r=>{
+    const meta=DataStore.computed.get(r.id)||{};
+    return {issue:r,tokens:meta.tokens||new Set(),idf:meta.idf||new Map()};
+  });
+  const visited=new Set(), clusters=[];
+  const wj=(A,IA,B,IB)=>{
+    let inter=0,sumA=0,sumB=0;
+    const all=new Set([...A,...B]);
+    all.forEach(t=>{
+      const wa=A.has(t)?(IA.get(t)||1):0;
+      const wb=B.has(t)?(IB.get(t)||1):0;
+      inter+=Math.min(wa,wb); sumA+=wa; sumB+=wb;
+    });
+    const union=sumA+sumB-inter; return union?inter/union:0;
+  };
+  for(let i=0;i<docs.length;i++){
+    if(visited.has(i)) continue;
+    const base=docs[i]; const c=[base]; visited.add(i);
+    for(let j=i+1;j<docs.length;j++){
+      if(visited.has(j)) continue;
+      const other=docs[j];
+      if(wj(base.tokens,base.idf,other.tokens,other.idf)>=0.28){ visited.add(j); c.push(other); }
+    }
+    if(c.length>=2){
+      const freq=new Map();
+      c.forEach(d=> d.tokens.forEach(t=>freq.set(t,(freq.get(t)||0)+1)));
+      const sig=Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t])=>t).join(' ');
+      clusters.push({signature:sig,issues:c.map(x=>x.issue)});
+    }
+  }
+  clusters.sort((a,b)=>b.issues.length-a.issues.length);
+  return clusters.slice(0,6);
+}
+
+/** Modals */
+UI.Modals = {
+  selectedIssue:null,lastFocus:null,lastEventFocus:null,
+  openIssue(id){
+    const r=DataStore.byId.get(id); if(!r||!E.issueModal) return;
+    this.selectedIssue=r; this.lastFocus=document.activeElement;
+    const meta=DataStore.computed.get(r.id)||{};
+    const risk=meta.risk||{technical:0,business:0,operational:0,time:0,total:0,severity:0,impact:0,urgency:0,reasons:[]};
+    const reasons=risk.reasons?.length?('Reasons: '+risk.reasons.join(', ')):'—';
+    E.modalTitle.textContent=r.title||r.id||'Issue';
+    E.modalBody.innerHTML=`
+      <p><b>ID:</b> ${U.escapeHtml(r.id||'-')}</p>
+      <p><b>Module:</b> ${U.escapeHtml(r.module||'-')}</p>
+      <p><b>Priority:</b> ${U.escapeHtml(r.priority||'-')}</p>
+      <p><b>Status:</b> ${U.escapeHtml(r.status||'-')}</p>
+      <p><b>Date:</b> ${U.escapeHtml(r.date||'-')}</p>
+      <p><b>Risk:</b> ${risk.total}
+         <br><span class="muted">Tech ${risk.technical}, Biz ${risk.business}, Ops ${risk.operational}, Time ${risk.time}</span>
+         <br><span class="muted">Severity ${risk.severity}, Impact ${risk.impact}, Urgency ${risk.urgency}</span>
+         <br><span class="muted">${U.escapeHtml(reasons)}</span>
+      </p>
+      <p><b>Description:</b><br>${U.escapeHtml(r.desc||'-')}</p>
+      <p><b>Log:</b><br>${U.escapeHtml(r.log||'-')}</p>
+      ${r.file?`<p><b>Attachment:</b> <a href="${U.escapeAttr(r.file)}" target="_blank" rel="noopener noreferrer">Open link</a></p>`:''}
+      <div style="margin-top:10px" class="muted">
+        Suggested: priority <b>${U.escapeHtml((meta.suggestions?.priority)||'-')}</b>;
+        categories: ${(meta.suggestions?.categories||[]).slice(0,3).map(c=>U.escapeHtml(c.label)).join(', ')||'—'}.
+      </div>
+    `;
+    E.issueModal.style.display='flex';
+    E.copyId?.focus();
+  },
+  closeIssue(){
+    if(!E.issueModal) return;
+    E.issueModal.style.display='none';
+    this.selectedIssue=null;
+    if(this.lastFocus?.focus) this.lastFocus.focus();
+  },
+  openEvent(ev){
+    this.lastEventFocus=document.activeElement;
+    const isEdit=!!(ev && ev.id);
+    if(E.eventForm) E.eventForm.dataset.id = isEdit ? ev.id : '';
+    if(E.eventModalTitle) E.eventModalTitle.textContent=isEdit?'Edit Event':'Add Event';
+    if(E.eventDelete) E.eventDelete.style.display=isEdit?'inline-flex':'none';
+
+    const allDay = !!ev.allDay;
+    if(E.eventAllDay) E.eventAllDay.checked = allDay;
+
+    if(E.eventTitle) E.eventTitle.value=ev.title||'';
+    if(E.eventType) E.eventType.value=ev.type||'Deployment';
+    if(E.eventEnv) E.eventEnv.value=ev.env||'Prod';
+    if(E.eventStatus) E.eventStatus.value=ev.status||'Planned';
+    if(E.eventOwner) E.eventOwner.value=ev.owner||'';
+    if(E.eventModules){
+      const val = Array.isArray(ev.modules) ? ev.modules.join(', ') : (ev.modules||'');
+      E.eventModules.value = val;
+    }
+    if(E.eventImpactType) E.eventImpactType.value=ev.impactType||'No downtime expected';
+    if(E.eventIssueId) E.eventIssueId.value=ev.issueId||'';
+
+    if(E.eventStart){
+      E.eventStart.type = allDay ? 'date' : 'datetime-local';
+      E.eventStart.value = ev.start
+        ? (allDay ? toLocalDateValue(ev.start) : toLocalInputValue(ev.start))
+        : '';
+    }
+    if(E.eventEnd){
+      E.eventEnd.type = allDay ? 'date' : 'datetime-local';
+      E.eventEnd.value = ev.end
+        ? (allDay ? toLocalDateValue(ev.end) : toLocalInputValue(ev.end))
+        : '';
+    }
+    if(E.eventDescription) E.eventDescription.value=ev.description||'';
+
+    if(E.eventIssueLinkedInfo){
+      const issueId = ev.issueId || '';
+      if(issueId){
+        const issue = DataStore.byId.get(issueId);
+        if(issue){
+          const meta = DataStore.computed.get(issue.id) || {};
+          const riskTotal = meta.risk?.total || 0;
+          const badgeClass = CalendarLink.riskBadgeClass(riskTotal);
+          E.eventIssueLinkedInfo.style.display='block';
+          E.eventIssueLinkedInfo.innerHTML = `
+            Linked issue: <strong>${U.escapeHtml(issue.id)}</strong> – ${U.escapeHtml(issue.title||'')}
+            <br><span class="muted">Status: ${U.escapeHtml(issue.status||'-')} · Priority: ${U.escapeHtml(issue.priority||'-')}</span>
+            ${riskTotal ? `<span class="event-risk-badge ${badgeClass}">RISK ${riskTotal}</span>` : ''}
+            <div style="margin-top:4px;">
+              <button type="button" class="btn sm" id="eventOpenIssueBtn">Open issue</button>
+            </div>
+          `;
+          const btn = document.getElementById('eventOpenIssueBtn');
+          if(btn) btn.addEventListener('click',()=> UI.Modals.openIssue(issue.id));
+        }else{
+          E.eventIssueLinkedInfo.style.display='block';
+          E.eventIssueLinkedInfo.textContent=`Linked issue ID: ${issueId} (not found in current dataset)`;
+        }
+      }else{
+        E.eventIssueLinkedInfo.style.display='none';
+        E.eventIssueLinkedInfo.textContent='';
+      }
+    }
+
+    if(E.eventModal){ E.eventModal.style.display='flex'; E.eventTitle?.focus(); }
+  },
+  closeEvent(){
+    if(!E.eventModal) return;
+    E.eventModal.style.display='none';
+    if(E.eventForm) E.eventForm.dataset.id='';
+    if(this.lastEventFocus?.focus) this.lastEventFocus.focus();
+  }
+};
+
+function debounce(fn,ms=250){ let t; return(...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+function trapFocus(container,e){
+  const focusables = container.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+  if(!focusables.length) return;
+  const first=focusables[0], last=focusables[focusables.length-1];
+  if(e.shiftKey && document.activeElement===first){
+    last.focus(); e.preventDefault();
+  }else if(!e.shiftKey && document.activeElement===last){
+    first.focus(); e.preventDefault();
+  }
+}
+
+function setActiveView(view){
+  const names=['issues','calendar','insights'];
+  names.forEach(name=>{
+    const tab = name==='issues'?E.issuesTab : name==='calendar'?E.calendarTab : E.insightsTab;
+    const panel = name==='issues'?E.issuesView : name==='calendar'?E.calendarView : E.insightsView;
+    const active = (name===view);
+    if(tab){
+      tab.classList.toggle('active',active);
+      tab.setAttribute('aria-selected',active?'true':'false');
+    }
+    if(panel) panel.classList.toggle('active',active);
+  });
+  try{ localStorage.setItem(LS_KEYS.view,view); }catch{}
+  if(view==='calendar'){ ensureCalendar(); renderCalendarEvents(); }
+  if(view==='insights') Analytics.refresh(UI.Issues.applyFilters());
+}
+/* ---------- Calendar wiring ---------- */
+let calendar=null, calendarReady=false;
+
+function wireCalendar(){
+  if(E.addEventBtn) E.addEventBtn.addEventListener('click',()=>{
+    const now=new Date();
+    UI.Modals.openEvent({start:now,end:new Date(now.getTime()+60*60*1000),allDay:false,env:'Prod',status:'Planned'});
+  });
+
+  [E.eventFilterDeployment,E.eventFilterMaintenance,E.eventFilterRelease,E.eventFilterOther]
+    .forEach(input=>{ if(input) input.addEventListener('change',renderCalendarEvents); });
+
+  if(E.calendarTz){
+    try{
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+      E.calendarTz.textContent = `Times shown in: ${tz}`;
+    }catch{
+      E.calendarTz.textContent = '';
+    }
+  }
+}
+
+function ensureCalendar(){
+  if(calendarReady) return;
+  const el=document.getElementById('calendar');
+  if(!el || typeof FullCalendar==='undefined'){ UI.toast('Calendar library failed to load'); return; }
+  calendar=new FullCalendar.Calendar(el,{
+    initialView:'dayGridMonth', selectable:true, editable:true, height:'auto',
+    headerToolbar:{left:'title',center:'',right:'dayGridMonth,timeGridWeek,listWeek today prev,next'},
+    select:info=>UI.Modals.openEvent({start:info.start,end:info.end,allDay:info.allDay,env:'Prod',status:'Planned'}),
+    eventClick:info=>{
+      const ev=DataStore.events.find(e=>e.id===info.event.id) || {
+        id:info.event.id,
+        title:info.event.title,
+        type:info.event.extendedProps.type||'Other',
+        start:info.event.start,
+        end:info.event.end,
+        description:info.event.extendedProps.description||'',
+        issueId:info.event.extendedProps.issueId||'',
+        allDay:info.event.allDay,
+        env:info.event.extendedProps.env || 'Prod',
+        status:info.event.extendedProps.status || 'Planned',
+        owner:info.event.extendedProps.owner || '',
+        modules:info.event.extendedProps.modules || [],
+        impactType:info.event.extendedProps.impactType || 'No downtime expected'
+      };
+      UI.Modals.openEvent(ev);
+    },
+    eventDrop: async info=>{
+      const ev = DataStore.events.find(e=>e.id===info.event.id);
+      if(!ev){ info.revert(); return; }
+      const updated = {
+        ...ev,
+        start:info.event.start,
+        end:info.event.end,
+        allDay:info.event.allDay
+      };
+      const saved = await saveEventToSheet(updated);
+      if(!saved){ info.revert(); return; }
+      const idx=DataStore.events.findIndex(e=>e.id===saved.id);
+      if(idx>-1) DataStore.events[idx]=saved;
+      saveEventsCache();
+      Analytics.refresh(UI.Issues.applyFilters());
+    },
+    eventDidMount(info){
+      const ext = info.event.extendedProps || {};
+      const riskSum=ext.risk||0;
+      if(riskSum){
+        const span=document.createElement('span');
+        span.className='event-risk-badge '+CalendarLink.riskBadgeClass(riskSum);
+        span.textContent=`RISK ${riskSum}`;
+        const titleEl=info.el.querySelector('.fc-event-title');
+        if(titleEl) titleEl.appendChild(span);
+      }
+
+      const env    = ext.env    || 'Prod';
+      const status = ext.status || 'Planned';
+
+      let tooltip = ext.description || '';
+      if(ext.issueId){
+        const issue = DataStore.byId.get(ext.issueId);
+        if(issue){
+          const meta = DataStore.computed.get(issue.id) || {};
+          const r = meta.risk?.total || 0;
+          tooltip = `${issue.id} – ${issue.title||''}\nStatus: ${issue.status||'-'} · Priority: ${issue.priority||'-'} · Risk: ${r}` + (tooltip?`\n\n${tooltip}`:'');
+        }else{
+          tooltip = `Linked issue: ${ext.issueId}` + (tooltip?`\n\n${tooltip}`:'');
         }
       }
+
+      tooltip += `\nEnvironment: ${env} · Change status: ${status}`;
+      if(ext.collision || ext.freeze || ext.hotIssues){
+        tooltip += `\n⚠️ Change risk signals:`;
+        if(ext.collision) tooltip += ` overlaps with other change(s)`;
+        if(ext.freeze)    tooltip += ` · in freeze window`;
+        if(ext.hotIssues) tooltip += ` · high-risk open issues`;
+      }
+
+      if(tooltip.trim()) info.el.setAttribute('title', tooltip);
+    }
+  });
+  calendarReady=true;
+  renderCalendarEvents();
+  calendar.render();
+}
+
+function renderCalendarEvents(){
+  if(!calendar) return;
+  const activeTypes=new Set();
+  if(E.eventFilterDeployment && E.eventFilterDeployment.checked) activeTypes.add('Deployment');
+  if(E.eventFilterMaintenance && E.eventFilterMaintenance.checked) activeTypes.add('Maintenance');
+  if(E.eventFilterRelease && E.eventFilterRelease.checked) activeTypes.add('Release');
+  if(E.eventFilterOther && E.eventFilterOther.checked) activeTypes.add('Other');
+
+  const links = computeEventsRisk(DataStore.rows, DataStore.events);
+  const riskMap = new Map(links.map(r=>[r.event.id,r.risk]));
+  const {flagsById} = computeChangeCollisions(DataStore.rows, DataStore.events);
+
+  calendar.removeAllEvents();
+  DataStore.events.forEach(ev=>{
+    const type = ev.type || 'Other';
+    if(activeTypes.size && !activeTypes.has(type)) return;
+    const risk = riskMap.get(ev.id) || 0;
+
+    const env   = ev.env || 'Prod';
+    const status= ev.status || 'Planned';
+    const owner = ev.owner || '';
+    const modules = Array.isArray(ev.modules)
+      ? ev.modules
+      : (typeof ev.modules==='string'
+         ? ev.modules.split(',').map(s=>s.trim()).filter(Boolean)
+         : []);
+    const impactType = ev.impactType || '';
+
+    const flags = flagsById.get(ev.id) || {};
+    const classNames = [
+      'event-type-'+type.toLowerCase().replace(/\s+/g,'-'),
+      'event-env-'+env.toLowerCase()
+    ];
+    if(flags.collision) classNames.push('event-collision');
+    if(flags.freeze) classNames.push('event-freeze');
+    if(flags.hotIssues) classNames.push('event-hot');
+
+    calendar.addEvent({
+      id:ev.id,
+      title:ev.title,
+      start:ev.start,
+      end:ev.end||null,
+      allDay:!!ev.allDay,
+      extendedProps:{
+        type,
+        description:ev.description,
+        issueId:ev.issueId||'',
+        risk,
+        env,
+        status,
+        owner,
+        modules,
+        impactType,
+        collision: !!flags.collision,
+        freeze: !!flags.freeze,
+        hotIssues: !!flags.hotIssues
+      },
+      classNames
     });
-    renderEventsOnCalendar();
-    calendar.render();
-  }
-  function ensureCalendar(){
-    if (calendarInitialized) return;
-    calendarInitialized = true;
-    initCalendar();
-  }
+  });
+}
 
-  function toLocalInputValue(date){
-    const d = (date instanceof Date) ? date : new Date(date);
-    if (isNaN(d)) return '';
-    const pad=n=>String(n).padStart(2,'0');
-    const year=d.getFullYear();
-    const month=pad(d.getMonth()+1);
-    const day=pad(d.getDate());
-    const hrs=pad(d.getHours());
-    const mins=pad(d.getMinutes());
-    return `${year}-${month}-${day}T${hrs}:${mins}`;
-  }
+/* ---------- Networking & data loading ---------- */
+async function safeFetchText(url, opts = {}){
+  const res = await fetch(url,{cache:'no-store',...opts});
+  if(!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+  return await res.text();
+}
 
-  function openEventModal(data){
-    lastFocusedBeforeEventModal = document.activeElement;
+function loadEventsCache(){
+  try{
+    const raw = localStorage.getItem(LS_KEYS.events);
+    if(!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  }catch{return [];}
+}
+function saveEventsCache(){
+  try{ localStorage.setItem(LS_KEYS.events, JSON.stringify(DataStore.events||[])); }catch{}
+}
 
-    const isEdit = !!(data && data.id);
-    editingEventId = isEdit ? data.id : null;
-    els.eventModalTitle.textContent = isEdit ? 'Edit Event' : 'Add Event';
-    els.eventDelete.style.display = isEdit ? 'inline-flex' : 'none';
-
-    els.eventTitle.value = data && data.title ? data.title : '';
-    els.eventType.value = data && data.type ? data.type : 'Deployment';
-    els.eventIssueId.value = data && data.issueId ? data.issueId : '';
-    els.eventStart.value = data && data.start ? toLocalInputValue(data.start) : '';
-    els.eventEnd.value = data && data.end ? toLocalInputValue(data.end) : '';
-    els.eventDescription.value = data && data.description ? data.description : '';
-
-    if (data && data.issueId) {
-      els.eventIssueLinkedInfo.style.display = 'block';
-      els.eventIssueLinkedInfo.textContent = `Linked issue ID: ${data.issueId}`;
-    } else {
-      els.eventIssueLinkedInfo.style.display = 'none';
-      els.eventIssueLinkedInfo.textContent = '';
-    }
-
-    els.eventModal.style.display = 'flex';
-    els.eventTitle.focus();
-  }
-
-  function closeEventModal(){
-    els.eventModal.style.display = 'none';
-    editingEventId = null;
-    if(lastFocusedBeforeEventModal && typeof lastFocusedBeforeEventModal.focus === 'function'){
-      lastFocusedBeforeEventModal.focus();
+async function loadIssues(force=false){
+  if(!force && !DataStore.rows.length){
+    const cached = IssuesCache.load();
+    if(cached && cached.length){
+      DataStore.hydrateFromRows(cached);
+      UI.Issues.renderFilters();
+      setIfOptionExists(E.moduleFilter, Filters.state.module);
+      setIfOptionExists(E.priorityFilter, Filters.state.priority);
+      setIfOptionExists(E.statusFilter, Filters.state.status);
+      UI.skeleton(false);
+      UI.refreshAll();
     }
   }
 
-  async function handleEventFormSubmit(e){
-    e.preventDefault();
-    const title = els.eventTitle.value.trim();
-    const type = els.eventType.value || 'Deployment';
-    const issueId = els.eventIssueId.value.trim();
-    const start = els.eventStart.value;
-    const end = els.eventEnd.value || null;
-    const description = els.eventDescription.value.trim();
-
-    if(!title){
-      showToast('Title is required for events');
-      return;
+  try{
+    UI.spinner(true); UI.skeleton(true);
+    const text = await safeFetchText(CONFIG.SHEET_URL);
+    DataStore.hydrate(text);
+    IssuesCache.save(DataStore.rows);
+    UI.Issues.renderFilters();
+    setIfOptionExists(E.moduleFilter, Filters.state.module);
+    setIfOptionExists(E.priorityFilter, Filters.state.priority);
+    setIfOptionExists(E.statusFilter, Filters.state.status);
+    UI.refreshAll();
+    UI.setSync('issues',true,new Date());
+  }catch(e){
+    if(!DataStore.rows.length && E.issuesTbody){
+      E.issuesTbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="color:#ffb4b4;text-align:center">
+            Error loading data and no cached data found.
+            <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
+          </td>
+        </tr>`;
+      const retryBtn=document.getElementById('retryLoad');
+      if(retryBtn) retryBtn.addEventListener('click',()=>loadIssues(true));
     }
-    if(!start){
-      showToast('Start date/time is required');
-      return;
-    }
+    UI.toast('Error loading issues: '+e.message);
+    UI.setSync('issues',!!DataStore.rows.length,null);
+  }finally{
+    UI.spinner(false);
+    UI.skeleton(false);
+  }
+}
 
-    let eventObj = {
-      id: editingEventId || '',
-      title,
-      type,
-      issueId,
-      start,
-      end,
-      description
+async function loadEvents(force=false){
+  const cached = loadEventsCache();
+  if(cached && cached.length && !force){
+    DataStore.events = cached;
+    ensureCalendar();
+    renderCalendarEvents();
+    Analytics.refresh(UI.Issues.applyFilters());
+    UI.setSync('events',true,new Date());
+  }
+
+  if(!CONFIG.CALENDAR_API_URL) return;
+
+  try{
+    UI.spinner(true);
+    const res = await fetch(CONFIG.CALENDAR_API_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error(`Events API failed: ${res.status}`);
+    const data = await res.json().catch(()=>({}));
+    const events = Array.isArray(data.events)? data.events : [];
+
+    const normalized = events.map(ev=>{
+      const modulesArr = Array.isArray(ev.modules)
+        ? ev.modules
+        : (typeof ev.modules==='string'
+           ? ev.modules.split(',').map(s=>s.trim()).filter(Boolean)
+           : []);
+      return {
+        id: ev.id || ('ev_'+Date.now()+'_'+Math.random().toString(36).slice(2)),
+        title: ev.title || '',
+        type: ev.type || 'Other',
+        start: ev.start || ev.startDate || '',
+        end: ev.end || ev.endDate || '',
+        allDay: !!ev.allDay,
+        description: ev.description || '',
+        issueId: ev.issueId || '',
+        env: ev.env || ev.environment || 'Prod',
+        status: ev.status || 'Planned',
+        owner: ev.owner || '',
+        modules: modulesArr,
+        impactType: ev.impactType || 'No downtime expected'
+      };
+    });
+
+    DataStore.events = normalized;
+    saveEventsCache();
+    ensureCalendar();
+    renderCalendarEvents();
+    Analytics.refresh(UI.Issues.applyFilters());
+    UI.setSync('events',true,new Date());
+  }catch(e){
+    DataStore.events = cached || [];
+    ensureCalendar();
+    renderCalendarEvents();
+    UI.setSync('events',!!DataStore.events.length,null);
+    UI.toast(DataStore.events.length?'Using cached events (API error)':'Unable to load calendar events');
+  }finally{
+    UI.spinner(false);
+  }
+}
+
+/* ---------- Save/Delete to Apps Script ---------- */
+async function saveEventToSheet(event){
+  UI.spinner(true);
+  try{
+    // 1) Make sure we always have a clean ID
+    const evId = event.id && String(event.id).trim()
+      ? String(event.id).trim()
+      : 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    // 2) Normalize modules into an array of strings
+    const modulesArr = Array.isArray(event.modules)
+      ? event.modules
+      : (typeof event.modules === 'string'
+          ? event.modules.split(',').map(s => s.trim()).filter(Boolean)
+          : []);
+
+    // 3) Build a canonical payload with ALL fields your Apps Script expects
+    const payload = {
+      id: evId,
+
+      title: event.title || '',
+      type: event.type || 'Deployment',
+
+      // These are the ones that were missing in the sheet
+      env:       event.env       || event.environment || 'Prod',
+      status:    event.status    || 'Planned',
+      owner:     event.owner     || '',
+      modules:   modulesArr,
+      impactType:event.impactType|| event.impact || 'No downtime expected',
+      issueId:   event.issueId   || '',
+
+      start: event.start || '',
+      end:   event.end   || '',
+      description: event.description || '',
+
+      allDay: !!event.allDay
+      // notificationStatus is controlled on the Apps Script side
     };
 
-    try {
-      const saved = await saveEventToSheet(eventObj);
-      if (!saved) return;
-      const idx = eventsData.findIndex(ev => ev.id === saved.id);
-      if (idx === -1) {
-        eventsData.push(saved);
-      } else {
-        eventsData[idx] = saved;
-      }
-      saveEventsToStorage();
-      renderEventsOnCalendar();
-      closeEventModal();
-    } catch (err) {
-      console.error(err);
-    }
-  }
+    // 4) LOG what we’re actually sending so you can check in DevTools
+    console.log('[InCheck] sending event payload to Apps Script:', payload);
 
-  async function handleDeleteEvent(){
-    if(!editingEventId){
-      closeEventModal();
-      return;
-    }
-    try {
-      await deleteEventFromSheet(editingEventId);
-      const idx = eventsData.findIndex(ev => ev.id === editingEventId);
-      if(idx !== -1){
-        eventsData.splice(idx,1);
-        saveEventsToStorage();
-        renderEventsOnCalendar();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    closeEventModal();
-  }
-
-  function exportFilteredCsv(){
-    if (!filtered.length){
-      showToast('Nothing to export (no rows).');
-      return;
-    }
-    const headers = ['ID','Module','Title','Priority','Status','Date','Log','Link','Description'];
-    const lines = [headers.join(',')];
-    filtered.forEach(r=>{
-      const row = [
-        r.id, r.module, r.title, r.priority, r.status,
-        r.date, r.log, r.file, r.desc
-      ].map(v=>{
-        const s = String(v ?? '').replace(/"/g,'""');
-        return `"${s}"`;
-      });
-      lines.push(row.join(','));
+    const res = await fetch(CONFIG.CALENDAR_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save', event: payload })
     });
-    const csvBlob = new Blob([lines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(csvBlob);
-    const a = document.createElement('a');
-    const ts = new Date().toISOString().slice(0,10);
-    a.href = url;
-    a.download = `incheck_issues_${ts}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Exported CSV of current filtered issues');
+
+    let data;
+    try{
+      data = await res.json();
+    }catch(jsonErr){
+      console.error('Invalid JSON from calendar backend', jsonErr);
+      const text = await res.text();
+      console.error('Raw response:', text);
+      UI.toast('Calendar: invalid JSON from backend, using local event');
+      return payload;
+    }
+
+    if(data.ok){
+      UI.toast('Event saved');
+      return data.event || payload;
+    }else{
+      UI.toast('Error saving event: ' + (data.error || 'Unknown error'));
+      return null;
+    }
+  }catch(e){
+    UI.toast('Network error saving event: ' + e.message);
+    return null;
+  }finally{
+    UI.spinner(false);
+  }
+}
+
+
+async function deleteEventFromSheet(id){
+  UI.spinner(true);
+  try{
+    const res=await fetch(CONFIG.CALENDAR_API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'delete',event:{id}})
+    });
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'Delete failed');
+    UI.toast('Event deleted');
+    return true;
+  }catch(e){
+    UI.toast('Error deleting event: '+e.message);
+    return false;
+  }finally{
+    UI.spinner(false);
+  }
+}
+
+/* ---------- CSV export ---------- */
+function csvEscape(v){
+  const s = String(v==null?'':v);
+  if(/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+
+function exportIssuesToCsv(rows,suffix){
+  if(!rows.length) return UI.toast('Nothing to export (no rows).');
+  const headers=[
+    'ID','Module','Title','Description','Priority','Status','Type','Date','Log','Link',
+    'RiskTotal','RiskSeverity','RiskImpact','RiskUrgency'
+  ];
+  const lines=[headers.join(',')];
+  rows.forEach(r=>{
+    const meta=DataStore.computed.get(r.id)||{};
+    const risk=meta.risk||{};
+    const arr=[
+      r.id,r.module,r.title,r.desc,r.priority,r.status,r.type,r.date,r.log,r.file,
+      risk.total??'',risk.severity??'',risk.impact??'',risk.urgency??''
+    ].map(csvEscape);
+    lines.push(arr.join(','));
+  });
+  const blob=new Blob([lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().slice(0,10);
+  a.href=url; a.download=`incheck_issues_${suffix||'filtered'}_${ts}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  UI.toast('Exported CSV');
+}
+
+function exportFilteredCsv(){
+  const rows=UI.Issues.applyFilters();
+  exportIssuesToCsv(rows,'filtered');
+}
+
+/* ---------- Misc wiring ---------- */
+function setIfOptionExists(select,value){
+  if(!select || !value) return;
+  const options=Array.from(select.options||[]);
+  if(options.some(o=>o.value===value)) select.value=value;
+}
+
+function wireCore(){
+  [E.issuesTab,E.calendarTab,E.insightsTab].forEach(btn=>{
+    if(!btn) return;
+    btn.addEventListener('click',()=> setActiveView(btn.dataset.view));
+  });
+
+  if(E.drawerBtn) E.drawerBtn.addEventListener('click',()=>{
+    const open=!E.sidebar.classList.contains('open');
+    E.sidebar.classList.toggle('open');
+    E.drawerBtn.setAttribute('aria-expanded',String(open));
+  });
+
+  if(E.searchInput) E.searchInput.addEventListener('input',debounce(()=>{
+    Filters.state.search=E.searchInput.value||''; Filters.save(); UI.refreshAll();
+  },250));
+
+  if(E.refreshNow) E.refreshNow.addEventListener('click',()=>{ loadIssues(true); loadEvents(true); });
+  if(E.exportCsv) E.exportCsv.addEventListener('click',exportFilteredCsv);
+  if(E.createTicketBtn) E.createTicketBtn.addEventListener('click',()=>window.open("https://forms.gle/PPnEP1AQneoBT79s5","_blank","noopener,noreferrer"));
+
+  if(E.shortcutsHelp){
+    E.shortcutsHelp.addEventListener('click',()=>{
+      UI.toast('Shortcuts: 1/2/3 switch tabs · / focus search · Ctrl+K AI query');
+    });
   }
 
-  els.createTicket.addEventListener('click', () => {
-    window.open("https://forms.gle/PPnEP1AQneoBT79s5", "_blank", "noopener,noreferrer");
+  UI.refreshAll=()=>{
+    const list=UI.Issues.applyFilters();
+    UI.Issues.renderSummary(list);
+    UI.Issues.renderFilterChips();
+    UI.Issues.renderKPIs(list);
+    UI.Issues.renderTable(list);
+    UI.Issues.renderCharts(list);
+    if(E.insightsView.classList.contains('active')) Analytics.refresh(list);
+  };
+}
+
+function wireSorting(){
+  U.qAll('#issuesTable thead th.sortable').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const key=th.getAttribute('data-key');
+      if(GridState.sortKey===key) GridState.sortAsc=!GridState.sortAsc;
+      else{ GridState.sortKey=key; GridState.sortAsc=true; }
+      UI.refreshAll();
+    });
+    th.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); th.click(); }});
+    th.tabIndex=0; th.setAttribute('role','button'); th.setAttribute('aria-label',`Sort by ${th.textContent}`);
+  });
+}
+
+function wirePaging(){
+  if(E.pageSize) E.pageSize.addEventListener('change',()=>{
+    GridState.pageSize=+E.pageSize.value; localStorage.setItem(LS_KEYS.pageSize,GridState.pageSize);
+    GridState.page=1; UI.refreshAll();
+  });
+  if(E.firstPage) E.firstPage.addEventListener('click',()=>{ GridState.page=1; UI.refreshAll(); });
+  if(E.prevPage) E.prevPage.addEventListener('click',()=>{ if(GridState.page>1){ GridState.page--; UI.refreshAll(); }});
+  if(E.nextPage) E.nextPage.addEventListener('click',()=>{
+    const list=UI.Issues.applyFilters();
+    const pages=Math.max(1,Math.ceil(list.length/GridState.pageSize));
+    if(GridState.page<pages){ GridState.page++; UI.refreshAll(); }
+  });
+  if(E.lastPage) E.lastPage.addEventListener('click',()=>{
+    const list=UI.Issues.applyFilters();
+    GridState.page=Math.max(1,Math.ceil(list.length/GridState.pageSize));
+    UI.refreshAll();
+  });
+}
+
+function wireFilters(){
+  if(E.moduleFilter){
+    E.moduleFilter.addEventListener('change',()=>{ Filters.state.module=E.moduleFilter.value; Filters.save(); UI.refreshAll(); });
+  }
+  if(E.priorityFilter){
+    E.priorityFilter.addEventListener('change',()=>{ Filters.state.priority=E.priorityFilter.value; Filters.save(); UI.refreshAll(); });
+  }
+  if(E.statusFilter){
+    E.statusFilter.addEventListener('change',()=>{ Filters.state.status=E.statusFilter.value; Filters.save(); UI.refreshAll(); });
+  }
+  if(E.startDateFilter){
+    E.startDateFilter.value=Filters.state.start||'';
+    E.startDateFilter.addEventListener('change',()=>{ Filters.state.start=E.startDateFilter.value; Filters.save(); UI.refreshAll(); });
+  }
+  if(E.endDateFilter){
+    E.endDateFilter.value=Filters.state.end||'';
+    E.endDateFilter.addEventListener('change',()=>{ Filters.state.end=E.endDateFilter.value; Filters.save(); UI.refreshAll(); });
+  }
+  if(E.searchInput) E.searchInput.value=Filters.state.search||'';
+
+  if(E.resetBtn) E.resetBtn.addEventListener('click',()=>{
+    Filters.state={search:'',module:'All',priority:'All',status:'All',start:'',end:''};
+    Filters.save();
+    if(E.searchInput) E.searchInput.value='';
+    if(E.startDateFilter) E.startDateFilter.value='';
+    if(E.endDateFilter) E.endDateFilter.value='';
+    UI.Issues.renderFilters();
+    UI.refreshAll();
+  });
+}
+
+function wireTheme(){
+  const media=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+  const applySystem=()=>{
+    if(media?.matches) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme','light');
+  };
+  const saved=localStorage.getItem(LS_KEYS.theme)||'system';
+  if(E.themeSelect) E.themeSelect.value=saved;
+  if(saved==='system') applySystem();
+  else if(saved==='dark') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme','light');
+
+  media?.addEventListener('change',()=>{
+    if((localStorage.getItem(LS_KEYS.theme)||'system')==='system') applySystem();
   });
 
-  q('#issuesTable').addEventListener('click', (ev)=>{
-    if (ev.target.closest('a')) return;
-    const tr = ev.target.closest('tr[data-id]');
-    if(tr){ openIssueModal(tr.getAttribute('data-id')); }
+  if(E.themeSelect) E.themeSelect.addEventListener('change',()=>{
+    const v=E.themeSelect.value;
+    localStorage.setItem(LS_KEYS.theme,v);
+    if(v==='system') applySystem();
+    else if(v==='dark') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme','light');
   });
 
-  els.closeModalBtn.addEventListener('click', closeIssueModal);
-  els.modal.addEventListener('click', (e)=>{ if(e.target===els.modal) closeIssueModal(); });
+  if(E.accentColor){
+    const rootStyle = getComputedStyle(document.documentElement);
+    const defaultAccent = rootStyle.getPropertyValue('--accent').trim() || '#4f8cff';
+    const savedAccent = localStorage.getItem(LS_KEYS.accentColor) || defaultAccent;
+    E.accentColor.value = savedAccent;
+    document.documentElement.style.setProperty('--accent', savedAccent);
 
-  els.eventModalClose.addEventListener('click', closeEventModal);
-  els.eventCancel.addEventListener('click', () => closeEventModal());
-  els.eventForm.addEventListener('submit', handleEventFormSubmit);
-  els.eventDelete.addEventListener('click', handleDeleteEvent);
-  els.eventModal.addEventListener('click', e => {
-    if (e.target === els.eventModal) closeEventModal();
-  });
+    E.accentColor.addEventListener('input',()=>{
+      const val = E.accentColor.value || defaultAccent;
+      document.documentElement.style.setProperty('--accent', val);
+      try{ localStorage.setItem(LS_KEYS.accentColor, val); }catch{}
+      UI.Issues.renderCharts(UI.Issues.applyFilters());
+    });
+  }
+}
 
-  document.addEventListener('keydown', (e)=>{
-    const issueOpen = els.modal.style.display === 'flex';
-    const eventOpen = els.eventModal.style.display === 'flex';
+function wireConnectivity(){
+  if(!E.onlineStatusChip) return;
+  const update=()=>{
+    const online = navigator.onLine !== false;
+    E.onlineStatusChip.textContent = online ? 'Online' : 'Offline · using cache';
+    E.onlineStatusChip.classList.toggle('online',online);
+    E.onlineStatusChip.classList.toggle('offline',!online);
+  };
+  window.addEventListener('online',update);
+  window.addEventListener('offline',update);
+  update();
+}
+
+function wireModals(){
+  if(E.modalClose) E.modalClose.addEventListener('click',()=>UI.Modals.closeIssue());
+  if(E.issueModal) E.issueModal.addEventListener('click',e=>{ if(e.target===E.issueModal) UI.Modals.closeIssue(); });
+
+  if(E.eventModalClose) E.eventModalClose.addEventListener('click',()=>UI.Modals.closeEvent());
+  if(E.eventCancel) E.eventCancel.addEventListener('click',()=>UI.Modals.closeEvent());
+  if(E.eventModal) E.eventModal.addEventListener('click',e=>{ if(e.target===E.eventModal) UI.Modals.closeEvent(); });
+
+  document.addEventListener('keydown',e=>{
+    const issueOpen=E.issueModal && E.issueModal.style.display==='flex';
+    const eventOpen=E.eventModal && E.eventModal.style.display==='flex';
     if(e.key==='Escape'){
-      if(eventOpen){ closeEventModal(); return; }
-      if(issueOpen){ closeIssueModal(); return; }
+      if(eventOpen) UI.Modals.closeEvent();
+      else if(issueOpen) UI.Modals.closeIssue();
     }
     if(e.key==='Tab'){
-      if(eventOpen){ trapFocus(els.eventModal, e); }
-      else if(issueOpen){ trapFocus(els.modal, e); }
+      if(eventOpen && E.eventModal) trapFocus(E.eventModal,e);
+      else if(issueOpen && E.issueModal) trapFocus(E.issueModal,e);
     }
   });
 
-  els.copyId.addEventListener('click', async ()=>{
-    if(!selectedIssue) return;
-    try{
-      await navigator.clipboard.writeText(selectedIssue.id || '');
-      showToast('Issue ID copied');
-    }catch{
-      showToast('Unable to copy (clipboard blocked)');
-    }
+  if(E.copyId) E.copyId.addEventListener('click',async()=>{
+    if(!UI.Modals.selectedIssue) return;
+    try{ await navigator.clipboard.writeText(UI.Modals.selectedIssue.id||''); UI.toast('Issue ID copied'); }catch{ UI.toast('Clipboard blocked'); }
   });
-  els.copyLink.addEventListener('click', async ()=>{
-    if(!selectedIssue) return;
-    const link = selectedIssue.file || '';
-    if(!link){
-      showToast('No link on this issue');
-      return;
-    }
-    try{
-      await navigator.clipboard.writeText(link);
-      showToast('Link copied');
-    }catch{
-      showToast('Unable to copy (clipboard blocked)');
-    }
+  if(E.copyLink) E.copyLink.addEventListener('click',async()=>{
+    const link=UI.Modals.selectedIssue?.file||''; if(!link) return UI.toast('No link on this issue');
+    try{ await navigator.clipboard.writeText(link); UI.toast('Link copied'); }catch{ UI.toast('Clipboard blocked'); }
   });
 
-  qAll('#issuesTable thead th.sortable').forEach(th=>{
-    th.addEventListener('click', ()=>{
-      const key = th.getAttribute('data-key');
-      if(sortKey===key){ sortAsc = !sortAsc; } else { sortKey=key; sortAsc=true; }
-      renderTable();
-    });
-    th.addEventListener('keydown', e=>{
-      if(e.key==='Enter' || e.key===' '){
-        e.preventDefault();
-        th.click();
+  if(E.eventForm) E.eventForm.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const id=E.eventForm.dataset.id||'';
+    const allDay = !!(E.eventAllDay && E.eventAllDay.checked);
+
+    const envVal    = E.eventEnv?.value || 'Prod';
+    const statusVal = E.eventStatus?.value || 'Planned';
+    const ownerVal  = E.eventOwner?.value.trim() || '';
+    const modulesArr = (E.eventModules?.value || '')
+      .split(',')
+      .map(s=>s.trim())
+      .filter(Boolean);
+    const impactTypeVal = E.eventImpactType?.value || 'No downtime expected';
+
+    const ev={
+      id,
+      title:E.eventTitle.value.trim(),
+      type:E.eventType.value||'Deployment',
+      issueId:E.eventIssueId.value.trim()||'',
+      start:E.eventStart.value,
+      end:E.eventEnd.value||null,
+      description:E.eventDescription.value.trim(),
+      allDay,
+      env: envVal,
+      status: statusVal,
+      owner: ownerVal,
+      modules: modulesArr,
+      impactType: impactTypeVal
+    };
+    if(!ev.title) return UI.toast('Title & start required');
+    if(!ev.start) return UI.toast('Start date/time is required');
+
+    const saved=await saveEventToSheet(ev);
+    if(!saved){ UI.toast('Could not save event'); return; }
+
+    const idx=DataStore.events.findIndex(x=>x.id===saved.id);
+    if(idx===-1) DataStore.events.push(saved); else DataStore.events[idx]=saved;
+    saveEventsCache();
+    renderCalendarEvents();
+    Analytics.refresh(UI.Issues.applyFilters());
+    UI.Modals.closeEvent();
+  });
+
+  if(E.eventDelete) E.eventDelete.addEventListener('click',async()=>{
+    const id=E.eventForm?.dataset?.id;
+    if(!id){ UI.Modals.closeEvent(); return; }
+    const ok = await deleteEventFromSheet(id);
+    const idx=DataStore.events.findIndex(x=>x.id===id);
+    if(idx>-1) DataStore.events.splice(idx,1);
+    saveEventsCache();
+    renderCalendarEvents();
+    Analytics.refresh(UI.Issues.applyFilters());
+    UI.Modals.closeEvent();
+    if(!ok) UI.toast('Event removed locally; backend delete failed.');
+  });
+
+  if(E.eventAllDay){
+    E.eventAllDay.addEventListener('change',()=>{
+      const isAllDay = E.eventAllDay.checked;
+      const startVal = E.eventStart.value;
+      const endVal   = E.eventEnd.value;
+      if(isAllDay){
+        if(E.eventStart){
+          E.eventStart.type='date';
+          if(startVal.includes('T')) E.eventStart.value=startVal.split('T')[0];
+        }
+        if(E.eventEnd){
+          E.eventEnd.type='date';
+          if(endVal.includes('T')) E.eventEnd.value=endVal.split('T')[0];
+        }
+      }else{
+        if(E.eventStart){
+          E.eventStart.type='datetime-local';
+          if(startVal && !startVal.includes('T')) E.eventStart.value=startVal+'T09:00';
+        }
+        if(E.eventEnd){
+          E.eventEnd.type='datetime-local';
+          if(endVal && !endVal.includes('T')) E.eventEnd.value=endVal+'T10:00';
+        }
       }
     });
-    th.setAttribute('tabindex','0');
-    th.setAttribute('role','button');
-    th.setAttribute('aria-label', `Sort by ${th.textContent}`);
-  });
-
-  const updateAndRender = ()=>{ renderTable(); };
-  els.pageSize.addEventListener('change', ()=>{
-    rowsPerPage = +els.pageSize.value;
-    localStorage.setItem(LS_KEYS.pageSize, rowsPerPage);
-    currentPage = 1;
-    updateAndRender();
-  });
-  els.firstPage.addEventListener('click', ()=>{ currentPage=1; updateAndRender(); });
-  els.prevPage.addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; updateAndRender(); } });
-  els.nextPage.addEventListener('click', ()=>{
-    const totalPages = Math.max(1, Math.ceil(filtered.length/rowsPerPage));
-    if(currentPage<totalPages){ currentPage++; updateAndRender(); }
-  });
-  els.lastPage.addEventListener('click', ()=>{
-    currentPage = Math.max(1, Math.ceil(filtered.length/rowsPerPage));
-    updateAndRender();
-  });
-
-  els.drawerBtn.addEventListener('click', ()=>{
-    const open = !els.sidebar.classList.contains('open');
-    els.sidebar.classList.toggle('open');
-    els.drawerBtn.setAttribute('aria-expanded', String(open));
-  });
-
-  const onFilterChange = ()=>{
-    saveFilters();
-    applyFilters();
-  };
-  [els.moduleFilter, els.priorityFilter, els.statusFilter].forEach(el=> el.addEventListener('change', onFilterChange));
-  els.startDateFilter.addEventListener('change', onFilterChange);
-  els.endDateFilter.addEventListener('change', onFilterChange);
-  els.reset.addEventListener('click', ()=>{
-    els.search.value='';
-    els.startDateFilter.value='';
-    els.endDateFilter.value='';
-    localStorage.removeItem(LS_KEYS.filters);
-    renderFilters();
-    applyFilters();
-  });
-  els.refresh.addEventListener('click', loadSheet);
-  els.exportCsv.addEventListener('click', exportFilteredCsv);
-  els.search.addEventListener('input', debounce(()=>{
-    saveFilters();
-    applyFilters();
-  }, 250));
-
-  els.themeSelect.addEventListener('change', ()=> applyTheme(els.themeSelect.value));
-  initTheme();
-
-  function setActiveView(view) {
-    const isIssues = view === 'issues';
-    els.issuesView.classList.toggle('active', isIssues);
-    els.calendarView.classList.toggle('active', !isIssues);
-    els.viewTabs.forEach(b => {
-      const active = b.dataset.view === view;
-      b.classList.toggle('active', active);
-      b.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    localStorage.setItem(LS_KEYS.view, view);
-    if (view === 'calendar') ensureCalendar();
   }
+}
 
-  els.viewTabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      setActiveView(btn.dataset.view);
-    });
+/* ---------- AI wiring ---------- */
+let AI_LAST_RESULTS = [];
+
+function wireAI(){
+  if(E.aiQueryRun) E.aiQueryRun.addEventListener('click',runQuery);
+  if(E.aiQueryInput) E.aiQueryInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); runQuery(); }});
+  if(E.aiQueryApplyFilters) E.aiQueryApplyFilters.addEventListener('click',()=>{
+    const q=E.aiQueryInput.value||'';
+    const p=DSL.parse(q);
+    if(p.module) Filters.state.module=guessOption(E.moduleFilter,p.module)||'All';
+    if(p.priority){
+      const val=p.priority[0].toUpperCase()==='H'?'High':p.priority[0].toUpperCase()==='M'?'Medium':p.priority[0].toUpperCase()==='L'?'Low':'All';
+      Filters.state.priority=guessOption(E.priorityFilter,val)||'All';
+    }
+    if(p.status){
+      const v=(p.status==='open'||p.status==='closed')?'All':capitalizeFirst(p.status);
+      Filters.state.status=guessOption(E.statusFilter,v)||'All';
+    }
+    if(p.lastDays){
+      const from=U.daysAgo(p.lastDays);
+      Filters.state.start = U.fmtTS(from).slice(0,10);
+      Filters.state.end='';
+    }
+    Filters.save();
+    E.issuesTab?.click();
+    UI.refreshAll();
   });
 
-  const savedView = localStorage.getItem(LS_KEYS.view) || 'issues';
+  if(E.aiQueryExport){
+    E.aiQueryExport.addEventListener('click',()=>{
+      if(!AI_LAST_RESULTS.length){
+        UI.toast('Run a query first to export results.');
+        return;
+      }
+      exportIssuesToCsv(AI_LAST_RESULTS,'ai');
+    });
+  }
+}
+
+function runQuery(){
+  const q=E.aiQueryInput.value.trim();
+  if(!q){
+    E.aiQueryResults.textContent='Type a query with keywords and filters like module:, status:, risk>=9';
+    AI_LAST_RESULTS = [];
+    return;
+  }
+  const p=DSL.parse(q);
+  const list=DataStore.rows.filter(r=>DSL.matches(r,DataStore.computed.get(r.id)||{},p));
+  AI_LAST_RESULTS = list.slice();
+
+  let sort=p.sort||'risk';
+  if(sort==='risk') list.sort((a,b)=>(DataStore.computed.get(b.id)?.risk?.total||0)-(DataStore.computed.get(a.id)?.risk?.total||0));
+  if(sort==='date') list.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(sort==='priority') list.sort((a,b)=>prioMap(b.priority)-prioMap(a.priority));
+
+  const explain=[];
+  if(p.module) explain.push(`module includes "${p.module}"`);
+  if(p.status) explain.push(`status ${p.status}`);
+  if(p.priority) explain.push(`priority ${p.priority}`);
+  if(p.type) explain.push(`type includes "${p.type}"`);
+  if(p.missing) explain.push(`missing ${p.missing}`);
+  if(p.riskOp) explain.push(`risk ${p.riskOp} ${p.riskVal}`);
+  if(p.severityOp) explain.push(`severity ${p.severityOp} ${p.severityVal}`);
+  if(p.impactOp) explain.push(`impact ${p.impactOp} ${p.impactVal}`);
+  if(p.urgencyOp) explain.push(`urgency ${p.urgencyOp} ${p.urgencyVal}`);
+  if(p.ageOp) explain.push(`age ${p.ageOp} ${p.ageVal}d`);
+  if(p.lastDays) explain.push(`last ${p.lastDays}d`);
+  if(p.cluster) explain.push(`cluster matches "${p.cluster}"`);
+  if(p.eventScope) explain.push(`event:${p.eventScope}`);
+  if(p.words?.length) explain.push(`contains ${p.words.join(' ')}`);
+
+  const shown=list.slice(0,20);
+  E.aiQueryResults.innerHTML=`
+    <div style="margin-bottom:6px;">Found <strong>${list.length}</strong> issues (showing top ${shown.length} by ${U.escapeHtml(sort)}).<br/>
+    <span class="muted">Filters: ${U.escapeHtml(explain.join('; ')||'—')}</span></div>
+    <ul style="padding-left:18px;margin:0;">
+      ${shown.map(i=>{
+        const rs=DataStore.computed.get(i.id)?.risk?.total||0;
+        const rMeta = DataStore.computed.get(i.id)?.risk || {};
+        return `<li style="margin-bottom:4px;">
+          <button type="button" class="btn sm" style="padding:3px 6px;margin-right:4px;" data-open="${U.escapeAttr(i.id)}">${U.escapeHtml(i.id)}</button>
+          [${U.escapeHtml(i.priority||'-')} · ${U.escapeHtml(i.status||'-')} · risk ${rs} · sev ${rMeta.severity ?? 0}] ${U.escapeHtml(i.title||'(no title)')}
+        </li>`;
+      }).join('')}
+    </ul>`;
+  U.qAll('#aiQueryResults [data-open]').forEach(b=>b.addEventListener('click',()=>UI.Modals.openIssue(b.getAttribute('data-open'))));
+}
+
+function guessOption(select,value){
+  if(!select||!value) return null;
+  const v=value.toLowerCase();
+  const opt=Array.from(select.options).find(o=>o.value.toLowerCase().includes(v));
+  return opt?.value||null;
+}
+function capitalizeFirst(s){return s? s[0].toUpperCase()+s.slice(1):s;}
+
+/* ---------- App init ---------- */
+function initApp(){
+  cacheEls();
+  if(E.pageSize) E.pageSize.value=String(GridState.pageSize);
+  Filters.load();
+
+  wireCore();
+  wireSorting();
+  wirePaging();
+  wireFilters();
+  wireTheme();
+  wireConnectivity();
+  wireModals();
+  wireAI();
+  wireCalendar();
+
+  UI.setSync('issues',false,null);
+  UI.setSync('events',false,null);
+
+  let savedView='issues';
+  try{ savedView=localStorage.getItem(LS_KEYS.view)||'issues'; }catch{}
   setActiveView(savedView);
 
-  if (els.addEventBtn) {
-    els.addEventBtn.addEventListener('click', () => {
-      const now = new Date();
-      openEventModal({
-        start: now,
-        end: new Date(now.getTime() + 60*60*1000)
-      });
-    });
-  }
+  loadIssues();
+  loadEvents();
 
-  // Event type filter toggles
-  [els.eventFilterDeployment, els.eventFilterMaintenance, els.eventFilterRelease, els.eventFilterOther]
-    .forEach(input => {
-      if (input) input.addEventListener('change', () => renderEventsOnCalendar());
-    });
+  if(typeof Chart==='undefined') UI.toast('Chart.js failed to load');
+  if(typeof Papa==='undefined') UI.toast('PapaParse failed to load');
 
-  eventsData = [];
-  fetchEventsFromSheet();
+  document.addEventListener('keydown',e=>{
+    if(e.key==='/'){ e.preventDefault(); E.searchInput?.focus(); }
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); E.aiQueryInput?.focus(); }
+    if(!e.ctrlKey && !e.metaKey){
+      if(e.key==='1') E.issuesTab?.click();
+      if(e.key==='2') E.calendarTab?.click();
+      if(e.key==='3') E.insightsTab?.click();
+    }
+  });
+}
 
-  if(typeof Chart === 'undefined') { showToast('Chart.js failed to load'); }
-  if(typeof Papa === 'undefined') { showToast('PapaParse failed to load'); }
-  loadSheet();
+document.addEventListener('DOMContentLoaded', initApp);
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
-  }
-  function escapeAttr(s){
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-  }
-
-  // Auto-refresh events every 5 minutes
-  setInterval(fetchEventsFromSheet, 5 * 60 * 1000);
-});
+/* Auto-refresh events every 5 minutes */
+setInterval(()=>loadEvents(true),5*60*1000);
 </script>
 </body>
 </html>
