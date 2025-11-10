@@ -1,3 +1,4 @@
+
 /**
  * InCheck Pro Dashboard — Issues · Ops · AI Copilot
  * Single-file architecture:
@@ -60,7 +61,7 @@ const CONFIG = {
       ['p1', 2],
       ['sla', 2]
     ],
-    statusBoosts: { 'on stage': 2, 'under': 1 },
+    statusBoosts: { 'on stage': 2, under: 1 },
     misalignedDelta: 1,
     highRisk: 9,
     critRisk: 13,
@@ -150,9 +151,9 @@ const CONFIG = {
   FNB: {
     // Weekend patterns (0 = Sun)
     WEEKEND: {
-      gulf: [5, 6],       // Fri, Sat
-      levant: [5],        // Fri
-      northafrica: [5]    // Fri
+      gulf: [5, 6], // Fri, Sat
+      levant: [5], // Fri
+      northafrica: [5] // Fri
     },
     // Typical busy windows (local time)
     BUSY_WINDOWS: [
@@ -268,13 +269,15 @@ const U = {
     return x.toISOString().replace('T', ' ').slice(0, 16);
   },
   escapeHtml: s =>
-    String(s).replace(/[&<>"']/g, m => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[m])),
+    String(s).replace(/[&<>"']/g, m => (
+      {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[m]
+    )),
   escapeAttr: s =>
     String(s)
       .replace(/&/g, '&amp;')
@@ -386,7 +389,7 @@ const DataStore = {
   hydrate(csvText) {
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true }).data
       .map(DataStore.normalizeRow)
-      .filter(r => r.id && r.id.trim() !== "");
+      .filter(r => r.id && r.id.trim() !== '');
     this.hydrateFromRows(parsed);
   },
   hydrateFromRows(parsed) {
@@ -478,7 +481,7 @@ const Risk = {
   },
   computeRisk(issue) {
     const txt = [issue.title, issue.desc, issue.log].filter(Boolean).join(' ').toLowerCase() + ' ';
-    const basePriority = CONFIG.RISK.priorityWeight[issue.priority || ""] || 1;
+    const basePriority = CONFIG.RISK.priorityWeight[issue.priority || ''] || 1;
 
     const tech = basePriority + this.scoreFromBoosts(txt, CONFIG.RISK.techBoosts);
     const biz = this.scoreFromBoosts(txt, CONFIG.RISK.bizBoosts);
@@ -971,7 +974,57 @@ const ReleasePlanner = {
     if (score <= 3) return 'moderate service';
     return 'rush / busy service';
   },
-  computeBugPressure(modules, horizonDays) {
+  /**
+   * Build context from selected tickets:
+   * - merged modules
+   * - combined text (title/desc/log + other fields)
+   * - aggregated risk (max/avg/total)
+   */
+  buildTicketContext(ticketIds, fallbackModules, fallbackDescription) {
+    const ids = Array.isArray(ticketIds) ? ticketIds : [];
+    const issues = ids.map(id => DataStore.byId.get(id)).filter(Boolean);
+
+    const modulesSet = new Set(
+      (fallbackModules || []).map(m => (m || '').toLowerCase())
+    );
+
+    let totalRisk = 0;
+    let maxRisk = 0;
+    const parts = [fallbackDescription || ''];
+
+    issues.forEach(issue => {
+      if (issue.module) modulesSet.add(issue.module.toLowerCase());
+      const meta = DataStore.computed.get(issue.id) || {};
+      const risk = meta.risk?.total || 0;
+      totalRisk += risk;
+      if (risk > maxRisk) maxRisk = risk;
+
+      parts.push(
+        issue.title || '',
+        issue.desc || '',
+        issue.log || '',
+        issue.module || '',
+        issue.type || '',
+        issue.status || '',
+        issue.priority || ''
+      );
+    });
+
+    const avgRisk = issues.length ? totalRisk / issues.length : 0;
+    const modules = Array.from(modulesSet).filter(Boolean);
+    const text = parts.filter(Boolean).join(' ');
+
+    return {
+      ticketIds: ids,
+      issues,
+      modules,
+      maxRisk,
+      avgRisk,
+      totalRisk,
+      text
+    };
+  },
+  computeBugPressure(modules, horizonDays, ticketContext) {
     const now = new Date();
     const lookback = U.dateAddDays(now, -90);
     const modSet = new Set((modules || []).map(m => (m || '').toLowerCase()));
@@ -1008,7 +1061,16 @@ const ReleasePlanner = {
     });
 
     const normalized = sum / 40; // tuning constant
-    const bugRisk = Math.max(0, Math.min(6, normalized));
+    let bugRisk = Math.max(0, Math.min(6, normalized));
+
+    // Boost bug pressure slightly when selected tickets are very risky
+    const tc = ticketContext || {};
+    const maxTicketRisk = tc.maxRisk || 0;
+    if (maxTicketRisk) {
+      const boost = 1 + Math.min(maxTicketRisk / 20, 1) * 0.25; // up to +25%
+      bugRisk = Math.max(0, Math.min(6, bugRisk * boost));
+    }
+
     return { raw: sum, risk: bugRisk };
   },
   bugLabel(risk) {
@@ -1016,7 +1078,7 @@ const ReleasePlanner = {
     if (risk <= 3.5) return 'moderate bug pressure';
     return 'heavy bug pressure';
   },
-  computeBombBugRisk(modules, description) {
+  computeBombBugRisk(modules, description, ticketContext) {
     // "Bomb bug" = old, high-risk incidents that are textually close to this release
     const now = new Date();
     const lookback = U.dateAddDays(now, -365); // last year
@@ -1078,7 +1140,14 @@ const ReleasePlanner = {
     });
 
     const normalized = raw / 60; // tuning constant
-    const bombRisk = Math.max(0, Math.min(6, normalized));
+    let bombRisk = Math.max(0, Math.min(6, normalized));
+
+    // Also let current ticket risk slightly boost bomb-bug signal
+    const tc = ticketContext || {};
+    if (tc.avgRisk) {
+      const boost = 1 + Math.min(tc.avgRisk / 20, 1) * 0.3; // up to +30%
+      bombRisk = Math.max(0, Math.min(6, bombRisk * boost));
+    }
 
     examples.sort((a, b) => b.risk - a.risk);
     return { raw, risk: bombRisk, examples: examples.slice(0, 3) };
@@ -1110,10 +1179,12 @@ const ReleasePlanner = {
 
       const isHoliday =
         type === 'holiday' ||
-        /holiday|eid|ramadan|ramadhan|ramzan|iftar|suhoor|ashura|national day|founding day/i.test(title) ||
+        /holiday|eid|ramadan|ramadhan|ramzan|iftar|suhoor|ashura|national day|founding day/i.test(
+          title
+        ) ||
         /holiday|public holiday/i.test(impact);
 
-      const evEnv = (ev.env || 'Prod');
+      const evEnv = ev.env || 'Prod';
 
       // For holidays, ignore env filter (they affect all envs operationally)
       if (!isHoliday && env && evEnv && evEnv !== env) return;
@@ -1153,50 +1224,122 @@ const ReleasePlanner = {
     return { penalty, count, holidayCount };
   },
   computeSlotScore(date, ctx) {
-    const { region, env, modules, releaseType, bugRisk, bombBugRisk } = ctx;
-    const rushRisk = this.computeRushScore(region, date);
-    const envRisk = this.envWeight[env] ?? 1;
-    const typeRisk = this.releaseTypeWeight[releaseType] ?? 2;
+    const { region, env, modules, releaseType, bugRisk, bombBugRisk, ticketRisk } = ctx;
+
+    // Raw component scores
+    const rushRisk = this.computeRushScore(region, date);               // 0–6
+    const envRaw   = this.envWeight[env] ?? 1;                          // ~0.6–2.5
+    const typeRaw  = this.releaseTypeWeight[releaseType] ?? 2;          // 1–3
 
     const { penalty: eventsRisk, count: eventCount, holidayCount } =
-      this.computeEventsPenalty(date, env, modules, region);
+      this.computeEventsPenalty(date, env, modules, region);            // 0+
 
-    const bombRisk = bombBugRisk || 0;
+    const bugRaw     = bugRisk || 0;                                    // 0–6
+    const bombRaw    = bombBugRisk || 0;                                // 0–6
+    const ticketsRaw = ticketRisk || 0;                                 // 0–6
 
-    // Total risk for this slot
-    const totalRisk = rushRisk + bugRisk + envRisk + typeRisk + eventsRisk + bombRisk;
-    const safetyScore = Math.max(0, 20 - totalRisk);
+    // ---- Normalize each factor to 0–1 ----
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+
+    const nRush    = clamp01(rushRisk / 6);
+    const nBug     = clamp01(bugRaw / 6);
+    const nBomb    = clamp01(bombRaw / 6);
+    const nTickets = clamp01(ticketsRaw / 6);
+    const nEnv     = clamp01(envRaw / 2.5);  // Prod ≈ 1
+    const nType    = clamp01(typeRaw / 3);
+    const nEvents  = clamp01(eventsRisk / 6); // 0–6+ → 0–1
+
+    // ---- Weighted combination into a 0–10 score ----
+    const wRush    = 0.15;
+    const wBug     = 0.20;
+    const wBomb    = 0.15;
+    const wEvents  = 0.20;
+    const wTickets = 0.15;
+    const wEnv     = 0.075;
+    const wType    = 0.075;
+
+    const combined =
+      wRush    * nRush    +
+      wBug     * nBug     +
+      wBomb    * nBomb    +
+      wEvents  * nEvents  +
+      wTickets * nTickets +
+      wEnv     * nEnv     +
+      wType    * nType;
+
+    // Final risk: 0–10
+    const totalRisk   = Math.max(0, Math.min(10, combined * 10));
+    const safetyScore = 10 - totalRisk; // 0–10 (10 = safest)
 
     return {
       totalRisk,
       safetyScore,
       rushRisk,
-      bugRisk,
-      bombRisk,
-      envRisk,
-      typeRisk,
+      bugRisk: bugRaw,
+      bombRisk: bombRaw,
+      envRisk: envRaw,
+      typeRisk: typeRaw,
       eventsRisk,
       eventCount,
-      holidayCount
+      holidayCount,
+      ticketsRisk: ticketsRaw
     };
   },
   riskBucket(totalRisk) {
-    if (totalRisk <= 7) return { label: 'Low', className: 'planner-score-low' };
-    if (totalRisk <= 12) return { label: 'Medium', className: 'planner-score-med' };
+    // totalRisk is now 0–10
+    if (totalRisk < 3.5) {
+      return { label: 'Low', className: 'planner-score-low' };
+    }
+    if (totalRisk < 7.0) {
+      return { label: 'Medium', className: 'planner-score-med' };
+    }
     return { label: 'High', className: 'planner-score-high' };
   },
-  suggestSlots({ region, env, modules, horizonDays, releaseType, description, slotsPerDay }) {
+  suggestSlots({
+    region,
+    env,
+    modules,
+    horizonDays,
+    releaseType,
+    description,
+    slotsPerDay,
+    tickets
+  }) {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const bug = this.computeBugPressure(modules, horizonDays || 7);
-    const bomb = this.computeBombBugRisk(modules, description || '');
+
+    // Build a richer context from selected tickets (scope + text + risk)
+    const ticketContext = this.buildTicketContext(
+      tickets || [],
+      modules || [],
+      description || ''
+    );
+
+    const effectiveModules =
+      (ticketContext.modules && ticketContext.modules.length
+        ? ticketContext.modules
+        : modules) || [];
+    const combinedDescription = ticketContext.text || description || '';
+
+    const horizon = Math.max(1, horizonDays || 7);
+
+    const bug = this.computeBugPressure(effectiveModules, horizon, ticketContext);
+    const bomb = this.computeBombBugRisk(
+      effectiveModules,
+      combinedDescription,
+      ticketContext
+    );
+
+    // Ticket risk component: normalize avg risk onto a 0–6 scale
+    let ticketRiskComponent = 0;
+    if (ticketContext.avgRisk) {
+      ticketRiskComponent = Math.min(ticketContext.avgRisk / 4, 6);
+    }
 
     const slots = [];
     const hoursProd = [6, 10, 15, 23]; // Prod: pre-service + between services + late
     const hoursNonProd = [10, 15, 18]; // Staging/Dev can tolerate slightly busier times
     const hours = env === 'Prod' ? hoursProd : hoursNonProd;
-
-    const horizon = Math.max(1, horizonDays || 7);
 
     for (let dayOffset = 0; dayOffset < horizon; dayOffset++) {
       const base = U.dateAddDays(startOfToday, dayOffset);
@@ -1208,10 +1351,11 @@ const ReleasePlanner = {
         const score = this.computeSlotScore(dt, {
           region,
           env,
-          modules,
+          modules: effectiveModules,
           releaseType,
           bugRisk: bug.risk,
-          bombBugRisk: bomb.risk
+          bombBugRisk: bomb.risk,
+          ticketRisk: ticketRiskComponent
         });
 
         slots.push({
@@ -1227,9 +1371,10 @@ const ReleasePlanner = {
     const perDay = Math.max(1, slotsPerDay || 3);
     const maxSlots = Math.min(slots.length, horizon * perDay);
 
-    return { bug, bomb, slots: slots.slice(0, maxSlots) };
+    return { bug, bomb, slots: slots.slice(0, maxSlots), ticketContext };
   }
 };
+
 /* ---------- Elements cache ---------- */
 const E = {};
 function cacheEls() {
@@ -1789,14 +1934,16 @@ const Analytics = {
       .filter(([, c]) => c >= 2)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
-    E.aiPatternsList.innerHTML = topTerms.length
-      ? topTerms
-          .map(
-            ([t, c]) =>
-              `<li><strong>${U.escapeHtml(t)}</strong> – ${c}</li>`
-          )
-          .join('')
-      : '<li>No strong repeated terms recently.</li>';
+    if (E.aiPatternsList) {
+      E.aiPatternsList.innerHTML = topTerms.length
+        ? topTerms
+            .map(
+              ([t, c]) =>
+                `<li><strong>${U.escapeHtml(t)}</strong> – ${c}</li>`
+            )
+            .join('')
+        : '<li>No strong repeated terms recently.</li>';
+    }
 
     // Suggested categories frequency
     const catCount = new Map();
@@ -1807,23 +1954,29 @@ const Analytics = {
     const topCats = Array.from(catCount.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
-    E.aiLabelsList.innerHTML = topCats.length
-      ? topCats
-          .map(
-            ([l, n]) =>
-              `<li><strong>${U.escapeHtml(l)}</strong> – ${n}</li>`
-          )
-          .join('')
-      : '<li>No clear category suggestions yet.</li>';
+    if (E.aiLabelsList) {
+      E.aiLabelsList.innerHTML = topCats.length
+        ? topCats
+            .map(
+              ([l, n]) =>
+                `<li><strong>${U.escapeHtml(l)}</strong> – ${n}</li>`
+            )
+            .join('')
+        : '<li>No clear category suggestions yet.</li>';
+    }
 
     // Scope & signals
-    E.aiScopeText.textContent = `Analyzing ${list.length} issues (${recent.length} recent, ~last ${recentCut} days).`;
+    if (E.aiScopeText) {
+      E.aiScopeText.textContent = `Analyzing ${list.length} issues (${recent.length} recent, ~last ${recentCut} days).`;
+    }
     const signals = ['timeout', 'payments', 'billing', 'login', 'auth', 'error', 'crash'].filter(
       t => termCounts.has(t)
     );
-    E.aiSignalsText.textContent = signals.length
-      ? `Recent mentions: ${signals.join(', ')}.`
-      : 'No strong recurring signals.';
+    if (E.aiSignalsText) {
+      E.aiSignalsText.textContent = signals.length
+        ? `Recent mentions: ${signals.join(', ')}.`
+        : 'No strong recurring signals.';
+    }
 
     // Trends
     const oldStart = U.daysAgo(CONFIG.TREND_DAYS_WINDOW),
@@ -1859,17 +2012,21 @@ const Analytics = {
         y.delta - x.delta ||
         y.new - x.new
     );
-    E.aiTrendsList.innerHTML = trend.length
-      ? trend
-          .slice(0, 8)
-          .map(
-            o =>
-              `<li><strong>${U.escapeHtml(o.t)}</strong> – ${o.new} vs ${o.old} <span class="muted">(Δ ${
-                o.delta >= 0 ? `+${o.delta}` : o.delta
-              })</span></li>`
-          )
-          .join('')
-      : '<li>No strong increases.</li>';
+    if (E.aiTrendsList) {
+      E.aiTrendsList.innerHTML = trend.length
+        ? trend
+            .slice(0, 8)
+            .map(
+              o =>
+                `<li><strong>${U.escapeHtml(o.t)}</strong> – ${o.new} vs ${
+                  o.old
+                } <span class="muted">(Δ ${
+                  o.delta >= 0 ? `+${o.delta}` : o.delta
+                })</span></li>`
+            )
+            .join('')
+        : '<li>No strong increases.</li>';
+    }
 
     // Incidents
     const incidentWords = ['incident', 'outage', 'p0', 'p1', 'major', 'sla'];
@@ -1879,17 +2036,19 @@ const Analytics = {
         return incidentWords.some(w => txt.includes(w));
       })
       .slice(0, 10);
-    E.aiIncidentsList.innerHTML = incidents.length
-      ? incidents
-          .map(
-            r => `
+    if (E.aiIncidentsList) {
+      E.aiIncidentsList.innerHTML = incidents.length
+        ? incidents
+            .map(
+              r => `
       <li><button class="btn sm" data-open="${U.escapeAttr(
         r.id
       )}">${U.escapeHtml(r.id)}</button> ${U.escapeHtml(r.title || '')}</li>
     `
-          )
-          .join('')
-      : '<li>No incident-like issues detected.</li>';
+            )
+            .join('')
+        : '<li>No incident-like issues detected.</li>';
+    }
 
     // Emerging vs stable
     const emerg = trend.slice(0, 5).map(t => t.t);
@@ -1897,7 +2056,8 @@ const Analytics = {
       .filter(([t]) => !emerg.includes(t))
       .slice(0, 5)
       .map(([t]) => t);
-    E.aiEmergingStable.innerHTML = `
+    if (E.aiEmergingStable) {
+      E.aiEmergingStable.innerHTML = `
       <li><strong>Emerging:</strong> ${
         emerg.length ? emerg.map(x => U.escapeHtml(x)).join(', ') : '—'
       }</li>
@@ -1905,6 +2065,7 @@ const Analytics = {
         stable.length ? stable.map(x => U.escapeHtml(x)).join(', ') : '—'
       }</li>
     `;
+    }
 
     // Ops cockpit
     const misaligned = list.filter(r => {
@@ -1927,7 +2088,8 @@ const Analytics = {
         !(st.startsWith('resolved') || st.startsWith('rejected'))
       );
     });
-    E.aiOpsCockpit.innerHTML = `
+    if (E.aiOpsCockpit) {
+      E.aiOpsCockpit.innerHTML = `
       <li>Untagged issues (missing category/type): ${
         list.filter(r => !r.type).length
       }</li>
@@ -1938,6 +2100,7 @@ const Analytics = {
       CONFIG.RISK.staleDays
     }d: ${staleHigh.length}</li>
     `;
+    }
 
     // Module insights
     const modules = (() => {
@@ -1986,11 +2149,12 @@ const Analytics = {
 
     const maxModuleRisk = modules.reduce((max, m) => Math.max(max, m.risk), 0) || 1;
 
-    E.aiModulesTableBody.innerHTML = modules.length
-      ? modules
-          .map(m => {
-            const ratio = m.risk / maxModuleRisk;
-            return `
+    if (E.aiModulesTableBody) {
+      E.aiModulesTableBody.innerHTML = modules.length
+        ? modules
+            .map(m => {
+              const ratio = m.risk / maxModuleRisk;
+              return `
         <tr>
           <td>${U.escapeHtml(m.module)}</td>
           <td>${m.open}</td>
@@ -2004,9 +2168,10 @@ const Analytics = {
           <td>${U.escapeHtml(m.topTerm || '-')}</td>
         </tr>
       `;
-          })
-          .join('')
-      : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No modules.</td></tr>';
+            })
+            .join('')
+        : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No modules.</td></tr>';
+    }
 
     // Top risks
     const topRisks = recent
@@ -2014,12 +2179,13 @@ const Analytics = {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
       .filter(x => x.score > 2);
-    E.aiRisksList.innerHTML = topRisks.length
-      ? topRisks
-          .map(({ r, score }) => {
-            const badgeClass = CalendarLink.riskBadgeClass(score);
-            const meta = DataStore.computed.get(r.id)?.risk || {};
-            return `
+    if (E.aiRisksList) {
+      E.aiRisksList.innerHTML = topRisks.length
+        ? topRisks
+            .map(({ r, score }) => {
+              const badgeClass = CalendarLink.riskBadgeClass(score);
+              const meta = DataStore.computed.get(r.id)?.risk || {};
+              return `
         <li style="margin-bottom:4px;">
           <strong>[${U.escapeHtml(r.priority || '-')} ] ${U.escapeHtml(
           r.id || ''
@@ -2031,16 +2197,18 @@ const Analytics = {
           <br><span class="muted">Status ${U.escapeHtml(r.status || '-')}</span>
           <br>${U.escapeHtml(r.title || '')}
         </li>`;
-          })
-          .join('')
-      : '<li>No high-risk recent issues.</li>';
+            })
+            .join('')
+        : '<li>No high-risk recent issues.</li>';
+    }
 
     // Clusters
     const clusters = buildClustersWeighted(list);
-    E.aiClusters.innerHTML = clusters.length
-      ? clusters
-          .map(
-            c => `
+    if (E.aiClusters) {
+      E.aiClusters.innerHTML = clusters.length
+        ? clusters
+            .map(
+              c => `
       <div class="card" style="padding:10px;">
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">
           Pattern: <strong>${U.escapeHtml(c.signature || '(no pattern)')}</strong> • ${
@@ -2066,9 +2234,10 @@ const Analytics = {
         </ul>
       </div>
     `
-          )
-          .join('')
-      : '<div class="muted">No similar issue groups ≥2.</div>';
+            )
+            .join('')
+        : '<div class="muted">No similar issue groups ≥2.</div>';
+    }
 
     // Triage queue
     const tri = list
@@ -2085,23 +2254,24 @@ const Analytics = {
           (DataStore.computed.get(a.id)?.risk?.total || 0)
       )
       .slice(0, 15);
-    E.aiTriageList.innerHTML = tri.length
-      ? tri
-          .map(i => {
-            const meta = DataStore.computed.get(i.id) || {};
-            const miss = [];
-            if (!i.priority) miss.push('priority');
-            if (!i.module || i.module === 'Unspecified') miss.push('module');
-            if (!i.type) miss.push('type');
-            const cats =
-              (meta.suggestions?.categories || [])
-                .slice(0, 2)
-                .map(c => c.label)
-                .join(', ') || 'n/a';
-            const note = `Suggested priority: ${
-              meta.suggestions?.priority || '-'
-            }; categories: ${cats}`;
-            return `<li style="margin-bottom:6px;">
+    if (E.aiTriageList) {
+      E.aiTriageList.innerHTML = tri.length
+        ? tri
+            .map(i => {
+              const meta = DataStore.computed.get(i.id) || {};
+              const miss = [];
+              if (!i.priority) miss.push('priority');
+              if (!i.module || i.module === 'Unspecified') miss.push('module');
+              if (!i.type) miss.push('type');
+              const cats =
+                (meta.suggestions?.categories || [])
+                  .slice(0, 2)
+                  .map(c => c.label)
+                  .join(', ') || 'n/a';
+              const note = `Suggested priority: ${
+                meta.suggestions?.priority || '-'
+              }; categories: ${cats}`;
+              return `<li style="margin-bottom:6px;">
         <strong>${U.escapeHtml(i.id)}</strong> — ${U.escapeHtml(i.title || '')}
         <div class="muted">Missing: ${
           miss.join(', ') || '—'
@@ -2113,31 +2283,34 @@ const Analytics = {
           )}">Copy suggestion</button>
         </div>
       </li>`;
-          })
-          .join('')
-      : '<li>No issues requiring triage.</li>';
+            })
+            .join('')
+        : '<li>No issues requiring triage.</li>';
+    }
 
     // Upcoming risky events
     const evs = computeEventsRisk(DataStore.rows, DataStore.events);
-    E.aiEventsList.innerHTML = evs.length
-      ? evs
-          .map(r => {
-            const badge = CalendarLink.riskBadgeClass(r.risk);
-            const ev = r.event;
-            return `<li style="margin-bottom:6px;">
+    if (E.aiEventsList) {
+      E.aiEventsList.innerHTML = evs.length
+        ? evs
+            .map(r => {
+              const badge = CalendarLink.riskBadgeClass(r.risk);
+              const ev = r.event;
+              return `<li style="margin-bottom:6px;">
         <strong>${U.escapeHtml(ev.title || '(no title)')}</strong>
         <span class="event-risk-badge ${badge}">RISK ${r.risk}</span>
         <div class="muted">${U.fmtTS(r.date)} · Env: ${U.escapeHtml(
           ev.env || 'Prod'
         )} · Modules: ${
-              r.modules.length
-                ? r.modules.map(U.escapeHtml).join(', ')
-                : 'n/a'
-            } · Related issues: ${r.issues.length}</div>
+                r.modules.length
+                  ? r.modules.map(U.escapeHtml).join(', ')
+                  : 'n/a'
+              } · Related issues: ${r.issues.length}</div>
       </li>`;
-          })
-          .join('')
-      : '<li>No notable risk in next 7 days.</li>';
+            })
+            .join('')
+        : '<li>No notable risk in next 7 days.</li>';
+    }
 
     // Wire AI buttons
     U.qAll('[data-open]').forEach(b =>
@@ -2397,7 +2570,6 @@ UI.Modals = {
             })
             .join('');
 
-          const remaining = uniqueIds.length - issues.length;
           const extra = uniqueIds.length - issues.length;
           const extraHtml =
             extra > 0
@@ -3055,8 +3227,8 @@ let LAST_PLANNER_RESULT = null;
 
 function renderPlannerResults(result, context) {
   if (!E.plannerResults) return;
-  const { slots, bug, bomb } = result;
-  const { env, modules, releaseType, horizonDays, region, description } = context;
+  const { slots, bug, bomb, ticketContext } = result;
+  const { env, modules, releaseType, horizonDays, region, description, tickets } = context;
 
   if (!slots.length) {
     E.plannerResults.innerHTML =
@@ -3076,6 +3248,16 @@ function renderPlannerResults(result, context) {
   const bugLabel = ReleasePlanner.bugLabel(bug.risk);
   const bombLabel = ReleasePlanner.bombLabel(bomb.risk);
 
+  const ticketIssues = (ticketContext && ticketContext.issues) || [];
+  const ticketsCount = ticketIssues.length;
+  const maxTicketRisk = ticketContext?.maxRisk || 0;
+  const avgTicketRisk = ticketContext?.avgRisk || 0;
+  const ticketsLine = ticketsCount
+    ? `Tickets in scope: ${ticketsCount} issue(s), max risk ${maxTicketRisk.toFixed(
+        1
+      )}, avg risk ${avgTicketRisk.toFixed(1)}.`
+    : 'No specific tickets selected – using module + description only.';
+
   const intro = `
     <div style="margin-bottom:6px;">
       Top ${slots.length} suggested windows for a <strong>${U.escapeHtml(
@@ -3086,6 +3268,7 @@ function renderPlannerResults(result, context) {
     modulesLabel
   )}</strong><br/>
       Horizon: next ${horizonDays} day(s), region profile: ${U.escapeHtml(regionLabel)}.<br/>
+      <span class="muted">${U.escapeHtml(ticketsLine)}</span><br/>
       <span class="muted">Recent bug pressure: ${U.escapeHtml(
         bugLabel
       )}. Historical &ldquo;bomb bug&rdquo; pattern: ${U.escapeHtml(
@@ -3140,7 +3323,7 @@ function renderPlannerResults(result, context) {
         ? `${holidayLabel} · ${eventsLabelRaw}`
         : eventsLabelRaw;
 
-      const safetyIndex = (slot.safetyScore / 20) * 100;
+      const safetyIndex = (slot.safetyScore / 10) * 100;
       const blastComment =
         bucket.label === 'Low'
           ? 'Low blast radius; safe default with rollback buffer.'
@@ -3156,7 +3339,7 @@ function renderPlannerResults(result, context) {
         <div class="planner-slot-header">
           <span>#${idx + 1} · ${U.escapeHtml(dateStr)} · ${U.escapeHtml(timeStr)}</span>
           <span class="planner-slot-score ${bucket.className}">
-            Risk ${slot.totalRisk.toFixed(1)} / 20 · ${bucket.label}
+            Risk ${slot.totalRisk.toFixed(1)} / 10 · ${bucket.label}
           </span>
         </div>
         <div class="planner-slot-meta">
@@ -3188,7 +3371,7 @@ function renderPlannerResults(result, context) {
 
   if (E.plannerAddEvent) E.plannerAddEvent.disabled = !slots.length;
 
-  // Wire per-slot "Add" buttons
+  // Wire per-slot "Add" buttons – include selected tickets as linked issue IDs
   E.plannerResults.querySelectorAll('[data-add-release]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const startIso = btn.getAttribute('data-add-release');
@@ -3203,6 +3386,12 @@ function renderPlannerResults(result, context) {
 
       const releaseDescription = (E.plannerDescription?.value || '').trim();
 
+      const ticketIds =
+        (LAST_PLANNER_CONTEXT &&
+          Array.isArray(LAST_PLANNER_CONTEXT.tickets) &&
+          LAST_PLANNER_CONTEXT.tickets) ||
+        [];
+
       const newEvent = {
         id: '',
         title: `Release – ${modulesLabelLocal} (${releaseType})`,
@@ -3215,13 +3404,16 @@ function renderPlannerResults(result, context) {
           env === 'Prod'
             ? 'High risk change'
             : 'Internal only',
-        issueId: '',
+        issueId: ticketIds.join(', '),
         start: startLocal,
         end: endLocal,
         description:
           `Auto-scheduled by Release Planner. Region profile: ${regionLabel}. Modules: ${modulesLabelLocal}.` +
           (releaseDescription ? `\nRelease notes: ${releaseDescription}` : '') +
-          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.`,
+          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.` +
+          `\nTickets in scope at scheduling time: ${
+            ticketIds.length ? ticketIds.join(', ') : 'none explicitly selected.'
+          }`,
         allDay: false,
         notificationStatus: ''
       };
@@ -3236,7 +3428,7 @@ function renderPlannerResults(result, context) {
       else DataStore.events[idx] = saved;
       saveEventsCache();
       renderCalendarEvents();
-      refreshPlannerReleasePlans();
+      refreshPlannerReleasePlans(context);
       Analytics.refresh(UI.Issues.applyFilters());
     });
   });
@@ -3304,14 +3496,15 @@ function refreshPlannerReleasePlans(context) {
   const options = releaseEvents
     .map(ev => {
       const d = ev.start ? new Date(ev.start) : null;
-      const when = d && !isNaN(d)
-        ? d.toLocaleString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : '(no date)';
+      const when =
+        d && !isNaN(d)
+          ? d.toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          : '(no date)';
       const label = `[${when}] ${ev.title || 'Release'} (${ev.env || 'Prod'})`;
       return `<option value="${U.escapeAttr(ev.id)}">${U.escapeHtml(label)}</option>`;
     })
@@ -3353,6 +3546,10 @@ function wirePlanner() {
       parseInt(E.plannerSlotsPerDay?.value || '4', 10) || 4;
     const description = (E.plannerDescription?.value || '').trim();
 
+    const selectedTicketIds = Array.from(E.plannerTickets?.selectedOptions || [])
+      .map(o => o.value)
+      .filter(Boolean);
+
     const context = {
       region,
       env,
@@ -3360,7 +3557,8 @@ function wirePlanner() {
       releaseType,
       horizonDays,
       slotsPerDay,
-      description
+      description,
+      tickets: selectedTicketIds
     };
 
     const result = ReleasePlanner.suggestSlots(context);
@@ -3373,7 +3571,11 @@ function wirePlanner() {
 
   if (E.plannerAddEvent) {
     E.plannerAddEvent.addEventListener('click', async () => {
-      if (!LAST_PLANNER_CONTEXT || !LAST_PLANNER_RESULT || !LAST_PLANNER_RESULT.slots.length) {
+      if (
+        !LAST_PLANNER_CONTEXT ||
+        !LAST_PLANNER_RESULT ||
+        !LAST_PLANNER_RESULT.slots.length
+      ) {
         UI.toast('Run the planner first to get suggestions.');
         return;
       }
@@ -3397,6 +3599,7 @@ function wirePlanner() {
           ? context.modules.join(', ')
           : 'General';
       const releaseDescription = (E.plannerDescription?.value || '').trim();
+      const ticketIds = Array.isArray(context.tickets) ? context.tickets : [];
 
       const newEvent = {
         id: '',
@@ -3410,13 +3613,16 @@ function wirePlanner() {
           context.env === 'Prod'
             ? 'High risk change'
             : 'Internal only',
-        issueId: '',
+        issueId: ticketIds.join(', '),
         start: startLocal,
         end: endLocal,
         description:
           `Auto-scheduled by Release Planner (top suggestion). Region profile: ${regionLabel}. Modules: ${modulesLabelLocal}.` +
           (releaseDescription ? `\nRelease notes: ${releaseDescription}` : '') +
-          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.`,
+          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.` +
+          `\nTickets in scope at scheduling time: ${
+            ticketIds.length ? ticketIds.join(', ') : 'none explicitly selected.'
+          }`,
         allDay: false,
         notificationStatus: ''
       };
@@ -3557,7 +3763,9 @@ function wireCore() {
     UI.Issues.renderTable(list);
     UI.Issues.renderCharts(list);
     refreshPlannerTickets(list);
-    if (E.insightsView.classList.contains('active')) Analytics.refresh(list);
+    if (E.insightsView && E.insightsView.classList.contains('active')) {
+      Analytics.refresh(list);
+    }
   };
 }
 
@@ -3752,31 +3960,36 @@ function wireModals() {
     });
     E.issueModal.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        e.stopPropagation();
+        e.preventDefault();
         UI.Modals.closeIssue();
-      } else if (e.key === 'Tab') {
+            } else if (e.key === 'Tab') {
         trapFocus(E.issueModal, e);
       }
     });
   }
+
   if (E.copyId) {
     E.copyId.addEventListener('click', () => {
       const r = UI.Modals.selectedIssue;
-      if (!r || !r.id) return;
+      if (!r) return;
+      const txt = r.id || '';
+      if (!txt) return;
       navigator.clipboard
-        .writeText(r.id)
+        .writeText(txt)
         .then(() => UI.toast('Issue ID copied'))
         .catch(() => UI.toast('Clipboard blocked'));
     });
   }
-   if (E.copyLink) {
+
+  if (E.copyLink) {
     E.copyLink.addEventListener('click', () => {
       const r = UI.Modals.selectedIssue;
-      if (!r || !r.id) return;
-      const url = `${location.origin}${location.pathname}?issue=${encodeURIComponent(r.id)}`;
+      if (!r) return;
+      const base = window.location.href.split('#')[0];
+      const link = `${base}#issue-${encodeURIComponent(r.id)}`;
       navigator.clipboard
-        .writeText(url)
-        .then(() => UI.toast('Deep link copied'))
+        .writeText(link)
+        .then(() => UI.toast('Issue link copied'))
         .catch(() => UI.toast('Clipboard blocked'));
     });
   }
@@ -3786,10 +3999,7 @@ function wireModals() {
     E.eventModalClose.addEventListener('click', () => UI.Modals.closeEvent());
   }
   if (E.eventCancel) {
-    E.eventCancel.addEventListener('click', e => {
-      e.preventDefault();
-      UI.Modals.closeEvent();
-    });
+    E.eventCancel.addEventListener('click', () => UI.Modals.closeEvent());
   }
   if (E.eventModal) {
     E.eventModal.addEventListener('click', e => {
@@ -3797,7 +4007,7 @@ function wireModals() {
     });
     E.eventModal.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        e.stopPropagation();
+        e.preventDefault();
         UI.Modals.closeEvent();
       } else if (e.key === 'Tab') {
         trapFocus(E.eventModal, e);
@@ -3807,78 +4017,73 @@ function wireModals() {
 
   if (E.eventAllDay) {
     E.eventAllDay.addEventListener('change', () => {
-      const allDay = !!E.eventAllDay.checked;
+      const allDay = E.eventAllDay.checked;
       if (E.eventStart) {
-        const v = E.eventStart.value;
+        const val = E.eventStart.value;
+        const d = val ? new Date(val) : null;
         E.eventStart.type = allDay ? 'date' : 'datetime-local';
-        if (v && allDay && v.length >= 10) {
-          E.eventStart.value = v.slice(0, 10);
-        } else if (v && !allDay && v.length === 10) {
-          E.eventStart.value = v + 'T00:00';
+        if (d && !isNaN(d)) {
+          E.eventStart.value = allDay ? toLocalDateValue(d) : toLocalInputValue(d);
         }
       }
       if (E.eventEnd) {
-        const v = E.eventEnd.value;
+        const val = E.eventEnd.value;
+        const d = val ? new Date(val) : null;
         E.eventEnd.type = allDay ? 'date' : 'datetime-local';
-        if (v && allDay && v.length >= 10) {
-          E.eventEnd.value = v.slice(0, 10);
-        } else if (v && !allDay && v.length === 10) {
-          E.eventEnd.value = v + 'T01:00';
+        if (d && !isNaN(d)) {
+          E.eventEnd.value = allDay ? toLocalDateValue(d) : toLocalInputValue(d);
         }
       }
     });
   }
 
-  if (E.eventForm && E.eventSave) {
-    E.eventForm.addEventListener('submit', e => {
+  if (E.eventForm) {
+    E.eventForm.addEventListener('submit', async e => {
       e.preventDefault();
-      E.eventSave.click();
-    });
-
-    E.eventSave.addEventListener('click', async () => {
       const id = E.eventForm.dataset.id || '';
       const allDay = !!(E.eventAllDay && E.eventAllDay.checked);
 
-      const start = E.eventStart?.value || '';
-      const end = E.eventEnd?.value || '';
-
-      const modulesStr = E.eventModules?.value || '';
-      const modules = modulesStr
-        ? modulesStr
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean)
-        : [];
+      const title = (E.eventTitle?.value || '').trim();
+      if (!title) {
+        UI.toast('Title is required');
+        return;
+      }
 
       const ev = {
         id,
-        title: E.eventTitle?.value || '',
+        title,
         type: E.eventType?.value || 'Deployment',
         env: E.eventEnv?.value || 'Prod',
         status: E.eventStatus?.value || 'Planned',
-        owner: E.eventOwner?.value || '',
-        modules,
+        owner: (E.eventOwner?.value || '').trim(),
+        modules: E.eventModules?.value || '',
         impactType: E.eventImpactType?.value || 'No downtime expected',
-        issueId: E.eventIssueId?.value || '',
-        start,
-        end,
-        description: E.eventDescription?.value || '',
+        issueId: (E.eventIssueId?.value || '').trim(),
+        start: E.eventStart?.value || '',
+        end: E.eventEnd?.value || '',
+        description: (E.eventDescription?.value || '').trim(),
         allDay,
-        notificationStatus: (DataStore.events.find(e => e.id === id)?.notificationStatus) || ''
+        notificationStatus: ''
       };
 
       const saved = await saveEventToSheet(ev);
       if (!saved) return;
 
-      const idx = DataStore.events.findIndex(e => e.id === saved.id);
-      if (idx >= 0) DataStore.events[idx] = saved;
-      else DataStore.events.push(saved);
+      const idx = DataStore.events.findIndex(x => x.id === saved.id);
+      if (idx === -1) DataStore.events.push(saved);
+      else DataStore.events[idx] = saved;
 
       saveEventsCache();
       renderCalendarEvents();
       refreshPlannerReleasePlans();
       Analytics.refresh(UI.Issues.applyFilters());
       UI.Modals.closeEvent();
+    });
+  }
+
+  if (E.eventSave) {
+    E.eventSave.addEventListener('click', () => {
+      if (E.eventForm?.requestSubmit) E.eventForm.requestSubmit();
     });
   }
 
@@ -3890,244 +4095,221 @@ function wireModals() {
         UI.Modals.closeEvent();
         return;
       }
-      if (!confirm('Delete this event?')) return;
+      if (!window.confirm('Delete this event from the calendar?')) return;
       const ok = await deleteEventFromSheet(id);
       if (!ok) return;
-      const idx = DataStore.events.findIndex(e => e.id === id);
-      if (idx >= 0) DataStore.events.splice(idx, 1);
+      const idx = DataStore.events.findIndex(ev => ev.id === id);
+      if (idx > -1) DataStore.events.splice(idx, 1);
       saveEventsCache();
       renderCalendarEvents();
       refreshPlannerReleasePlans();
+      Analytics.refresh(UI.Issues.applyFilters());
       UI.Modals.closeEvent();
     });
   }
 }
 
-/* ---------- AI query wiring ---------- */
+/* ---------- AI query / DSL wiring ---------- */
 
-let LAST_AI_QUERY_RESULTS = [];
-let LAST_AI_QUERY_DSL = null;
+let LAST_AI_QUERY = null;
 
-function renderAiQueryResults(rows, q, rawText) {
-  if (!E.aiQueryResults) return;
-  LAST_AI_QUERY_RESULTS = rows;
-  LAST_AI_QUERY_DSL = q;
+function applyDSLToFilters(q) {
+  if (!q) return;
+  const next = {
+    search: '',
+    module: 'All',
+    priority: 'All',
+    status: 'All',
+    start: '',
+    end: ''
+  };
 
-  if (!rawText.trim()) {
-    E.aiQueryResults.innerHTML =
-      '<div class="muted">Type a query like <code>status:open risk>=9 payments timeout</code> and hit Run.</div>';
-    return;
+  if (q.words && q.words.length) {
+    next.search = q.words.join(' ');
   }
 
-  if (!rows.length) {
-    E.aiQueryResults.innerHTML = `<div>No issues match query: <code>${U.escapeHtml(
-      rawText
-    )}</code>.</div>`;
-    return;
-  }
-
-  const parts = [];
-
-  const head = `
-    <div style="margin-bottom:6px;">
-      <strong>${rows.length}</strong> issue${rows.length === 1 ? '' : 's'} match
-      <code>${U.escapeHtml(rawText)}</code>
-    </div>`;
-  parts.push(head);
-
-  const sample = rows.slice(0, 30);
-
-  const items = sample
-    .map(r => {
-      const meta = DataStore.computed.get(r.id) || {};
-      const risk = meta.risk?.total || 0;
-      const badgeClass = CalendarLink.riskBadgeClass(risk);
-      const reasons = (meta.risk?.reasons || []).join(', ');
-      return `
-        <li class="ai-query-item">
-          <div class="ai-query-main">
-            <button class="btn sm" data-open="${U.escapeAttr(
-              r.id
-            )}">${U.escapeHtml(r.id)}</button>
-            <span class="muted">[${U.escapeHtml(r.priority || '-')}]</span>
-            <span class="ai-query-title">${U.escapeHtml(r.title || '')}</span>
-          </div>
-          <div class="ai-query-meta">
-            Module: ${U.escapeHtml(r.module || '-')} · Status: ${U.escapeHtml(
-        r.status || '-'
-      )} · Date: ${U.escapeHtml(r.date || '-')}
-            <span class="event-risk-badge ${badgeClass}">RISK ${risk}</span>
-          </div>
-          ${
-            reasons
-              ? `<div class="ai-query-meta muted">Signals: ${U.escapeHtml(reasons)}</div>`
-              : ''
-          }
-        </li>`;
-    })
-    .join('');
-
-  const more =
-    rows.length > sample.length
-      ? `<div class="muted" style="margin-top:4px;">+ ${
-          rows.length - sample.length
-        } more not shown.</div>`
-      : '';
-
-  parts.push(`<ul class="ai-query-list">${items}</ul>${more}`);
-
-  E.aiQueryResults.innerHTML = parts.join('');
-
-  E.aiQueryResults.querySelectorAll('[data-open]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-open');
-      UI.Modals.openIssue(id);
-    });
-  });
-}
-
-function runAiQuery() {
-  if (!E.aiQueryInput) return;
-  const raw = E.aiQueryInput.value || '';
-  const text = raw.trim();
-  if (!text) {
-    renderAiQueryResults([], DSL.parse(''), '');
-    return;
-  }
-  const q = DSL.parse(text);
-
-  const rows = DataStore.rows.filter(r => {
-    const meta = DataStore.computed.get(r.id) || {};
-    return DSL.matches(r, meta, q);
-  });
-
-  // Sorting
-  const sorted = (() => {
-    if (!q.sort) return rows;
-    if (q.sort === 'risk') {
-      return [...rows].sort(
-        (a, b) =>
-          (DataStore.computed.get(b.id)?.risk?.total || 0) -
-          (DataStore.computed.get(a.id)?.risk?.total || 0)
-      );
-    }
-    if (q.sort === 'date') {
-      return [...rows].sort((a, b) => {
-        const da = new Date(a.date);
-        const db = new Date(b.date);
-        const na = isNaN(da);
-        const nb = isNaN(db);
-        if (na && nb) return 0;
-        if (na) return 1;
-        if (nb) return -1;
-        return db - da;
-      });
-    }
-    if (q.sort === 'priority') {
-      const w = v => prioMap(v) * -1; // higher first
-      return [...rows].sort(
-        (a, b) => w(a.priority || '') - w(b.priority || '')
-      );
-    }
-    return rows;
-  })();
-
-  renderAiQueryResults(sorted, q, raw);
-}
-
-function applyAiQueryToFilters() {
-  if (!LAST_AI_QUERY_DSL) return;
-  const q = LAST_AI_QUERY_DSL;
-
-  // Map module to exact option if possible
-  if (q.module && E.moduleFilter) {
+  if (q.module) {
+    const modules = Array.from(DataStore.byModule.keys());
     const target = q.module.toLowerCase();
-    const opts = Array.from(E.moduleFilter.options || []);
-    const match =
-      opts.find(o => o.value.toLowerCase() === target) ||
-      opts.find(o => o.value.toLowerCase().includes(target));
-    Filters.state.module = match ? match.value : 'All';
-    E.moduleFilter.value = Filters.state.module;
+    const exact = modules.find(m => (m || '').toLowerCase() === target);
+    if (exact) next.module = exact;
   }
 
-  if (q.priority && E.priorityFilter) {
+  if (q.priority) {
     const p = q.priority[0]?.toUpperCase();
-    const val =
-      p === 'H' ? 'High' : p === 'M' ? 'Medium' : p === 'L' ? 'Low' : 'All';
-    Filters.state.priority = val;
-    E.priorityFilter.value = val;
+    if (p === 'H') next.priority = 'High';
+    else if (p === 'M') next.priority = 'Medium';
+    else if (p === 'L') next.priority = 'Low';
   }
 
-  if (q.status && E.statusFilter) {
-    const s = q.status.toLowerCase();
-    // Only map simple closed/open to All, otherwise try to match text
-    if (s === 'open' || s === 'closed') {
-      Filters.state.status = 'All';
-      E.statusFilter.value = 'All';
-    } else {
-      const opts = Array.from(E.statusFilter.options || []);
-      const match =
-        opts.find(o => o.value.toLowerCase() === s) ||
-        opts.find(o => o.value.toLowerCase().includes(s));
-      const val = match ? match.value : 'All';
-      Filters.state.status = val;
-      E.statusFilter.value = val;
-    }
+  if (q.status && q.status !== 'open' && q.status !== 'closed') {
+    const statuses = Array.from(DataStore.byStatus.keys());
+    const target = q.status.toLowerCase();
+    const match = statuses.find(s => (s || '').toLowerCase().includes(target));
+    if (match) next.status = match;
   }
 
-  if (q.lastDays && E.startDateFilter) {
-    const from = U.daysAgo(q.lastDays);
-    const d = toLocalDateValue(from);
-    Filters.state.start = d;
-    E.startDateFilter.value = d;
+  if (q.lastDays && Number.isFinite(q.lastDays)) {
+    const start = U.daysAgo(q.lastDays);
+    next.start = toLocalDateValue(start);
+    next.end = '';
   }
 
+  Filters.state = next;
   Filters.save();
   UI.refreshAll();
-  setActiveView('issues');
-  UI.toast('Applied AI query to filters');
 }
 
-function exportAiQueryResults() {
-  if (!LAST_AI_QUERY_RESULTS || !LAST_AI_QUERY_RESULTS.length) {
-    UI.toast('Nothing to export from AI query.');
-    return;
-  }
-  exportIssuesToCsv(LAST_AI_QUERY_RESULTS, 'aiquery');
-}
+function wireAIQuery() {
+  if (!E.aiQueryInput || !E.aiQueryRun || !E.aiQueryResults) return;
 
-function wireAI() {
-  if (E.aiQueryRun) {
-    E.aiQueryRun.addEventListener('click', () => runAiQuery());
-  }
+  const renderHelp = () => {
+    E.aiQueryResults.innerHTML = `
+      <div class="muted" style="font-size:12px;">
+        Examples:
+        <ul style="margin:4px 0 0 16px;padding:0;">
+          <li><code>status:open priority:h risk&gt;=10 last:7d</code></li>
+          <li><code>module:payments severity&gt;=3 impact&gt;=3</code></li>
+          <li><code>missing:priority last:30d</code></li>
+          <li><code>cluster:timeout sort:risk</code></li>
+        </ul>
+      </div>`;
+  };
 
-  if (E.aiQueryInput) {
-    E.aiQueryInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
-        // plain Enter runs query
-        e.preventDefault();
-        runAiQuery();
-      } else if (
-        (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ||
-        (e.key === 'k' && (e.metaKey || e.ctrlKey))
-      ) {
-        // Ctrl+Enter or Cmd/Ctrl+K also runs query
-        e.preventDefault();
-        runAiQuery();
-      }
+  const runQuery = () => {
+    const raw = (E.aiQueryInput.value || '').trim();
+    if (!raw) {
+      LAST_AI_QUERY = null;
+      renderHelp();
+      return;
+    }
+    if (!DataStore.rows.length) {
+      UI.toast('Issues are still loading; try again in a moment.');
+      return;
+    }
+
+    const q = DSL.parse(raw);
+    let rows = DataStore.rows.filter(r =>
+      DSL.matches(r, DataStore.computed.get(r.id) || {}, q)
+    );
+
+    if (q.sort === 'risk') {
+      rows = rows
+        .map(r => ({
+          r,
+          risk: DataStore.computed.get(r.id)?.risk?.total || 0
+        }))
+        .sort((a, b) => b.risk - a.risk)
+        .map(x => x.r);
+    } else if (q.sort === 'date') {
+      rows = rows.slice().sort((a, b) => {
+        const da = new Date(a.date);
+        const db = new Date(b.date);
+        if (isNaN(da) && isNaN(db)) return 0;
+        if (isNaN(da)) return 1;
+        if (isNaN(db)) return -1;
+        return db - da; // newest first
+      });
+    } else if (q.sort === 'priority') {
+      rows = rows.slice().sort((a, b) => prioMap(b.priority) - prioMap(a.priority));
+    }
+
+    LAST_AI_QUERY = { text: raw, q, rows };
+
+    if (!rows.length) {
+      E.aiQueryResults.innerHTML = `<div>No issues matched this query.</div>`;
+      return;
+    }
+
+    const maxShow = 50;
+    const slice = rows.slice(0, maxShow);
+
+    const summary = `
+      <div style="margin-bottom:4px;">
+        Found <strong>${slice.length}</strong> of ${rows.length} matching issue${
+      rows.length === 1 ? '' : 's'
+    } for query <code>${U.escapeHtml(raw)}</code>.
+      </div>`;
+
+    const items = slice
+      .map(r => {
+        const meta = DataStore.computed.get(r.id) || {};
+        const risk = meta.risk || {};
+        const riskScore = risk.total || 0;
+        const badgeClass = CalendarLink.riskBadgeClass(riskScore);
+        return `
+        <li style="margin-bottom:6px;">
+          <button class="btn sm" data-open="${U.escapeAttr(r.id)}">${U.escapeHtml(
+          r.id
+        )}</button>
+          <strong>${U.escapeHtml(r.title || '')}</strong>
+          <div class="muted">
+            Module: ${U.escapeHtml(r.module || '-')},
+            Priority: ${U.escapeHtml(r.priority || '-')},
+            Status: ${U.escapeHtml(r.status || '-')}
+          </div>
+          <div class="muted">
+            <span class="event-risk-badge ${badgeClass}">RISK ${riskScore}</span>
+            · sev ${risk.severity ?? 0} · imp ${risk.impact ?? 0} · urg ${risk.urgency ?? 0}
+          </div>
+        </li>`;
+      })
+      .join('');
+
+    const overflow =
+      rows.length > maxShow
+        ? `<div class="muted" style="font-size:11px;">+ ${
+            rows.length - maxShow
+          } more not shown. Use "Export" to download all.</div>`
+        : '';
+
+    E.aiQueryResults.innerHTML = `
+      ${summary}
+      <ul style="margin:4px 0 0 16px;padding:0;font-size:13px;">
+        ${items}
+      </ul>
+      ${overflow}
+    `;
+
+    E.aiQueryResults.querySelectorAll('[data-open]').forEach(btn => {
+      btn.addEventListener('click', () =>
+        UI.Modals.openIssue(btn.getAttribute('data-open'))
+      );
     });
-  }
+  };
+
+  E.aiQueryRun.addEventListener('click', runQuery);
+  E.aiQueryInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      runQuery();
+    }
+  });
 
   if (E.aiQueryApplyFilters) {
-    E.aiQueryApplyFilters.addEventListener('click', () => applyAiQueryToFilters());
+    E.aiQueryApplyFilters.addEventListener('click', () => {
+      if (!LAST_AI_QUERY || !LAST_AI_QUERY.q) {
+        UI.toast('Run a query first.');
+        return;
+      }
+      applyDSLToFilters(LAST_AI_QUERY.q);
+      setActiveView('issues');
+      UI.toast('Applied AI query filters to issues table');
+    });
   }
 
   if (E.aiQueryExport) {
-    E.aiQueryExport.addEventListener('click', () => exportAiQueryResults());
+    E.aiQueryExport.addEventListener('click', () => {
+      if (!LAST_AI_QUERY || !LAST_AI_QUERY.rows?.length) {
+        UI.toast('Nothing to export yet.');
+        return;
+      }
+      exportIssuesToCsv(LAST_AI_QUERY.rows, 'aiquery');
+    });
   }
 
-  // Initial hint
-  renderAiQueryResults([], DSL.parse(''), '');
+  // Initial help
+  renderHelp();
 }
 
 /* ---------- Keyboard shortcuts ---------- */
@@ -4135,50 +4317,42 @@ function wireAI() {
 function wireKeyboardShortcuts() {
   document.addEventListener('keydown', e => {
     const tag = (e.target && e.target.tagName) || '';
-    const editable =
-      tag === 'INPUT' ||
-      tag === 'TEXTAREA' ||
-      (e.target && e.target.isContentEditable);
-    if (editable && !e.metaKey && !e.ctrlKey) {
-      // Let normal typing work
-      if (e.key !== '/' && e.key !== 'Escape') return;
-    }
+    const isInputLike =
+      tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
 
-    // '/' focuses search
-    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (E.searchInput) {
-        e.preventDefault();
-        E.searchInput.focus();
-        E.searchInput.select();
-      }
-      return;
-    }
-
-    // Tabs 1/2/3
-    if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (e.key === '1') {
-        setActiveView('issues');
-        return;
-      }
-      if (e.key === '2') {
-        setActiveView('calendar');
-        return;
-      }
-      if (e.key === '3') {
-        setActiveView('insights');
-        return;
-      }
-    }
-
-    // Ctrl/Cmd+K => AI query box
-    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+    // Ctrl/Cmd + K → AI query box (Insights tab)
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       setActiveView('insights');
       if (E.aiQueryInput) {
         E.aiQueryInput.focus();
-        E.aiQueryInput.select();
+        if (E.aiQueryInput.select) E.aiQueryInput.select();
       }
       return;
+    }
+
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    // "/" → focus search (when not already in an input)
+    if (e.key === '/' && !isInputLike) {
+      e.preventDefault();
+      setActiveView('issues');
+      if (E.searchInput) {
+        E.searchInput.focus();
+        if (E.searchInput.select) E.searchInput.select();
+      }
+      return;
+    }
+
+    if (isInputLike) return;
+
+    // 1/2/3 → switch tabs
+    if (e.key === '1') {
+      setActiveView('issues');
+    } else if (e.key === '2') {
+      setActiveView('calendar');
+    } else if (e.key === '3') {
+      setActiveView('insights');
     }
   });
 }
@@ -4189,6 +4363,10 @@ document.addEventListener('DOMContentLoaded', () => {
   cacheEls();
   Filters.load();
 
+  if (E.pageSize) {
+    E.pageSize.value = String(GridState.pageSize);
+  }
+
   wireCore();
   wireSorting();
   wirePaging();
@@ -4198,30 +4376,12 @@ document.addEventListener('DOMContentLoaded', () => {
   wireModals();
   wireCalendar();
   wirePlanner();
-  wireAI();
+  wireAIQuery();
   wireKeyboardShortcuts();
 
-  if (E.pageSize) E.pageSize.value = String(GridState.pageSize || 20);
-
   const view = localStorage.getItem(LS_KEYS.view) || 'issues';
-  setActiveView(view);
+  setActiveView(view === 'calendar' || view === 'insights' ? view : 'issues');
 
   loadIssues(false);
   loadEvents(false);
-
-  // Deep link: ?issue=123 or #issue-123
-  try {
-    const params = new URLSearchParams(location.search);
-    let deepId = params.get('issue') || '';
-    if (!deepId && location.hash && location.hash.startsWith('#issue-')) {
-      deepId = decodeURIComponent(location.hash.slice('#issue-'.length));
-    }
-    if (deepId) {
-      setTimeout(() => {
-        if (DataStore.byId.has(deepId)) UI.Modals.openIssue(deepId);
-      }, 800);
-    }
-  } catch {
-    // ignore
-  }
 });
