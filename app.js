@@ -6,6 +6,7 @@
  *  - Risk engine (technical + biz + ops + severity/impact/urgency)
  *  - DSL query parser & matcher
  *  - Calendar risk (events + collisions + freezes + hot issues)
+ *  - Release planner (F&B / Middle East)
  */
 
 const CONFIG = {
@@ -140,6 +141,30 @@ const CONFIG = {
       { dow: [5], startHour: 16, endHour: 23 }, // Friday evening
       { dow: [6], startHour: 0, endHour: 23 } // Saturday
     ]
+  },
+
+  /**
+   * F&B / Middle East release-planning heuristics
+   * Used by ReleasePlanner
+   */
+  FNB: {
+    // Weekend patterns (0 = Sun)
+    WEEKEND: {
+      gulf: [5, 6],       // Fri, Sat
+      levant: [5],        // Fri
+      northafrica: [5]    // Fri
+    },
+    // Typical busy windows (local time)
+    BUSY_WINDOWS: [
+      { start: 12, end: 15, weight: 3, label: 'lunch rush' },
+      { start: 19, end: 23, weight: 4, label: 'dinner rush' }
+    ],
+    OFFPEAK_WINDOWS: [
+      { start: 6, end: 10, weight: -1, label: 'pre-service' },
+      { start: 15, end: 18, weight: -0.5, label: 'between lunch & dinner' }
+    ]
+    // Note: public / religious holidays are taken from the calendar feed
+    // (events whose type or description indicate a holiday / Eid / Ramadan, etc.).
   }
 };
 
@@ -878,9 +903,9 @@ function computeChangeCollisions(issues, events) {
 function toLocalInputValue(date) {
   const d = date instanceof Date ? date : new Date(date);
   if (isNaN(d)) return '';
-  return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(d.getDate())}T${U.pad(
-    d.getHours()
-  )}:${U.pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(
+    d.getDate()
+  )}T${U.pad(d.getHours())}:${U.pad(d.getMinutes())}`;
 }
 function toLocalDateValue(date) {
   const d = date instanceof Date ? date : new Date(date);
@@ -888,6 +913,323 @@ function toLocalDateValue(date) {
   return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(d.getDate())}`;
 }
 
+/* =========================================================
+   Release Planner – F&B / Middle East
+   ========================================================= */
+
+const ReleasePlanner = {
+  envWeight: {
+    Prod: 2.5,
+    Staging: 1.2,
+    Dev: 0.6,
+    Other: 1
+  },
+  releaseTypeWeight: {
+    minor: 1,
+    feature: 2,
+    major: 3
+  },
+  regionKey(region) {
+    if (!region) return 'gulf';
+    const r = region.toLowerCase();
+    if (r.includes('lev')) return 'levant';
+    if (r.includes('af')) return 'northafrica';
+    return 'gulf';
+  },
+  computeRushScore(region, date) {
+    const d = date instanceof Date ? date : new Date(date);
+    const hour = d.getHours();
+    const dow = d.getDay(); // 0=Sun
+    const key = this.regionKey(region);
+    const weekend = new Set(CONFIG.FNB.WEEKEND[key] || [5, 6]);
+
+    let score = 0;
+
+    CONFIG.FNB.BUSY_WINDOWS.forEach(win => {
+      if (hour >= win.start && hour < win.end) score += win.weight;
+    });
+
+    CONFIG.FNB.OFFPEAK_WINDOWS.forEach(win => {
+      if (hour >= win.start && hour < win.end) score += win.weight;
+    });
+
+    if (weekend.has(dow)) {
+      score += 1.5;
+      if (hour >= 19 && hour < 23) score += 1.5;
+    }
+
+    // Late-night service tends to be sensitive for Gulf
+    if (key === 'gulf' && (hour >= 23 || hour < 2)) score += 1.5;
+
+    // Very early morning is usually safer
+    if (hour < 5) score += 0.8;
+
+    return Math.max(0, Math.min(6, score));
+  },
+  rushLabel(score) {
+    if (score <= 1) return 'off-peak';
+    if (score <= 3) return 'moderate service';
+    return 'rush / busy service';
+  },
+  computeBugPressure(modules, horizonDays) {
+    const now = new Date();
+    const lookback = U.dateAddDays(now, -90);
+    const modSet = new Set((modules || []).map(m => (m || '').toLowerCase()));
+    let sum = 0;
+
+    DataStore.rows.forEach(r => {
+      if (!r.date) return;
+      const d = new Date(r.date);
+      if (isNaN(d) || d < lookback) return;
+
+      const mod = (r.module || '').toLowerCase();
+      const title = (r.title || '').toLowerCase();
+      const desc = (r.desc || '').toLowerCase();
+      let related = false;
+
+      if (!modSet.size) related = true;
+      else if (modSet.has(mod)) related = true;
+      else {
+        related = Array.from(modSet).some(m => title.includes(m) || desc.includes(m));
+      }
+      if (!related) return;
+
+      const meta = DataStore.computed.get(r.id) || {};
+      const risk = meta.risk?.total || 0;
+      if (!risk) return;
+
+      const ageDays = (now.getTime() - d.getTime()) / 86400000;
+      let w = 1;
+      if (ageDays <= 7) w = 1.4;
+      else if (ageDays <= 30) w = 1.1;
+      else w = 0.7;
+
+      sum += risk * w;
+    });
+
+    const normalized = sum / 40; // tuning constant
+    const bugRisk = Math.max(0, Math.min(6, normalized));
+    return { raw: sum, risk: bugRisk };
+  },
+  bugLabel(risk) {
+    if (risk <= 1.5) return 'light recent bug history';
+    if (risk <= 3.5) return 'moderate bug pressure';
+    return 'heavy bug pressure';
+  },
+  computeBombBugRisk(modules, description) {
+    // "Bomb bug" = old, high-risk incidents that are textually close to this release
+    const now = new Date();
+    const lookback = U.dateAddDays(now, -365); // last year
+    const modSet = new Set((modules || []).map(m => (m || '').toLowerCase()));
+
+    const text = (description || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ');
+    const tokens = new Set(
+      text
+        .split(/\s+/)
+        .filter(t => t.length > 2 && !STOPWORDS.has(t))
+    );
+
+    let raw = 0;
+    const examples = [];
+
+    DataStore.rows.forEach(r => {
+      if (!r.date) return;
+      const d = new Date(r.date);
+      if (isNaN(d) || d < lookback) return;
+
+      const ageDays = (now.getTime() - d.getTime()) / 86400000;
+      if (ageDays <= 30) return; // we want "old" tickets
+
+      const st = (r.status || '').toLowerCase();
+      const isClosed = st.startsWith('resolved') || st.startsWith('rejected');
+      if (!isClosed) return;
+
+      const meta = DataStore.computed.get(r.id) || {};
+      const risk = meta.risk?.total || 0;
+      if (risk < CONFIG.RISK.highRisk) return;
+
+      const mod = (r.module || '').toLowerCase();
+      const title = (r.title || '').toLowerCase();
+      const desc = (r.desc || '').toLowerCase();
+      const log = (r.log || '').toLowerCase();
+      const body = `${title} ${desc} ${log}`;
+
+      let related = false;
+      if (!modSet.size) related = true;
+      else if (modSet.has(mod)) related = true;
+      else {
+        related = Array.from(tokens).some(t => body.includes(t));
+      }
+      if (!related) return;
+
+      // Soft decay: more recent old bugs weigh a bit more
+      const ageFactor = Math.max(0.4, 1.3 - ageDays / 365);
+      const score = risk * ageFactor;
+      raw += score;
+
+      examples.push({
+        id: r.id,
+        title: r.title || '',
+        risk,
+        ageDays
+      });
+    });
+
+    const normalized = raw / 60; // tuning constant
+    const bombRisk = Math.max(0, Math.min(6, normalized));
+
+    examples.sort((a, b) => b.risk - a.risk);
+    return { raw, risk: bombRisk, examples: examples.slice(0, 3) };
+  },
+  bombLabel(risk) {
+    if (risk <= 1) return 'no strong historical bomb-bug pattern';
+    if (risk <= 3) return 'some historical blast patterns in similar changes';
+    return 'strong historical bomb-bug pattern, treat as high risk';
+  },
+  computeEventsPenalty(date, env, modules, region) {
+    const dt = date instanceof Date ? date : new Date(date);
+    const center = dt.getTime();
+    const windowMs = 2 * 60 * 60 * 1000; // +/- 2h for normal changes
+    const mods = new Set((modules || []).map(m => (m || '').toLowerCase()));
+
+    let penalty = 0;
+    let count = 0;
+    let holidayCount = 0;
+
+    DataStore.events.forEach(ev => {
+      if (!ev.start) return;
+
+      const start = new Date(ev.start);
+      if (isNaN(start)) return;
+
+      const title = (ev.title || '').toLowerCase();
+      const impact = (ev.impactType || '').toLowerCase();
+      const type = (ev.type || '').toLowerCase();
+
+      const isHoliday =
+        type === 'holiday' ||
+        /holiday|eid|ramadan|ramadhan|ramzan|iftar|suhoor|ashura|national day|founding day/i.test(title) ||
+        /holiday|public holiday/i.test(impact);
+
+      const evEnv = (ev.env || 'Prod');
+
+      // For holidays, ignore env filter (they affect all envs operationally)
+      if (!isHoliday && env && evEnv && evEnv !== env) return;
+
+      const diffMs = Math.abs(start.getTime() - center);
+      const maxWindowMs = isHoliday ? 24 * 60 * 60 * 1000 : windowMs;
+      if (diffMs > maxWindowMs) return;
+
+      // Collision with other changes near this time
+      const evMods = Array.isArray(ev.modules)
+        ? ev.modules
+        : typeof ev.modules === 'string'
+        ? ev.modules.split(',').map(x => x.trim())
+        : [];
+      const overlap =
+        mods.size &&
+        evMods.some(m => mods.has((m || '').toLowerCase()));
+
+      let contribution = 0;
+      if (isHoliday) {
+        holidayCount++;
+        // Strong penalty for public / religious holidays around MENA service hours
+        contribution = 4.5;
+        if (overlap) contribution += 1.5;
+      } else {
+        count++;
+        if (type === 'deployment' || type === 'maintenance' || type === 'release') {
+          contribution = overlap ? 3 : 1.5;
+        } else {
+          contribution = overlap ? 2 : 1;
+        }
+      }
+
+      penalty += contribution;
+    });
+
+    return { penalty, count, holidayCount };
+  },
+  computeSlotScore(date, ctx) {
+    const { region, env, modules, releaseType, bugRisk, bombBugRisk } = ctx;
+    const rushRisk = this.computeRushScore(region, date);
+    const envRisk = this.envWeight[env] ?? 1;
+    const typeRisk = this.releaseTypeWeight[releaseType] ?? 2;
+
+    const { penalty: eventsRisk, count: eventCount, holidayCount } =
+      this.computeEventsPenalty(date, env, modules, region);
+
+    const bombRisk = bombBugRisk || 0;
+
+    // Total risk for this slot
+    const totalRisk = rushRisk + bugRisk + envRisk + typeRisk + eventsRisk + bombRisk;
+    const safetyScore = Math.max(0, 20 - totalRisk);
+
+    return {
+      totalRisk,
+      safetyScore,
+      rushRisk,
+      bugRisk,
+      bombRisk,
+      envRisk,
+      typeRisk,
+      eventsRisk,
+      eventCount,
+      holidayCount
+    };
+  },
+  riskBucket(totalRisk) {
+    if (totalRisk <= 7) return { label: 'Low', className: 'planner-score-low' };
+    if (totalRisk <= 12) return { label: 'Medium', className: 'planner-score-med' };
+    return { label: 'High', className: 'planner-score-high' };
+  },
+  suggestSlots({ region, env, modules, horizonDays, releaseType, description, slotsPerDay }) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const bug = this.computeBugPressure(modules, horizonDays || 7);
+    const bomb = this.computeBombBugRisk(modules, description || '');
+
+    const slots = [];
+    const hoursProd = [6, 10, 15, 23]; // Prod: pre-service + between services + late
+    const hoursNonProd = [10, 15, 18]; // Staging/Dev can tolerate slightly busier times
+    const hours = env === 'Prod' ? hoursProd : hoursNonProd;
+
+    const horizon = Math.max(1, horizonDays || 7);
+
+    for (let dayOffset = 0; dayOffset < horizon; dayOffset++) {
+      const base = U.dateAddDays(startOfToday, dayOffset);
+      hours.forEach(h => {
+        const dt = new Date(base.getTime());
+        dt.setHours(h, 0, 0, 0);
+        if (dt <= now) return;
+
+        const score = this.computeSlotScore(dt, {
+          region,
+          env,
+          modules,
+          releaseType,
+          bugRisk: bug.risk,
+          bombBugRisk: bomb.risk
+        });
+
+        slots.push({
+          ...score,
+          start: dt,
+          end: new Date(dt.getTime() + 60 * 60 * 1000)
+        });
+      });
+    }
+
+    slots.sort((a, b) => a.totalRisk - b.totalRisk);
+
+    const perDay = Math.max(1, slotsPerDay || 3);
+    const maxSlots = Math.min(slots.length, horizon * perDay);
+
+    return { bug, bomb, slots: slots.slice(0, maxSlots) };
+  }
+};
 /* ---------- Elements cache ---------- */
 const E = {};
 function cacheEls() {
@@ -984,7 +1326,21 @@ function cacheEls() {
     'eventOwner',
     'eventStatus',
     'eventModules',
-    'eventImpactType'
+    'eventImpactType',
+    // Release Planner IDs
+    'plannerRegion',
+    'plannerEnv',
+    'plannerModules',
+    'plannerHorizon',
+    'plannerReleaseType',
+    'plannerRun',
+    'plannerResults',
+    'plannerDescription',
+    'plannerSlotsPerDay',
+    'plannerReleasePlan',
+    'plannerTickets',
+    'plannerAssignBtn',
+    'plannerAddEvent'
   ].forEach(id => (E[id] = document.getElementById(id)));
 }
 
@@ -1888,6 +2244,35 @@ UI.Modals = {
     const reasons = risk.reasons?.length
       ? 'Reasons: ' + risk.reasons.join(', ')
       : '—';
+
+    // Linked releases (events whose issueId list contains this ticket)
+    const linkedReleases = DataStore.events.filter(ev => {
+      const ids = (ev.issueId || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      return ids.includes(r.id);
+    });
+    let linkedSection = '';
+    if (linkedReleases.length) {
+      const items = linkedReleases
+        .slice()
+        .sort((a, b) => new Date(a.start) - new Date(b.start))
+        .map(ev => {
+          const when = ev.start ? U.fmtTS(ev.start) : '(no date)';
+          return `<li>${U.escapeHtml(ev.title || '(release)')} – ${U.escapeHtml(
+            when
+          )} · ${U.escapeHtml(ev.env || 'Prod')}</li>`;
+        })
+        .join('');
+      linkedSection = `
+        <p><b>Linked releases:</b>
+          <ul style="margin:4px 0 0 18px;padding:0;font-size:13px;">
+            ${items}
+          </ul>
+        </p>`;
+    }
+
     E.modalTitle.textContent = r.title || r.id || 'Issue';
     E.modalBody.innerHTML = `
       <p><b>ID:</b> ${U.escapeHtml(r.id || '-')}</p>
@@ -1920,6 +2305,7 @@ UI.Modals = {
             .join(', ') || '—'
         }.
       </div>
+      ${linkedSection}
     `;
     E.issueModal.style.display = 'flex';
     E.copyId?.focus();
@@ -1974,36 +2360,85 @@ UI.Modals = {
     if (E.eventDescription) E.eventDescription.value = ev.description || '';
 
     if (E.eventIssueLinkedInfo) {
-      const issueId = ev.issueId || '';
-      if (issueId) {
-        const issue = DataStore.byId.get(issueId);
-        if (issue) {
-          const meta = DataStore.computed.get(issue.id) || {};
-          const riskTotal = meta.risk?.total || 0;
-          const badgeClass = CalendarLink.riskBadgeClass(riskTotal);
-          E.eventIssueLinkedInfo.style.display = 'block';
+      const issueIdStr = ev.issueId || '';
+      if (issueIdStr) {
+        const ids = issueIdStr
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+        const uniqueIds = Array.from(new Set(ids));
+        const issues = uniqueIds
+          .map(id => DataStore.byId.get(id))
+          .filter(Boolean);
+
+        E.eventIssueLinkedInfo.style.display = 'block';
+
+        if (issues.length) {
+          const items = issues
+            .slice(0, 3)
+            .map(issue => {
+              const meta = DataStore.computed.get(issue.id) || {};
+              const r = meta.risk?.total || 0;
+              const badgeClass = r
+                ? CalendarLink.riskBadgeClass(r)
+                : '';
+              return `
+                <li>
+                  <button type="button" class="btn sm" data-open-issue="${U.escapeAttr(
+                    issue.id
+                  )}">${U.escapeHtml(issue.id)}</button>
+                  ${U.escapeHtml(issue.title || '')}
+                  ${
+                    r
+                      ? `<span class="event-risk-badge ${badgeClass}">RISK ${r}</span>`
+                      : ''
+                  }
+                </li>`;
+            })
+            .join('');
+
+          const remaining = uniqueIds.length - issues.length;
+          const extra = uniqueIds.length - issues.length;
+          const extraHtml =
+            extra > 0
+              ? `<li class="muted">${extra} linked ID(s) not in current dataset</li>`
+              : '';
+
+          const more =
+            uniqueIds.length > issues.length
+              ? uniqueIds
+                  .filter(id => !issues.find(i => i.id === id))
+                  .join(', ')
+              : '';
+
           E.eventIssueLinkedInfo.innerHTML = `
-            Linked issue: <strong>${U.escapeHtml(issue.id)}</strong> – ${U.escapeHtml(
-            issue.title || ''
-          )}
-            <br><span class="muted">Status: ${U.escapeHtml(
-              issue.status || '-'
-            )} · Priority: ${U.escapeHtml(issue.priority || '-')}</span>
+            Linked ticket(s):
+            <ul style="margin:4px 0 0 18px;padding:0;font-size:12px;">
+              ${items}
+              ${extraHtml}
+            </ul>
             ${
-              riskTotal
-                ? `<span class="event-risk-badge ${badgeClass}">RISK ${riskTotal}</span>`
+              more
+                ? `<div class="muted" style="margin-top:4px;">Missing from dataset: ${U.escapeHtml(
+                    more
+                  )}</div>`
                 : ''
             }
-            <div style="margin-top:4px;">
-              <button type="button" class="btn sm" id="eventOpenIssueBtn">Open issue</button>
-            </div>
           `;
-          const btn = document.getElementById('eventOpenIssueBtn');
-          if (btn) btn.addEventListener('click', () => UI.Modals.openIssue(issue.id));
         } else {
-          E.eventIssueLinkedInfo.style.display = 'block';
-          E.eventIssueLinkedInfo.textContent = `Linked issue ID: ${issueId} (not found in current dataset)`;
+          E.eventIssueLinkedInfo.innerHTML = `Linked ticket ID(s): ${U.escapeHtml(
+            issueIdStr
+          )} (not found in current dataset)`;
         }
+
+        E.eventIssueLinkedInfo
+          .querySelectorAll('[data-open-issue]')
+          .forEach(btn => {
+            btn.addEventListener('click', () => {
+              const id = btn.getAttribute('data-open-issue');
+              UI.Modals.openIssue(id);
+            });
+          });
       } else {
         E.eventIssueLinkedInfo.style.display = 'none';
         E.eventIssueLinkedInfo.textContent = '';
@@ -2153,7 +2588,7 @@ function ensureCalendar() {
           owner: info.event.extendedProps.owner || '',
           modules: info.event.extendedProps.modules || [],
           impactType: info.event.extendedProps.impactType || 'No downtime expected',
-          notificationStatus: info.event.extendedProps.notificationStatus || '' // ✅ NEW
+          notificationStatus: info.event.extendedProps.notificationStatus || ''
         };
       UI.Modals.openEvent(ev);
     },
@@ -2177,6 +2612,8 @@ function ensureCalendar() {
       const idx = DataStore.events.findIndex(e => e.id === saved.id);
       if (idx > -1) DataStore.events[idx] = saved;
       saveEventsCache();
+      renderCalendarEvents();
+      refreshPlannerReleasePlans();
       Analytics.refresh(UI.Issues.applyFilters());
     },
     eventDidMount(info) {
@@ -2195,18 +2632,29 @@ function ensureCalendar() {
 
       let tooltip = ext.description || '';
       if (ext.issueId) {
-        const issue = DataStore.byId.get(ext.issueId);
-        if (issue) {
-          const meta = DataStore.computed.get(issue.id) || {};
+        const idStr = ext.issueId;
+        const ids = idStr
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+        const issues = ids
+          .map(id => DataStore.byId.get(id))
+          .filter(Boolean);
+        if (issues.length) {
+          const first = issues[0];
+          const meta = DataStore.computed.get(first.id) || {};
           const r = meta.risk?.total || 0;
           tooltip =
-            `${issue.id} – ${issue.title || ''}\nStatus: ${
-              issue.status || '-'
-            } · Priority: ${issue.priority || '-'} · Risk: ${r}` +
+            `${first.id} – ${first.title || ''}\nStatus: ${
+              first.status || '-'
+            } · Priority: ${first.priority || '-'} · Risk: ${r}` +
+            (issues.length > 1
+              ? `\n+ ${issues.length - 1} more linked ticket(s)`
+              : '') +
             (tooltip ? `\n\n${tooltip}` : '');
         } else {
           tooltip =
-            `Linked issue: ${ext.issueId}` + (tooltip ? `\n\n${tooltip}` : '');
+            `Linked ticket(s): ${idStr}` + (tooltip ? `\n\n${tooltip}` : '');
         }
       }
 
@@ -2285,7 +2733,7 @@ function renderCalendarEvents() {
         owner,
         modules,
         impactType,
-        notificationStatus: ev.notificationStatus || '', // ✅ NEW
+        notificationStatus: ev.notificationStatus || '',
         collision: !!flags.collision,
         freeze: !!flags.freeze,
         hotIssues: !!flags.hotIssues
@@ -2371,6 +2819,7 @@ async function loadEvents(force = false) {
     DataStore.events = cached;
     ensureCalendar();
     renderCalendarEvents();
+    refreshPlannerReleasePlans();
     Analytics.refresh(UI.Issues.applyFilters());
     UI.setSync('events', true, new Date());
   }
@@ -2407,7 +2856,7 @@ async function loadEvents(force = false) {
         owner: ev.owner || '',
         modules: modulesArr,
         impactType: ev.impactType || ev.impact || 'No downtime expected',
-        notificationStatus: ev.notificationStatus || '' // ✅ NEW: keep sheet column
+        notificationStatus: ev.notificationStatus || ''
       };
     });
 
@@ -2415,12 +2864,14 @@ async function loadEvents(force = false) {
     saveEventsCache();
     ensureCalendar();
     renderCalendarEvents();
+    refreshPlannerReleasePlans();
     Analytics.refresh(UI.Issues.applyFilters());
     UI.setSync('events', true, new Date());
   } catch (e) {
     DataStore.events = cached || [];
     ensureCalendar();
     renderCalendarEvents();
+    refreshPlannerReleasePlans();
     UI.setSync('events', !!DataStore.events.length, null);
     UI.toast(
       DataStore.events.length
@@ -2469,7 +2920,7 @@ async function saveEventToSheet(event) {
       end: event.end || '',
       description: event.description || '',
 
-      notificationStatus: event.notificationStatus || '', // ✅ NEW: pass through to sheet
+      notificationStatus: event.notificationStatus || '',
       allDay: !!event.allDay
     };
 
@@ -2597,6 +3048,456 @@ function exportFilteredCsv() {
   exportIssuesToCsv(rows, 'filtered');
 }
 
+/* ---------- Release Planner wiring & rendering ---------- */
+
+let LAST_PLANNER_CONTEXT = null;
+let LAST_PLANNER_RESULT = null;
+
+function renderPlannerResults(result, context) {
+  if (!E.plannerResults) return;
+  const { slots, bug, bomb } = result;
+  const { env, modules, releaseType, horizonDays, region, description } = context;
+
+  if (!slots.length) {
+    E.plannerResults.innerHTML =
+      '<span>No suitable windows found in the selected horizon. Try widening the horizon or targeting fewer modules.</span>';
+    if (E.plannerAddEvent) E.plannerAddEvent.disabled = true;
+    return;
+  }
+
+  const regionLabel =
+    region === 'gulf'
+      ? 'Gulf (KSA / UAE / Qatar)'
+      : region === 'levant'
+      ? 'Levant'
+      : 'North Africa';
+
+  const modulesLabel = modules && modules.length ? modules.join(', ') : 'All modules';
+  const bugLabel = ReleasePlanner.bugLabel(bug.risk);
+  const bombLabel = ReleasePlanner.bombLabel(bomb.risk);
+
+  const intro = `
+    <div style="margin-bottom:6px;">
+      Top ${slots.length} suggested windows for a <strong>${U.escapeHtml(
+        releaseType
+      )}</strong> release on <strong>${U.escapeHtml(
+    env
+  )}</strong> touching <strong>${U.escapeHtml(
+    modulesLabel
+  )}</strong><br/>
+      Horizon: next ${horizonDays} day(s), region profile: ${U.escapeHtml(regionLabel)}.<br/>
+      <span class="muted">Recent bug pressure: ${U.escapeHtml(
+        bugLabel
+      )}. Historical &ldquo;bomb bug&rdquo; pattern: ${U.escapeHtml(
+    bombLabel
+  )}.</span>
+    </div>
+  `;
+
+  let bombExamplesHtml = '';
+  if (bomb.examples && bomb.examples.length) {
+    const items = bomb.examples
+      .map(ex => {
+        const days = Math.round(ex.ageDays);
+        return `<li><strong>${U.escapeHtml(ex.id)}</strong> — ${U.escapeHtml(
+          ex.title || ''
+        )} <span class="muted">(risk ${ex.risk}, ~${days}d old)</span></li>`;
+      })
+      .join('');
+    bombExamplesHtml = `
+      <div class="muted" style="font-size:11px;margin-bottom:4px;">
+        Related historical incidents:
+        <ul style="margin:4px 0 0 18px;padding:0;">
+          ${items}
+        </ul>
+      </div>`;
+  }
+
+  const htmlSlots = slots
+    .map((slot, idx) => {
+      const d = slot.start;
+      const dateStr = d.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+      const timeStr = d.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const bucket = ReleasePlanner.riskBucket(slot.totalRisk);
+      const rushLabel = ReleasePlanner.rushLabel(slot.rushRisk);
+      const bugLabelPerSlot = ReleasePlanner.bugLabel(slot.bugRisk);
+      const bombLabelPerSlot = ReleasePlanner.bombLabel(slot.bombRisk);
+      const eventsLabelRaw = slot.eventCount
+        ? `${slot.eventCount} overlapping change event(s)`
+        : 'no overlapping change events';
+      const holidayLabel = slot.holidayCount
+        ? `${slot.holidayCount} holiday(s) in window`
+        : 'no holidays in window';
+      const eventsLabel = slot.holidayCount
+        ? `${holidayLabel} · ${eventsLabelRaw}`
+        : eventsLabelRaw;
+
+      const safetyIndex = (slot.safetyScore / 20) * 100;
+      const blastComment =
+        bucket.label === 'Low'
+          ? 'Low blast radius; safe default with rollback buffer.'
+          : bucket.label === 'Medium'
+          ? 'Medium blast radius; keep tight monitoring and rollback plan.'
+          : 'High blast risk; only use with strict approvals and on-call coverage.';
+
+      const startIso = d.toISOString();
+      const endIso = slot.end.toISOString();
+
+      return `
+      <div class="planner-slot" data-index="${idx}">
+        <div class="planner-slot-header">
+          <span>#${idx + 1} · ${U.escapeHtml(dateStr)} · ${U.escapeHtml(timeStr)}</span>
+          <span class="planner-slot-score ${bucket.className}">
+            Risk ${slot.totalRisk.toFixed(1)} / 20 · ${bucket.label}
+          </span>
+        </div>
+        <div class="planner-slot-meta">
+          Rush: ${U.escapeHtml(rushLabel)} · Bugs: ${U.escapeHtml(
+        bugLabelPerSlot
+      )} · Bomb-bug: ${U.escapeHtml(
+        bombLabelPerSlot
+      )}<br/>Calendar: ${U.escapeHtml(
+        eventsLabel
+      )}<br/>Safety index: ${safetyIndex.toFixed(0)}%
+        </div>
+        <div class="planner-slot-meta">
+          Expected effect on F&amp;B clients: ${U.escapeHtml(blastComment)}
+        </div>
+        <div class="planner-slot-meta">
+          <button type="button"
+                  class="btn sm"
+                  data-add-release="${U.escapeAttr(startIso)}"
+                  data-add-release-end="${U.escapeAttr(endIso)}">
+            ➕ Add this window as Release event
+          </button>
+        </div>
+      </div>
+    `;
+    })
+    .join('');
+
+  E.plannerResults.innerHTML = `${intro}${bombExamplesHtml}${htmlSlots}`;
+
+  if (E.plannerAddEvent) E.plannerAddEvent.disabled = !slots.length;
+
+  // Wire per-slot "Add" buttons
+  E.plannerResults.querySelectorAll('[data-add-release]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const startIso = btn.getAttribute('data-add-release');
+      const endIso = btn.getAttribute('data-add-release-end');
+      if (!startIso || !endIso) return;
+
+      const startLocal = toLocalInputValue(new Date(startIso));
+      const endLocal = toLocalInputValue(new Date(endIso));
+
+      const modulesLabelLocal =
+        modules && modules.length ? modules.join(', ') : 'General';
+
+      const releaseDescription = (E.plannerDescription?.value || '').trim();
+
+      const newEvent = {
+        id: '',
+        title: `Release – ${modulesLabelLocal} (${releaseType})`,
+        type: 'Release',
+        env: env,
+        status: 'Planned',
+        owner: '',
+        modules: modules,
+        impactType:
+          env === 'Prod'
+            ? 'High risk change'
+            : 'Internal only',
+        issueId: '',
+        start: startLocal,
+        end: endLocal,
+        description:
+          `Auto-scheduled by Release Planner. Region profile: ${regionLabel}. Modules: ${modulesLabelLocal}.` +
+          (releaseDescription ? `\nRelease notes: ${releaseDescription}` : '') +
+          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.`,
+        allDay: false,
+        notificationStatus: ''
+      };
+
+      const saved = await saveEventToSheet(newEvent);
+      if (!saved) {
+        UI.toast('Could not save release event');
+        return;
+      }
+      const idx = DataStore.events.findIndex(x => x.id === saved.id);
+      if (idx === -1) DataStore.events.push(saved);
+      else DataStore.events[idx] = saved;
+      saveEventsCache();
+      renderCalendarEvents();
+      refreshPlannerReleasePlans();
+      Analytics.refresh(UI.Issues.applyFilters());
+    });
+  });
+}
+
+function refreshPlannerTickets(currentList) {
+  if (!E.plannerTickets) return;
+  const list = currentList || UI.Issues.applyFilters();
+
+  if (!list.length) {
+    E.plannerTickets.innerHTML =
+      '<option disabled>No tickets match the current filters</option>';
+    return;
+  }
+
+  const max = 250;
+  const subset = list.slice(0, max);
+
+  E.plannerTickets.innerHTML = subset
+    .map(r => {
+      const meta = DataStore.computed.get(r.id) || {};
+      const risk = meta.risk?.total || 0;
+      const label = `[${r.priority || '-'} | R${risk}] ${r.id} — ${
+        r.title || ''
+      }`.slice(0, 140);
+      return `<option value="${U.escapeAttr(r.id)}">${U.escapeHtml(label)}</option>`;
+    })
+    .join('');
+}
+
+function refreshPlannerReleasePlans(context) {
+  if (!E.plannerReleasePlan) return;
+  const env = context?.env || (E.plannerEnv?.value || '');
+  const horizonDays =
+    context?.horizonDays ||
+    parseInt(E.plannerHorizon?.value || '7', 10) ||
+    7;
+
+  const now = new Date();
+  const horizonEnd = U.dateAddDays(now, horizonDays);
+
+  const releaseEvents = (DataStore.events || []).filter(ev => {
+    const type = (ev.type || '').toLowerCase();
+    if (type !== 'release') return false;
+    if (!ev.start) return false;
+    const d = new Date(ev.start);
+    if (isNaN(d)) return false;
+    if (d < now) return false;
+    if (d > horizonEnd) return false;
+
+    const evEnv = ev.env || 'Prod';
+    if (env && env !== 'Other' && evEnv && evEnv !== env) return false;
+
+    return true;
+  });
+
+  releaseEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+  if (!releaseEvents.length) {
+    E.plannerReleasePlan.innerHTML =
+      '<option value="">No Release events in horizon</option>';
+    return;
+  }
+
+  const options = releaseEvents
+    .map(ev => {
+      const d = ev.start ? new Date(ev.start) : null;
+      const when = d && !isNaN(d)
+        ? d.toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : '(no date)';
+      const label = `[${when}] ${ev.title || 'Release'} (${ev.env || 'Prod'})`;
+      return `<option value="${U.escapeAttr(ev.id)}">${U.escapeHtml(label)}</option>`;
+    })
+    .join('');
+
+  E.plannerReleasePlan.innerHTML =
+    '<option value="">Select a Release event…</option>' + options;
+}
+
+function wirePlanner() {
+  if (!E.plannerRun) return;
+
+  E.plannerRun.addEventListener('click', () => {
+    if (!DataStore.rows.length) {
+      UI.toast('Issues are still loading. Try again in a few seconds.');
+      return;
+    }
+
+    const regionValue = (E.plannerRegion?.value || 'gulf').toLowerCase();
+    const region = ReleasePlanner.regionKey(regionValue);
+
+    const env = E.plannerEnv?.value || 'Prod';
+    const modulesStr = (E.plannerModules?.value || '').trim();
+    const modules = modulesStr
+      ? modulesStr
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : [];
+    const horizonDays =
+      parseInt(E.plannerHorizon?.value || '7', 10) || 7;
+    const releaseTypeValue =
+      (E.plannerReleaseType?.value || 'feature').toLowerCase();
+    const releaseType =
+      releaseTypeValue === 'major' || releaseTypeValue === 'minor'
+        ? releaseTypeValue
+        : 'feature';
+    const slotsPerDay =
+      parseInt(E.plannerSlotsPerDay?.value || '4', 10) || 4;
+    const description = (E.plannerDescription?.value || '').trim();
+
+    const context = {
+      region,
+      env,
+      modules,
+      releaseType,
+      horizonDays,
+      slotsPerDay,
+      description
+    };
+
+    const result = ReleasePlanner.suggestSlots(context);
+
+    LAST_PLANNER_CONTEXT = context;
+    LAST_PLANNER_RESULT = result;
+    renderPlannerResults(result, context);
+    refreshPlannerReleasePlans(context);
+  });
+
+  if (E.plannerAddEvent) {
+    E.plannerAddEvent.addEventListener('click', async () => {
+      if (!LAST_PLANNER_CONTEXT || !LAST_PLANNER_RESULT || !LAST_PLANNER_RESULT.slots.length) {
+        UI.toast('Run the planner first to get suggestions.');
+        return;
+      }
+      const context = LAST_PLANNER_CONTEXT;
+      const slot = LAST_PLANNER_RESULT.slots[0];
+
+      const startIso = slot.start.toISOString();
+      const endIso = slot.end.toISOString();
+      const startLocal = toLocalInputValue(new Date(startIso));
+      const endLocal = toLocalInputValue(new Date(endIso));
+
+      const regionLabel =
+        context.region === 'gulf'
+          ? 'Gulf (KSA / UAE / Qatar)'
+          : context.region === 'levant'
+          ? 'Levant'
+          : 'North Africa';
+
+      const modulesLabelLocal =
+        context.modules && context.modules.length
+          ? context.modules.join(', ')
+          : 'General';
+      const releaseDescription = (E.plannerDescription?.value || '').trim();
+
+      const newEvent = {
+        id: '',
+        title: `Release – ${modulesLabelLocal} (${context.releaseType})`,
+        type: 'Release',
+        env: context.env,
+        status: 'Planned',
+        owner: '',
+        modules: context.modules,
+        impactType:
+          context.env === 'Prod'
+            ? 'High risk change'
+            : 'Internal only',
+        issueId: '',
+        start: startLocal,
+        end: endLocal,
+        description:
+          `Auto-scheduled by Release Planner (top suggestion). Region profile: ${regionLabel}. Modules: ${modulesLabelLocal}.` +
+          (releaseDescription ? `\nRelease notes: ${releaseDescription}` : '') +
+          `\nHeuristic risk index computed from F&B rush hours, bug history, holidays and existing calendar events.`,
+        allDay: false,
+        notificationStatus: ''
+      };
+
+      const saved = await saveEventToSheet(newEvent);
+      if (!saved) {
+        UI.toast('Could not save release event');
+        return;
+      }
+      const idx = DataStore.events.findIndex(x => x.id === saved.id);
+      if (idx === -1) DataStore.events.push(saved);
+      else DataStore.events[idx] = saved;
+      saveEventsCache();
+      renderCalendarEvents();
+      refreshPlannerReleasePlans(context);
+      Analytics.refresh(UI.Issues.applyFilters());
+    });
+  }
+
+  if (E.plannerEnv) {
+    E.plannerEnv.addEventListener('change', () => {
+      refreshPlannerReleasePlans();
+    });
+  }
+  if (E.plannerHorizon) {
+    E.plannerHorizon.addEventListener('change', () => {
+      refreshPlannerReleasePlans();
+    });
+  }
+
+  if (E.plannerAssignBtn) {
+    E.plannerAssignBtn.addEventListener('click', async () => {
+      const planId = E.plannerReleasePlan?.value || '';
+      if (!planId) {
+        UI.toast('Select a Release event first.');
+        return;
+      }
+      const options = Array.from(E.plannerTickets?.selectedOptions || []);
+      const ticketIds = options.map(o => o.value).filter(Boolean);
+      if (!ticketIds.length) {
+        UI.toast('Select at least one ticket to assign.');
+        return;
+      }
+
+      const idx = DataStore.events.findIndex(ev => ev.id === planId);
+      if (idx === -1) {
+        UI.toast('Selected Release event not found. Try refreshing events.');
+        return;
+      }
+
+      const ev = DataStore.events[idx];
+      const existing = (ev.issueId || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...ticketIds]));
+
+      const updatedEvent = {
+        ...ev,
+        issueId: merged.join(', ')
+      };
+
+      const saved = await saveEventToSheet(updatedEvent);
+      if (!saved) {
+        UI.toast('Could not assign tickets to Release event.');
+        return;
+      }
+
+      DataStore.events[idx] = saved;
+      saveEventsCache();
+      renderCalendarEvents();
+      refreshPlannerReleasePlans();
+      Analytics.refresh(UI.Issues.applyFilters());
+
+      UI.toast(
+        `Assigned ${ticketIds.length} ticket${ticketIds.length > 1 ? 's' : ''} to the Release plan.`
+      );
+    });
+  }
+}
+
 /* ---------- Misc wiring ---------- */
 function setIfOptionExists(select, value) {
   if (!select || !value) return;
@@ -2655,6 +3556,7 @@ function wireCore() {
     UI.Issues.renderKPIs(list);
     UI.Issues.renderTable(list);
     UI.Issues.renderCharts(list);
+    refreshPlannerTickets(list);
     if (E.insightsView.classList.contains('active')) Analytics.refresh(list);
   };
 }
@@ -2839,296 +3741,452 @@ function wireConnectivity() {
 }
 
 function wireModals() {
-  if (E.modalClose) E.modalClose.addEventListener('click', () => UI.Modals.closeIssue());
-  if (E.issueModal)
+  // Issue modal
+  if (E.modalClose) {
+    E.modalClose.addEventListener('click', () => UI.Modals.closeIssue());
+  }
+  if (E.issueModal) {
     E.issueModal.addEventListener('click', e => {
+      // click outside panel closes
       if (e.target === E.issueModal) UI.Modals.closeIssue();
     });
+    E.issueModal.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        UI.Modals.closeIssue();
+      } else if (e.key === 'Tab') {
+        trapFocus(E.issueModal, e);
+      }
+    });
+  }
+  if (E.copyId) {
+    E.copyId.addEventListener('click', () => {
+      const r = UI.Modals.selectedIssue;
+      if (!r || !r.id) return;
+      navigator.clipboard
+        .writeText(r.id)
+        .then(() => UI.toast('Issue ID copied'))
+        .catch(() => UI.toast('Clipboard blocked'));
+    });
+  }
+   if (E.copyLink) {
+    E.copyLink.addEventListener('click', () => {
+      const r = UI.Modals.selectedIssue;
+      if (!r || !r.id) return;
+      const url = `${location.origin}${location.pathname}?issue=${encodeURIComponent(r.id)}`;
+      navigator.clipboard
+        .writeText(url)
+        .then(() => UI.toast('Deep link copied'))
+        .catch(() => UI.toast('Clipboard blocked'));
+    });
+  }
 
-  if (E.eventModalClose) E.eventModalClose.addEventListener('click', () => UI.Modals.closeEvent());
-  if (E.eventCancel) E.eventCancel.addEventListener('click', () => UI.Modals.closeEvent());
-  if (E.eventModal)
+  // Event modal
+  if (E.eventModalClose) {
+    E.eventModalClose.addEventListener('click', () => UI.Modals.closeEvent());
+  }
+  if (E.eventCancel) {
+    E.eventCancel.addEventListener('click', e => {
+      e.preventDefault();
+      UI.Modals.closeEvent();
+    });
+  }
+  if (E.eventModal) {
     E.eventModal.addEventListener('click', e => {
       if (e.target === E.eventModal) UI.Modals.closeEvent();
     });
-
-  document.addEventListener('keydown', e => {
-    const issueOpen = E.issueModal && E.issueModal.style.display === 'flex';
-    const eventOpen = E.eventModal && E.eventModal.style.display === 'flex';
-    if (e.key === 'Escape') {
-      if (eventOpen) UI.Modals.closeEvent();
-      else if (issueOpen) UI.Modals.closeIssue();
-    }
-    if (e.key === 'Tab') {
-      if (eventOpen && E.eventModal) trapFocus(E.eventModal, e);
-      else if (issueOpen && E.issueModal) trapFocus(E.issueModal, e);
-    }
-  });
-
-  if (E.copyId)
-    E.copyId.addEventListener('click', async () => {
-      if (!UI.Modals.selectedIssue) return;
-      try {
-        await navigator.clipboard.writeText(UI.Modals.selectedIssue.id || '');
-        UI.toast('Issue ID copied');
-      } catch {
-        UI.toast('Clipboard blocked');
+    E.eventModal.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        UI.Modals.closeEvent();
+      } else if (e.key === 'Tab') {
+        trapFocus(E.eventModal, e);
       }
     });
-  if (E.copyLink)
-    E.copyLink.addEventListener('click', async () => {
-      const link = UI.Modals.selectedIssue?.file || '';
-      if (!link) return UI.toast('No link on this issue');
-      try {
-        await navigator.clipboard.writeText(link);
-        UI.toast('Link copied');
-      } catch {
-        UI.toast('Clipboard blocked');
+  }
+
+  if (E.eventAllDay) {
+    E.eventAllDay.addEventListener('change', () => {
+      const allDay = !!E.eventAllDay.checked;
+      if (E.eventStart) {
+        const v = E.eventStart.value;
+        E.eventStart.type = allDay ? 'date' : 'datetime-local';
+        if (v && allDay && v.length >= 10) {
+          E.eventStart.value = v.slice(0, 10);
+        } else if (v && !allDay && v.length === 10) {
+          E.eventStart.value = v + 'T00:00';
+        }
+      }
+      if (E.eventEnd) {
+        const v = E.eventEnd.value;
+        E.eventEnd.type = allDay ? 'date' : 'datetime-local';
+        if (v && allDay && v.length >= 10) {
+          E.eventEnd.value = v.slice(0, 10);
+        } else if (v && !allDay && v.length === 10) {
+          E.eventEnd.value = v + 'T01:00';
+        }
       }
     });
+  }
 
-  // EVENT FORM SUBMIT
-  if (E.eventForm)
-    E.eventForm.addEventListener('submit', async e => {
+  if (E.eventForm && E.eventSave) {
+    E.eventForm.addEventListener('submit', e => {
       e.preventDefault();
+      E.eventSave.click();
+    });
+
+    E.eventSave.addEventListener('click', async () => {
       const id = E.eventForm.dataset.id || '';
       const allDay = !!(E.eventAllDay && E.eventAllDay.checked);
 
-      const envVal = E.eventEnv?.value || 'Prod';
-      const statusVal = E.eventStatus?.value || 'Planned';
-      const ownerVal = E.eventOwner?.value.trim() || '';
-      const modulesArr = (E.eventModules?.value || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-      const impactTypeVal =
-        E.eventImpactType?.value || 'No downtime expected';
+      const start = E.eventStart?.value || '';
+      const end = E.eventEnd?.value || '';
+
+      const modulesStr = E.eventModules?.value || '';
+      const modules = modulesStr
+        ? modulesStr
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+        : [];
 
       const ev = {
         id,
-        title: E.eventTitle.value.trim(),
-        type: E.eventType.value || 'Deployment',
-        issueId: E.eventIssueId.value.trim() || '',
-        start: E.eventStart.value,
-        end: E.eventEnd.value || '',
-        description: E.eventDescription.value.trim(),
+        title: E.eventTitle?.value || '',
+        type: E.eventType?.value || 'Deployment',
+        env: E.eventEnv?.value || 'Prod',
+        status: E.eventStatus?.value || 'Planned',
+        owner: E.eventOwner?.value || '',
+        modules,
+        impactType: E.eventImpactType?.value || 'No downtime expected',
+        issueId: E.eventIssueId?.value || '',
+        start,
+        end,
+        description: E.eventDescription?.value || '',
         allDay,
-        env: envVal,
-        status: statusVal,
-        owner: ownerVal,
-        modules: modulesArr,
-        impactType: impactTypeVal,
-        notificationStatus: '' // ✅ keep blank; Apps Script may set "Sent"
+        notificationStatus: (DataStore.events.find(e => e.id === id)?.notificationStatus) || ''
       };
-      if (!ev.title) return UI.toast('Title is required');
-      if (!ev.start) return UI.toast('Start date/time is required');
 
       const saved = await saveEventToSheet(ev);
-      if (!saved) {
-        UI.toast('Could not save event');
-        return;
-      }
+      if (!saved) return;
 
-      const idx = DataStore.events.findIndex(x => x.id === saved.id);
-      if (idx === -1) DataStore.events.push(saved);
-      else DataStore.events[idx] = saved;
+      const idx = DataStore.events.findIndex(e => e.id === saved.id);
+      if (idx >= 0) DataStore.events[idx] = saved;
+      else DataStore.events.push(saved);
+
       saveEventsCache();
       renderCalendarEvents();
+      refreshPlannerReleasePlans();
       Analytics.refresh(UI.Issues.applyFilters());
       UI.Modals.closeEvent();
     });
+  }
 
-  if (E.eventDelete)
+  if (E.eventDelete) {
     E.eventDelete.addEventListener('click', async () => {
-      const id = E.eventForm?.dataset?.id;
+      if (!E.eventForm) return;
+      const id = E.eventForm.dataset.id;
       if (!id) {
         UI.Modals.closeEvent();
         return;
       }
+      if (!confirm('Delete this event?')) return;
       const ok = await deleteEventFromSheet(id);
-      const idx = DataStore.events.findIndex(x => x.id === id);
-      if (idx > -1) DataStore.events.splice(idx, 1);
+      if (!ok) return;
+      const idx = DataStore.events.findIndex(e => e.id === id);
+      if (idx >= 0) DataStore.events.splice(idx, 1);
       saveEventsCache();
       renderCalendarEvents();
-      Analytics.refresh(UI.Issues.applyFilters());
+      refreshPlannerReleasePlans();
       UI.Modals.closeEvent();
-      if (!ok) UI.toast('Event removed locally; backend delete failed.');
-    });
-
-  if (E.eventAllDay) {
-    E.eventAllDay.addEventListener('change', () => {
-      const isAllDay = E.eventAllDay.checked;
-      const startVal = E.eventStart.value;
-      const endVal = E.eventEnd.value;
-      if (isAllDay) {
-        if (E.eventStart) {
-          E.eventStart.type = 'date';
-          if (startVal.includes('T')) E.eventStart.value = startVal.split('T')[0];
-        }
-        if (E.eventEnd) {
-          E.eventEnd.type = 'date';
-          if (endVal.includes('T')) E.eventEnd.value = endVal.split('T')[0];
-        }
-      } else {
-        if (E.eventStart) {
-          E.eventStart.type = 'datetime-local';
-          if (startVal && !startVal.includes('T'))
-            E.eventStart.value = startVal + 'T09:00';
-        }
-        if (E.eventEnd) {
-          E.eventEnd.type = 'datetime-local';
-          if (endVal && !endVal.includes('T')) E.eventEnd.value = endVal + 'T10:00';
-        }
-      }
     });
   }
 }
 
-/* ---------- AI wiring ---------- */
-let AI_LAST_RESULTS = [];
+/* ---------- AI query wiring ---------- */
 
-function wireAI() {
-  if (E.aiQueryRun) E.aiQueryRun.addEventListener('click', runQuery);
-  if (E.aiQueryInput)
-    E.aiQueryInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        runQuery();
-      }
-    });
-  if (E.aiQueryApplyFilters)
-    E.aiQueryApplyFilters.addEventListener('click', () => {
-      const q = E.aiQueryInput.value || '';
-      const p = DSL.parse(q);
-      if (p.module) Filters.state.module = guessOption(E.moduleFilter, p.module) || 'All';
-      if (p.priority) {
-        const val =
-          p.priority[0].toUpperCase() === 'H'
-            ? 'High'
-            : p.priority[0].toUpperCase() === 'M'
-            ? 'Medium'
-            : p.priority[0].toUpperCase() === 'L'
-            ? 'Low'
-            : 'All';
-        Filters.state.priority = guessOption(E.priorityFilter, val) || 'All';
-      }
-      if (p.status) {
-        const v =
-          p.status === 'open' || p.status === 'closed'
-            ? 'All'
-            : capitalizeFirst(p.status);
-        Filters.state.status = guessOption(E.statusFilter, v) || 'All';
-      }
-      if (p.lastDays) {
-        const from = U.daysAgo(p.lastDays);
-        Filters.state.start = U.fmtTS(from).slice(0, 10);
-        Filters.state.end = '';
-      }
-      Filters.save();
-      E.issuesTab?.click();
-      UI.refreshAll();
-    });
+let LAST_AI_QUERY_RESULTS = [];
+let LAST_AI_QUERY_DSL = null;
 
-  if (E.aiQueryExport) {
-    E.aiQueryExport.addEventListener('click', () => {
-      if (!AI_LAST_RESULTS.length) {
-        UI.toast('Run a query first to export results.');
-        return;
-      }
-      exportIssuesToCsv(AI_LAST_RESULTS, 'ai');
-    });
-  }
-}
+function renderAiQueryResults(rows, q, rawText) {
+  if (!E.aiQueryResults) return;
+  LAST_AI_QUERY_RESULTS = rows;
+  LAST_AI_QUERY_DSL = q;
 
-function runQuery() {
-  const q = E.aiQueryInput.value.trim();
-  if (!q) {
-    E.aiQueryResults.textContent =
-      'Type a query with keywords and filters like module:, status:, risk>=9';
-    AI_LAST_RESULTS = [];
+  if (!rawText.trim()) {
+    E.aiQueryResults.innerHTML =
+      '<div class="muted">Type a query like <code>status:open risk>=9 payments timeout</code> and hit Run.</div>';
     return;
   }
-  const p = DSL.parse(q);
-  const list = DataStore.rows.filter(r =>
-    DSL.matches(r, DataStore.computed.get(r.id) || {}, p)
-  );
-  AI_LAST_RESULTS = list.slice();
 
-  let sort = p.sort || 'risk';
-  if (sort === 'risk')
-    list.sort(
-      (a, b) =>
-        (DataStore.computed.get(b.id)?.risk?.total || 0) -
-        (DataStore.computed.get(a.id)?.risk?.total || 0)
-    );
-  if (sort === 'date') list.sort((a, b) => new Date(b.date) - new Date(a.date));
-  if (sort === 'priority') list.sort((a, b) => prioMap(b.priority) - prioMap(a.priority));
+  if (!rows.length) {
+    E.aiQueryResults.innerHTML = `<div>No issues match query: <code>${U.escapeHtml(
+      rawText
+    )}</code>.</div>`;
+    return;
+  }
 
-  const explain = [];
-  if (p.module) explain.push(`module includes "${p.module}"`);
-  if (p.status) explain.push(`status ${p.status}`);
-  if (p.priority) explain.push(`priority ${p.priority}`);
-  if (p.type) explain.push(`type includes "${p.type}"`);
-  if (p.missing) explain.push(`missing ${p.missing}`);
-  if (p.riskOp) explain.push(`risk ${p.riskOp} ${p.riskVal}`);
-  if (p.severityOp) explain.push(`severity ${p.severityOp} ${p.severityVal}`);
-  if (p.impactOp) explain.push(`impact ${p.impactOp} ${p.impactVal}`);
-  if (p.urgencyOp) explain.push(`urgency ${p.urgencyOp} ${p.urgencyVal}`);
-  if (p.ageOp) explain.push(`age ${p.ageOp} ${p.ageVal}d`);
-  if (p.lastDays) explain.push(`last ${p.lastDays}d`);
-  if (p.cluster) explain.push(`cluster matches "${p.cluster}"`);
-  if (p.eventScope) explain.push(`event:${p.eventScope}`);
-  if (p.words?.length) explain.push(`contains ${p.words.join(' ')}`);
+  const parts = [];
 
-  const shown = list.slice(0, 20);
-  E.aiQueryResults.innerHTML = `
-    <div style="margin-bottom:6px;">Found <strong>${list.length}</strong> issues (showing top ${
-    shown.length
-  } by ${U.escapeHtml(sort)}).<br/>
-    <span class="muted">Filters: ${U.escapeHtml(
-      explain.join('; ') || '—'
-    )}</span></div>
-    <ul style="padding-left:18px;margin:0;">
-      ${shown
-        .map(i => {
-          const rs = DataStore.computed.get(i.id)?.risk?.total || 0;
-          const rMeta = DataStore.computed.get(i.id)?.risk || {};
-          return `<li style="margin-bottom:4px;">
-          <button type="button" class="btn sm" style="padding:3px 6px;margin-right:4px;" data-open="${U.escapeAttr(
-            i.id
-          )}">${U.escapeHtml(i.id)}</button>
-          [${U.escapeHtml(i.priority || '-')} · ${U.escapeHtml(
-            i.status || '-'
-          )} · risk ${rs} · sev ${rMeta.severity ?? 0}] ${U.escapeHtml(
-            i.title || '(no title)'
-          )}
+  const head = `
+    <div style="margin-bottom:6px;">
+      <strong>${rows.length}</strong> issue${rows.length === 1 ? '' : 's'} match
+      <code>${U.escapeHtml(rawText)}</code>
+    </div>`;
+  parts.push(head);
+
+  const sample = rows.slice(0, 30);
+
+  const items = sample
+    .map(r => {
+      const meta = DataStore.computed.get(r.id) || {};
+      const risk = meta.risk?.total || 0;
+      const badgeClass = CalendarLink.riskBadgeClass(risk);
+      const reasons = (meta.risk?.reasons || []).join(', ');
+      return `
+        <li class="ai-query-item">
+          <div class="ai-query-main">
+            <button class="btn sm" data-open="${U.escapeAttr(
+              r.id
+            )}">${U.escapeHtml(r.id)}</button>
+            <span class="muted">[${U.escapeHtml(r.priority || '-')}]</span>
+            <span class="ai-query-title">${U.escapeHtml(r.title || '')}</span>
+          </div>
+          <div class="ai-query-meta">
+            Module: ${U.escapeHtml(r.module || '-')} · Status: ${U.escapeHtml(
+        r.status || '-'
+      )} · Date: ${U.escapeHtml(r.date || '-')}
+            <span class="event-risk-badge ${badgeClass}">RISK ${risk}</span>
+          </div>
+          ${
+            reasons
+              ? `<div class="ai-query-meta muted">Signals: ${U.escapeHtml(reasons)}</div>`
+              : ''
+          }
         </li>`;
-        })
-        .join('')}
-    </ul>`;
-  U.qAll('#aiQueryResults [data-open]').forEach(b =>
-    b.addEventListener('click', () =>
-      UI.Modals.openIssue(b.getAttribute('data-open'))
-    )
-  );
+    })
+    .join('');
+
+  const more =
+    rows.length > sample.length
+      ? `<div class="muted" style="margin-top:4px;">+ ${
+          rows.length - sample.length
+        } more not shown.</div>`
+      : '';
+
+  parts.push(`<ul class="ai-query-list">${items}</ul>${more}`);
+
+  E.aiQueryResults.innerHTML = parts.join('');
+
+  E.aiQueryResults.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-open');
+      UI.Modals.openIssue(id);
+    });
+  });
 }
 
-function guessOption(select, value) {
-  if (!select || !value) return null;
-  const v = value.toLowerCase();
-  const opt = Array.from(select.options).find(o =>
-    o.value.toLowerCase().includes(v)
-  );
-  return opt?.value || null;
-}
-function capitalizeFirst(s) {
-  return s ? s[0].toUpperCase() + s.slice(1) : s;
+function runAiQuery() {
+  if (!E.aiQueryInput) return;
+  const raw = E.aiQueryInput.value || '';
+  const text = raw.trim();
+  if (!text) {
+    renderAiQueryResults([], DSL.parse(''), '');
+    return;
+  }
+  const q = DSL.parse(text);
+
+  const rows = DataStore.rows.filter(r => {
+    const meta = DataStore.computed.get(r.id) || {};
+    return DSL.matches(r, meta, q);
+  });
+
+  // Sorting
+  const sorted = (() => {
+    if (!q.sort) return rows;
+    if (q.sort === 'risk') {
+      return [...rows].sort(
+        (a, b) =>
+          (DataStore.computed.get(b.id)?.risk?.total || 0) -
+          (DataStore.computed.get(a.id)?.risk?.total || 0)
+      );
+    }
+    if (q.sort === 'date') {
+      return [...rows].sort((a, b) => {
+        const da = new Date(a.date);
+        const db = new Date(b.date);
+        const na = isNaN(da);
+        const nb = isNaN(db);
+        if (na && nb) return 0;
+        if (na) return 1;
+        if (nb) return -1;
+        return db - da;
+      });
+    }
+    if (q.sort === 'priority') {
+      const w = v => prioMap(v) * -1; // higher first
+      return [...rows].sort(
+        (a, b) => w(a.priority || '') - w(b.priority || '')
+      );
+    }
+    return rows;
+  })();
+
+  renderAiQueryResults(sorted, q, raw);
 }
 
-/* ---------- App init ---------- */
-function initApp() {
+function applyAiQueryToFilters() {
+  if (!LAST_AI_QUERY_DSL) return;
+  const q = LAST_AI_QUERY_DSL;
+
+  // Map module to exact option if possible
+  if (q.module && E.moduleFilter) {
+    const target = q.module.toLowerCase();
+    const opts = Array.from(E.moduleFilter.options || []);
+    const match =
+      opts.find(o => o.value.toLowerCase() === target) ||
+      opts.find(o => o.value.toLowerCase().includes(target));
+    Filters.state.module = match ? match.value : 'All';
+    E.moduleFilter.value = Filters.state.module;
+  }
+
+  if (q.priority && E.priorityFilter) {
+    const p = q.priority[0]?.toUpperCase();
+    const val =
+      p === 'H' ? 'High' : p === 'M' ? 'Medium' : p === 'L' ? 'Low' : 'All';
+    Filters.state.priority = val;
+    E.priorityFilter.value = val;
+  }
+
+  if (q.status && E.statusFilter) {
+    const s = q.status.toLowerCase();
+    // Only map simple closed/open to All, otherwise try to match text
+    if (s === 'open' || s === 'closed') {
+      Filters.state.status = 'All';
+      E.statusFilter.value = 'All';
+    } else {
+      const opts = Array.from(E.statusFilter.options || []);
+      const match =
+        opts.find(o => o.value.toLowerCase() === s) ||
+        opts.find(o => o.value.toLowerCase().includes(s));
+      const val = match ? match.value : 'All';
+      Filters.state.status = val;
+      E.statusFilter.value = val;
+    }
+  }
+
+  if (q.lastDays && E.startDateFilter) {
+    const from = U.daysAgo(q.lastDays);
+    const d = toLocalDateValue(from);
+    Filters.state.start = d;
+    E.startDateFilter.value = d;
+  }
+
+  Filters.save();
+  UI.refreshAll();
+  setActiveView('issues');
+  UI.toast('Applied AI query to filters');
+}
+
+function exportAiQueryResults() {
+  if (!LAST_AI_QUERY_RESULTS || !LAST_AI_QUERY_RESULTS.length) {
+    UI.toast('Nothing to export from AI query.');
+    return;
+  }
+  exportIssuesToCsv(LAST_AI_QUERY_RESULTS, 'aiquery');
+}
+
+function wireAI() {
+  if (E.aiQueryRun) {
+    E.aiQueryRun.addEventListener('click', () => runAiQuery());
+  }
+
+  if (E.aiQueryInput) {
+    E.aiQueryInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+        // plain Enter runs query
+        e.preventDefault();
+        runAiQuery();
+      } else if (
+        (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ||
+        (e.key === 'k' && (e.metaKey || e.ctrlKey))
+      ) {
+        // Ctrl+Enter or Cmd/Ctrl+K also runs query
+        e.preventDefault();
+        runAiQuery();
+      }
+    });
+  }
+
+  if (E.aiQueryApplyFilters) {
+    E.aiQueryApplyFilters.addEventListener('click', () => applyAiQueryToFilters());
+  }
+
+  if (E.aiQueryExport) {
+    E.aiQueryExport.addEventListener('click', () => exportAiQueryResults());
+  }
+
+  // Initial hint
+  renderAiQueryResults([], DSL.parse(''), '');
+}
+
+/* ---------- Keyboard shortcuts ---------- */
+
+function wireKeyboardShortcuts() {
+  document.addEventListener('keydown', e => {
+    const tag = (e.target && e.target.tagName) || '';
+    const editable =
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      (e.target && e.target.isContentEditable);
+    if (editable && !e.metaKey && !e.ctrlKey) {
+      // Let normal typing work
+      if (e.key !== '/' && e.key !== 'Escape') return;
+    }
+
+    // '/' focuses search
+    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (E.searchInput) {
+        e.preventDefault();
+        E.searchInput.focus();
+        E.searchInput.select();
+      }
+      return;
+    }
+
+    // Tabs 1/2/3
+    if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (e.key === '1') {
+        setActiveView('issues');
+        return;
+      }
+      if (e.key === '2') {
+        setActiveView('calendar');
+        return;
+      }
+      if (e.key === '3') {
+        setActiveView('insights');
+        return;
+      }
+    }
+
+    // Ctrl/Cmd+K => AI query box
+    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      setActiveView('insights');
+      if (E.aiQueryInput) {
+        E.aiQueryInput.focus();
+        E.aiQueryInput.select();
+      }
+      return;
+    }
+  });
+}
+
+/* ---------- Bootstrapping ---------- */
+
+document.addEventListener('DOMContentLoaded', () => {
   cacheEls();
-  if (E.pageSize) E.pageSize.value = String(GridState.pageSize);
   Filters.load();
 
   wireCore();
@@ -3138,42 +4196,32 @@ function initApp() {
   wireTheme();
   wireConnectivity();
   wireModals();
-  wireAI();
   wireCalendar();
+  wirePlanner();
+  wireAI();
+  wireKeyboardShortcuts();
 
-  UI.setSync('issues', false, null);
-  UI.setSync('events', false, null);
+  if (E.pageSize) E.pageSize.value = String(GridState.pageSize || 20);
 
-  let savedView = 'issues';
+  const view = localStorage.getItem(LS_KEYS.view) || 'issues';
+  setActiveView(view);
+
+  loadIssues(false);
+  loadEvents(false);
+
+  // Deep link: ?issue=123 or #issue-123
   try {
-    savedView = localStorage.getItem(LS_KEYS.view) || 'issues';
-  } catch {}
-  setActiveView(savedView);
-
-  loadIssues();
-  loadEvents();
-
-  if (typeof Chart === 'undefined') UI.toast('Chart.js failed to load');
-  if (typeof Papa === 'undefined') UI.toast('PapaParse failed to load');
-
-  document.addEventListener('keydown', e => {
-    if (e.key === '/') {
-      e.preventDefault();
-      E.searchInput?.focus();
+    const params = new URLSearchParams(location.search);
+    let deepId = params.get('issue') || '';
+    if (!deepId && location.hash && location.hash.startsWith('#issue-')) {
+      deepId = decodeURIComponent(location.hash.slice('#issue-'.length));
     }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      E.aiQueryInput?.focus();
+    if (deepId) {
+      setTimeout(() => {
+        if (DataStore.byId.has(deepId)) UI.Modals.openIssue(deepId);
+      }, 800);
     }
-    if (!e.ctrlKey && !e.metaKey) {
-      if (e.key === '1') E.issuesTab?.click();
-      if (e.key === '2') E.calendarTab?.click();
-      if (e.key === '3') E.insightsTab?.click();
-    }
-  });
-}
-
-document.addEventListener('DOMContentLoaded', initApp);
-
-/* Auto-refresh events every 5 minutes */
-setInterval(() => loadEvents(true), 5 * 60 * 1000);
+  } catch {
+    // ignore
+  }
+});
