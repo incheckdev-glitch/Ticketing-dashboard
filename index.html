@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>InCheck — Issues · Ops · AI Copilot</title>
+  <title>Ticketing Dashboard</title>
 
   <!-- Fonts & Libs -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <!-- FullCalendar -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet" />
@@ -20,10 +21,9 @@
 <body>
   <header>
     <div class="brand" aria-label="InCheck brand">
-      <div class="logo" aria-hidden="true">IC</div>
+      <img src="assets/incheck-logo.svg" class="brand-logo" alt="InCheck 360 logo" />
       <div class="brand-text">
-        <span>INCHECK</span>
-        <span>Issues · Ops · Copilot</span>
+       
       </div>
     </div>
 
@@ -47,7 +47,7 @@
       <button id="refreshNow" class="btn" aria-label="Refresh from source">
         <span class="icon" aria-hidden="true">🔄</span> Refresh
       </button>
-      <button id="exportCsv" class="btn" aria-label="Export filtered issues as CSV">
+      <button id="exportCsv" class="btn" aria-label="Export filtered issues as Excel">
         <span class="icon" aria-hidden="true">📥</span> Export
       </button>
       <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket">
