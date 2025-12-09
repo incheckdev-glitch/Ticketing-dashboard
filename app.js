@@ -2717,13 +2717,17 @@ function setActiveView(view) {
   if (view === 'calendar') {
     ensureCalendar();
     renderCalendarEvents();
+    scheduleCalendarResize();
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
 }
 
 /* ---------- Calendar wiring ---------- */
 let calendar = null,
-  calendarReady = false;
+calendarReady = false,
+  calendarResizeTimer = null,
+  calendarResizeObserver = null,
+  calendarResizeObservedEl = null;
 
 function wireCalendar() {
   if (E.addEventBtn)
@@ -2752,6 +2756,49 @@ function wireCalendar() {
       E.calendarTz.textContent = '';
     }
   }
+
+  observeCalendarContainer();
+  window.addEventListener('resize', scheduleCalendarResize);
+}
+
+function scheduleCalendarResize() {
+  if (!calendar) return;
+  clearTimeout(calendarResizeTimer);
+  calendarResizeTimer = setTimeout(() => {
+    if (calendar) calendar.updateSize();
+  }, 120);
+}
+
+function observeCalendarContainer() {
+  const el = document.getElementById('calendar');
+  const card = el ? el.closest('.card') || el : null;
+
+  if (!card) return;
+  if (calendarResizeObservedEl === card) return;
+
+  if (calendarResizeObserver) {
+    calendarResizeObserver.disconnect();
+  }
+
+  calendarResizeObservedEl = card;
+  calendarResizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      if (entry.contentRect && entry.contentRect.width > 0) {
+        scheduleCalendarResize();
+        break;
+      }
+    }
+  });
+
+  calendarResizeObserver.observe(card);
+}
+
+function scheduleCalendarResize() {
+  if (!calendar) return;
+  clearTimeout(calendarResizeTimer);
+  calendarResizeTimer = setTimeout(() => {
+    if (calendar) calendar.updateSize();
+  }, 120);
 }
 
 function ensureCalendar() {
@@ -2879,9 +2926,10 @@ function ensureCalendar() {
   calendarReady = true;
   renderCalendarEvents();
   calendar.render();
+  scheduleCalendarResize();
 }
 
-function renderCalendarEvents() {
+ function renderCalendarEvents() {
   if (!calendar) return;
   const activeTypes = new Set();
   if (E.eventFilterDeployment && E.eventFilterDeployment.checked)
@@ -2897,7 +2945,7 @@ function renderCalendarEvents() {
   const { flagsById } = computeChangeCollisions(DataStore.rows, DataStore.events);
 
   calendar.removeAllEvents();
-  DataStore.events.forEach(ev => {
+      DataStore.events.forEach(ev => {
     const type = ev.type || 'Other';
     if (activeTypes.size && !activeTypes.has(type)) return;
     const risk = riskMap.get(ev.id) || 0;
@@ -2924,7 +2972,7 @@ function renderCalendarEvents() {
     if (flags.freeze) classNames.push('event-freeze');
     if (flags.hotIssues) classNames.push('event-hot');
 
-    calendar.addEvent({
+      calendar.addEvent({
       id: ev.id,
       title: ev.title,
       start: ev.start,
@@ -2946,9 +2994,10 @@ function renderCalendarEvents() {
         hotIssues: !!flags.hotIssues
       },
       classNames
+    });    
     });
-  });
-}
+  scheduleCalendarResize();
+  }
 
 /* ---------- Networking & data loading ---------- */
 async function safeFetchText(url, opts = {}) {
@@ -4125,12 +4174,6 @@ function wireModals() {
       refreshPlannerReleasePlans();
       Analytics.refresh(UI.Issues.applyFilters());
       UI.Modals.closeEvent();
-    });
-  }
-
-  if (E.eventSave) {
-    E.eventSave.addEventListener('click', () => {
-      if (E.eventForm?.requestSubmit) E.eventForm.requestSubmit();
     });
   }
 
