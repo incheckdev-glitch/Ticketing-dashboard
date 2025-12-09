@@ -39,6 +39,7 @@
   --ai-table-row-even:#030712;
   --ai-table-row-hover:#111827;
   --ai-table-cell-border:rgba(15,23,42,.9);
+  
 }
 :root[data-theme="light"] {
   --bg:#f3f4f6;
@@ -64,6 +65,7 @@
   --ai-table-row-even:#f9fafb;
   --ai-table-row-hover:#f3f4f6;
   --ai-table-cell-border:rgba(229,231,235,.9);
+  
 }
 
 /* Base */
@@ -97,6 +99,7 @@ header{
   backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:12px;padding:10px 18px;
+  justify-content:center;
 }
 :root[data-theme="light"] header{
   background:rgba(255,255,255,.96);
@@ -105,12 +108,7 @@ header{
 .brand{
   display:flex;align-items:center;gap:10px;
 }
-.brand .logo{
-  width:28px;height:28px;border-radius:8px;
-  display:grid;place-items:center;
-  background:linear-gradient(135deg,#1d4ed8,#22c55e);
-  color:#fff;font-weight:700;font-size:14px;
-}
+.brand-logo{height:38px;width:auto;display:block;object-fit:contain;}
 .brand-text{display:flex;flex-direction:column}
 .brand-text span:first-child{
   font-size:11px;
@@ -125,9 +123,9 @@ header{
 
 /* Toolbar */
 .toolbar{
-  margin-left:auto;
   display:flex;gap:10px;align-items:center;flex-wrap:wrap;
   font-size:13px;
+  justify-content:center;
 }
 
 /* Inputs / buttons */
