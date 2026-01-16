@@ -1,5 +1,4 @@
 
-
 /**
  * ticketing Dashboard
  * Single-file architecture:
@@ -3038,12 +3037,11 @@ UI.Modals = {
         }.
       </div>
       ${linkedSection}
-     `;
-    if (E.editIssueBtn) {
+      if (E.editIssueBtn) {
       E.editIssueBtn.disabled = false;
       E.editIssueBtn.dataset.id = r.id || '';
     }
-    
+    `;
     E.issueModal.style.display = 'flex';
     E.copyId?.focus();
   },
