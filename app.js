@@ -1,4 +1,5 @@
 
+
 /**
  * ticketing Dashboard
  * Single-file architecture:
@@ -3000,7 +3001,7 @@ UI.Modals = {
     }
 
     E.modalTitle.textContent = r.title || r.id || 'Issue';
-   const modalHtml = `
+    E.modalBody.innerHTML = `
       <p><b>ID:</b> ${U.escapeHtml(r.id || '-')}</p>
       <p><b>Name:</b> ${U.escapeHtml(r.name || '-')}</p>
       <p><b>Department:</b> ${U.escapeHtml(r.department || '-')}</p>
@@ -3027,7 +3028,7 @@ UI.Modals = {
       }
       <div style="margin-top:10px" class="muted">
         Suggested: priority <b>${U.escapeHtml(
-          meta.suggestions?.priority || 'Urgent'
+          meta.suggestions?.priority || '-'
         )}</b>;
         categories: ${
           (meta.suggestions?.categories || [])
