@@ -758,9 +758,9 @@ th.sorted-desc::after{
 .ticket-risk{font-size:26px}
 .ticket-summary{padding:16px;border-bottom:1px solid var(--border)}
 .ticket-summary h4{font-size:34px;line-height:1.15;margin:0 0 10px}
-.ticket-meta-row{display:flex;gap:20px;flex-wrap:wrap;font-size:22px}
+.ticket-meta-row{display:flex;gap:20px;flex-wrap:wrap;font-size:22px;justify-content:space-between;align-items:center}
 .ticket-priority{color:#ef4444;font-weight:700}
-.ticket-status{color:var(--muted)}
+.ticket-status{color:var(--muted);margin-left:auto;text-align:right}
 .ticket-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
