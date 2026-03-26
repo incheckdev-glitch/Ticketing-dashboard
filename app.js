@@ -1632,7 +1632,7 @@ function cacheEls() {
     'issueModal',
     'modalBody',
     'modalTitle',
-    'replySenderSelect',
+    'replyRecipientLabel',
     'replyEmailBtn',
     'copyId',
     'copyLink',
@@ -3093,18 +3093,8 @@ UI.Modals = {
       E.editIssueBtn.disabled = false;
       E.editIssueBtn.dataset.id = r.id || '';
     }
-    if (E.replySenderSelect) {
-      const requesterEmail = (r.emailAddressee || '').trim();
-      const requesterOption = E.replySenderSelect.querySelector('option[value="requester"]');
-      if (requesterOption) {
-        requesterOption.textContent = requesterEmail
-          ? `To: Requester (${requesterEmail})`
-          : 'To: Requester (email missing)';
-        requesterOption.disabled = !requesterEmail;
-      }
-      if (E.replySenderSelect.value === 'requester' && !requesterEmail) {
-        E.replySenderSelect.value = 'khaled';
-      }
+    if (E.replyRecipientLabel) {
+      E.replyRecipientLabel.textContent = 'To: khaled.yakan@incheck360.nl';
     }
     E.issueModal.style.display = 'flex';
     E.copyId?.focus();
@@ -3331,10 +3321,9 @@ const IssueEditor = {
   }
 };
 
-function buildIssueReplyMail(issue, recipientMode = 'requester') {
-  const requesterEmail = (issue?.emailAddressee || '').trim();
+function buildIssueReplyMail(issue) {
   const khaledEmail = 'khaled.yakan@incheck360.nl';
-  const toEmail = recipientMode === 'khaled' ? khaledEmail : requesterEmail;
+  const toEmail = khaledEmail;
   const safeTitle = issue?.title || '(no title)';
   const subject = `Re: Ticket ${issue?.id || ''} - ${safeTitle}`.trim();
   const body =
@@ -3356,13 +3345,7 @@ function openReplyComposerForIssue(issue) {
     return;
   }
 
-  const selectedRecipient = E.replySenderSelect?.value || 'requester';
-  const mail = buildIssueReplyMail(issue, selectedRecipient);
-
-  if (!mail.toEmail) {
-    UI.toast('This ticket has no requester email to send to.');
-    return;
-  }
+  const mail = buildIssueReplyMail(issue);
 
   const outlookCompose = new URL('https://outlook.office.com/mail/deeplink/compose');
   outlookCompose.searchParams.set('to', mail.toEmail);
