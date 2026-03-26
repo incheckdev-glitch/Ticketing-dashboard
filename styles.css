@@ -725,6 +725,68 @@ th.sorted-desc::after{
 }
 .modal .actions{display:flex;gap:8px;flex-wrap:wrap}
 .modal-close{cursor:pointer;border:none;background:transparent;color:var(--muted);font-size:20px}
+.ticket-detail{
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  background:color-mix(in oklab, var(--card) 95%, #ffffff 5%);
+}
+.ticket-detail-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.ticket-person{display:flex;align-items:center;gap:12px}
+.ticket-avatar{
+  width:56px;height:56px;border-radius:14px;
+  display:grid;place-items:center;
+  font-weight:700;font-size:22px;
+  background:linear-gradient(135deg, rgba(148,163,184,.35), rgba(148,163,184,.15));
+  border:1px solid var(--border);
+}
+.ticket-id{
+  font-size:12px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+.ticket-person h3{margin:0;font-size:30px;line-height:1}
+.ticket-risk{font-size:26px}
+.ticket-summary{padding:16px;border-bottom:1px solid var(--border)}
+.ticket-summary h4{font-size:34px;line-height:1.15;margin:0 0 10px}
+.ticket-meta-row{display:flex;gap:20px;flex-wrap:wrap;font-size:22px}
+.ticket-priority{color:#ef4444;font-weight:700}
+.ticket-status{color:var(--muted)}
+.ticket-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  border-bottom:1px solid var(--border);
+}
+.ticket-col{padding:14px 16px}
+.ticket-col + .ticket-col{border-left:1px solid var(--border)}
+.ticket-col p{margin:0 0 8px}
+.ticket-description,.ticket-log{padding:16px;border-bottom:1px solid var(--border)}
+.ticket-description p{
+  margin:8px 0 0;
+  padding:10px 12px;
+  border-radius:10px;
+  background:rgba(245, 158, 11, .1);
+}
+.ticket-log{border-bottom:none}
+.ticket-log h4{font-size:32px;line-height:1.1;margin:0 0 8px}
+
+@media (max-width:840px){
+  .ticket-summary h4{font-size:26px}
+  .ticket-log h4{font-size:24px}
+  .ticket-risk{font-size:22px}
+  .ticket-person h3{font-size:24px}
+  .ticket-grid{grid-template-columns:1fr}
+  .ticket-col + .ticket-col{border-left:none;border-top:1px solid var(--border)}
+}
 
 /* Pagination */
 .table-actions{
