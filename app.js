@@ -3024,7 +3024,7 @@ UI.Modals = {
     E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
     E.modalBody.innerHTML = `
       <article class="ticket-detail">
-        <section class="ticket-detail-top">
+        <section class="ticket-hero">
           <div class="ticket-person">
             <div class="ticket-avatar">${personInitial}</div>
             <div>
@@ -3032,26 +3032,37 @@ UI.Modals = {
               <h3>${personName}</h3>
             </div>
           </div>
-          <div class="ticket-risk"><strong>${status}</strong></div>
+          <div class="ticket-status-pill">${status}</div>
+        </section>
+
+        <section class="ticket-title-row">
+          <h4>${title}</h4>
+          <span class="ticket-priority-pill">🔥 Priority: ${priority}</span>
         </section>
 
         <section class="ticket-grid">
           <div class="ticket-col">
-            <p><b>Ticket #:</b> ${ticketId}</p>
-            <p><b>Date:</b> ${dateValue}</p>
-            <p><b>Name:</b> ${personName}</p>
-            <p><b>Department:</b> ${department}</p>
-            <p><b>Title:</b> ${title}</p>
-            <p><b>Description:</b> ${description}</p>
-            <p><b>Priority:</b> ${priority}</p>
+            <p><span class="ticket-label">🗓 Date:</span> ${dateValue}</p>
+            <p><span class="ticket-label">👤 Name:</span> ${personName}</p>
+            <p><span class="ticket-label">🏢 Department:</span> ${department}</p>
+            <p><span class="ticket-label">📦 Module:</span> ${moduleName}</p>
           </div>
           <div class="ticket-col">
-            <p><b>Category:</b> ${category}</p>
-            <p><b>Module:</b> ${moduleName}</p>
-            <p><b>Status:</b> ${status}</p>
-            <p><b>Email Address:</b> ${requesterEmail}</p>
-            <p><b>Log:</b> ${logValue}</p>
+            <p><span class="ticket-label">🏷 Category:</span> ${category}</p>
+            <p><span class="ticket-label">📧 Email Address:</span> ${requesterEmail}</p>
+            <p><span class="ticket-label">📌 Status:</span> ${status}</p>
+            <p><span class="ticket-label">🆔 Ticket #:</span> ${ticketId}</p>
           </div>
+        </section>
+
+        <section class="ticket-description">
+          <h5>Description</h5>
+          <p>${description}</p>
+        </section>
+
+        <section class="ticket-log">
+          <h5>Log</h5>
+          <p>${logValue}</p>
         </section>
       </article>
     `;
