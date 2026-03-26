@@ -3007,8 +3007,6 @@ UI.Modals = {
     if (!r || !E.issueModal) return;
     this.selectedIssue = r;
     this.lastFocus = document.activeElement;
-    const computed = DataStore.computed.get(r.id) || {};
-    const riskScore = Number(computed?.risk?.total || 0);
     const ticketId = U.escapeHtml(r.id || '-');
     const personName = U.escapeHtml(r.name || 'Unknown');
     const personInitial = U.escapeHtml((r.name || '?').trim().charAt(0).toUpperCase() || '?');
@@ -3020,13 +3018,8 @@ UI.Modals = {
     const department = U.escapeHtml(r.department || '-');
     const dateValue = U.escapeHtml(r.date || '-');
     const requesterEmail = U.escapeHtml(r.email || r.emailAddressee || '-');
-    const emailAddressee = U.escapeHtml(r.emailAddressee || r.email || '-');
     const category = U.escapeHtml(r.type || '-');
     const logValue = U.escapeHtml(r.log || '—');
-    const submittedValue = U.escapeHtml(r.submitted || r.createdAt || r.date || '-');
-    const notificationSent = U.escapeHtml(r.notificationSent || '—');
-    const notificationReview = U.escapeHtml(r.notificationSentUnderReview || '—');
-    const priorityClass = `priority-${String(r.priority || '').toLowerCase()}`;
 
     E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
     E.modalBody.innerHTML = `
@@ -3039,101 +3032,36 @@ UI.Modals = {
               <h3>${personName}</h3>
             </div>
           </div>
-          <div class="ticket-actions-stack">
-            <div class="ticket-actions-row">
-              <button id="copyTicketIdBtn" class="btn sm ticket-btn" type="button" aria-label="Copy ticket id">
-                <span aria-hidden="true">🆔</span> Copy ID
-              </button>
-              <button id="copyLink" class="btn sm ticket-btn" type="button" aria-label="Copy issue link">
-                <span aria-hidden="true">🔗</span> Copy Link
-              </button>
-              <button id="replyEmailBtn" class="btn sm ticket-btn" type="button" aria-label="Reply via email">
-                <span aria-hidden="true">✉️</span> Reply via Email
-              </button>
-            </div>
-            <button id="editIssueBtn" class="btn sm ticket-edit-btn" type="button" aria-label="Edit issue">
-              <span aria-hidden="true">✏️</span> Edit
-            </button>
-          </div>
-        </section>
-
-        <section class="ticket-summary">
-          <div class="ticket-summary-head">
-            <h4>${title}</h4>
-            <div class="ticket-risk">Risk: <strong>${riskScore || 0}</strong></div>
-          </div>
-          <div class="ticket-meta-row">
-            <span class="ticket-priority ${priorityClass}">🔥 Priority: ${priority}</span>
-            <span class="ticket-status">${status}</span>
-          </div>
+          <div class="ticket-risk"><strong>${status}</strong></div>
         </section>
 
         <section class="ticket-grid">
           <div class="ticket-col">
-            <p>🗓️ <b>Submitted:</b> ${submittedValue}</p>
-            <p>🕒 <b>Date:</b> ${dateValue}</p>
-            <p>✉️ <b>Email:</b> ${requesterEmail}</p>
+            <p><b>Ticket #:</b> ${ticketId}</p>
+            <p><b>Date:</b> ${dateValue}</p>
+            <p><b>Name:</b> ${personName}</p>
+            <p><b>Department:</b> ${department}</p>
+            <p><b>Title:</b> ${title}</p>
+            <p><b>Description:</b> ${description}</p>
+            <p><b>Priority:</b> ${priority}</p>
           </div>
           <div class="ticket-col">
-            <p>📩 <b>Email Addressee:</b> ${emailAddressee}</p>
-            <p>📨 <b>Notification Sent:</b> ${notificationSent}</p>
-            <p>ℹ️ <b>Notification Sent Under Review:</b> ${notificationReview}</p>
+            <p><b>Category:</b> ${category}</p>
+            <p><b>Module:</b> ${moduleName}</p>
+            <p><b>Status:</b> ${status}</p>
+            <p><b>Email Address:</b> ${requesterEmail}</p>
+            <p><b>Log:</b> ${logValue}</p>
           </div>
-        </section>
-
-        <section class="ticket-description">
-          <h5>Description</h5>
-          <p>${description}</p>
-        </section>
-
-        <section class="ticket-log">
-          <h5>Log: ${logValue}</h5>
-          <div class="ticket-footnote">Suggested: priority ${priority}; categories: ${category}; module: ${moduleName}; department: ${department}</div>
-        </section>
-
-        <section class="ticket-footer">
-          <button id="issueViewMoreBtn" class="btn ticket-view-more-btn" type="button">View More</button>
         </section>
       </article>
     `;
-
-    const copyIdBtn = U.qs('#copyTicketIdBtn');
-    if (copyIdBtn) {
-      copyIdBtn.addEventListener('click', () => {
-        navigator.clipboard
-          .writeText(r.id || '')
-          .then(() => UI.toast('Ticket ID copied.'))
-          .catch(() => UI.toast('Clipboard blocked'));
-      });
-    }
-    const copyLinkBtn = U.qs('#copyLink');
-    if (copyLinkBtn) {
-      copyLinkBtn.addEventListener('click', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('issue', r.id || '');
-        navigator.clipboard
-          .writeText(url.toString())
-          .then(() => UI.toast('Issue link copied'))
-          .catch(() => UI.toast('Clipboard blocked'));
-      });
-    }
-    const replyBtn = U.qs('#replyEmailBtn');
-    if (replyBtn) {
-      replyBtn.addEventListener('click', () => openReplyComposerForIssue(r));
-    }
-    const editBtn = U.qs('#editIssueBtn');
-    if (editBtn) {
-      editBtn.disabled = false;
-      editBtn.dataset.id = r.id || '';
-      editBtn.addEventListener('click', () => IssueEditor.open(r));
-    }
-    const viewMoreBtn = U.qs('#issueViewMoreBtn');
-    if (viewMoreBtn) {
-      viewMoreBtn.addEventListener('click', () => UI.toast('You are viewing full ticket details.'));
+    if (E.editIssueBtn) {
+      E.editIssueBtn.disabled = false;
+      E.editIssueBtn.dataset.id = r.id || '';
     }
     if (E.replyRecipientLabel) E.replyRecipientLabel.textContent = `To: ${r.emailAddressee || r.email || '—'}`;
     E.issueModal.style.display = 'flex';
-    U.qs('#copyTicketIdBtn')?.focus();
+    E.exportIssuePdf?.focus();
   },
   closeIssue() {
     if (!E.issueModal) return;
