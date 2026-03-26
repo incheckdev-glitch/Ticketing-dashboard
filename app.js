@@ -1634,7 +1634,8 @@ function cacheEls() {
     'modalTitle',
     'replyRecipientLabel',
     'replyEmailBtn',
-    'copyId',
+    'exportIssuePdf',
+    'exportIssueExcel',
     'copyLink',
     'editIssueBtn',
     'modalClose',
@@ -3140,7 +3141,7 @@ UI.Modals = {
     }
     if (E.replyRecipientLabel) E.replyRecipientLabel.textContent = `To: ${r.emailAddressee || r.email || '—'}`;
     E.issueModal.style.display = 'flex';
-    E.copyId?.focus();
+    E.exportIssuePdf?.focus();
   },
   closeIssue() {
     if (!E.issueModal) return;
@@ -4574,6 +4575,93 @@ function exportFilteredExcel() {
  exportIssuesToExcel(rows, 'filtered');
 }
 
+function buildIssueDetailExportRows(issue, risk = {}, meta = {}) {
+  const categories = (meta.suggestions?.categories || [])
+    .slice(0, 3)
+    .map(c => c.label)
+    .join(', ') || '—';
+  const reasons = risk.reasons?.length ? risk.reasons.join(', ') : '—';
+  return [
+    ['Ticket', `TICKET:${issue.id || '-'}`],
+    ['Name', issue.name || 'Unknown'],
+    ['Title', issue.title || 'Untitled ticket'],
+    ['Description', issue.desc || '—'],
+    ['Status', issue.status || '—'],
+    ['Priority', issue.priority || '—'],
+    ['Risk Score', risk.total || 0],
+    ['Submitted', issue.createdAt || issue.date || '—'],
+    ['Date', issue.date || '—'],
+    ['Department', issue.department || '—'],
+    ['Module', issue.module || '—'],
+    ['Email', issue.email || '—'],
+    ['Email Addressee', issue.emailAddressee || '—'],
+    ['Notification Sent', issue.notificationSent || '—'],
+    ['Notification Under Review', issue.notificationUnderReview || '—'],
+    ['Log', issue.log || '—'],
+    ['Suggested Priority', meta.suggestions?.priority || '—'],
+    ['Suggested Categories', categories],
+    ['Risk Signals', `Tech ${risk.technical || 0}, Biz ${risk.business || 0}, Ops ${risk.operational || 0}, Time ${risk.time || 0}`],
+    ['Severity / Impact / Urgency', `${risk.severity || 0} / ${risk.impact || 0} / ${risk.urgency || 0}`],
+    ['Reasons', reasons]
+  ];
+}
+
+function exportSelectedIssueToExcel() {
+  const issue = UI.Modals.selectedIssue;
+  if (!issue) return UI.toast('Open a ticket before exporting.');
+  if (typeof XLSX === 'undefined') {
+    UI.toast('Excel export unavailable (missing XLSX library).');
+    return;
+  }
+
+  const meta = DataStore.computed.get(issue.id) || {};
+  const risk = meta.risk || {};
+  const rows = buildIssueDetailExportRows(issue, risk, meta);
+  const ws = XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...rows]);
+  ws['!cols'] = [{ wch: 30 }, { wch: 110 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ticket View');
+  const safeId = String(issue.id || 'ticket').replace(/[^\w-]+/g, '_');
+  XLSX.writeFile(wb, `ticket_${safeId}.xlsx`);
+  UI.toast('Ticket exported as Excel');
+}
+
+function exportSelectedIssueToPdf() {
+  const issue = UI.Modals.selectedIssue;
+  if (!issue) return UI.toast('Open a ticket before exporting.');
+  const detailHtml = E.modalBody?.innerHTML || '';
+  if (!detailHtml.trim()) return UI.toast('Nothing to export.');
+
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1080,height=900');
+  if (!printWindow) {
+    UI.toast('Pop-up blocked. Allow pop-ups to export PDF.');
+    return;
+  }
+
+  const title = `TICKET:${issue.id || '-'}`;
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${U.escapeHtml(title)}</title>
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+          body { margin: 24px; background: #fff; color: #111; }
+          .ticket-detail { box-shadow: none; border: 1px solid #ddd; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>${detailHtml}</body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  UI.toast('Use Save as PDF in the print dialog.');
+}
+
 /* ---------- Release Planner wiring & rendering ---------- */
 
 let LAST_PLANNER_CONTEXT = null;
@@ -5501,16 +5589,15 @@ function wireModals() {
     });
   }
 
-  if (E.copyId) {
-    E.copyId.addEventListener('click', () => {
-      const r = UI.Modals.selectedIssue;
-      if (!r) return;
-      const txt = r.id || '';
-      if (!txt) return;
-      navigator.clipboard
-        .writeText(txt)
-        .then(() => UI.toast('Issue ID copied'))
-        .catch(() => UI.toast('Clipboard blocked'));
+  if (E.exportIssuePdf) {
+    E.exportIssuePdf.addEventListener('click', () => {
+      exportSelectedIssueToPdf();
+    });
+  }
+
+  if (E.exportIssueExcel) {
+    E.exportIssueExcel.addEventListener('click', () => {
+      exportSelectedIssueToExcel();
     });
   }
 
