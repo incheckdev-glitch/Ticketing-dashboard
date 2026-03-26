@@ -4616,7 +4616,10 @@ function exportSelectedIssueToExcel() {
 
   const meta = DataStore.computed.get(issue.id) || {};
   const risk = meta.risk || {};
-  const rows = buildIssueDetailExportRows(issue, risk, meta);
+  const rows = buildIssueDetailExportRows(issue, risk, meta).map(([field, value]) => [
+    field,
+    value == null ? '' : String(value)
+  ]);
   const ws = XLSX.utils.aoa_to_sheet([['Field', 'Value'], ...rows]);
   ws['!cols'] = [{ wch: 30 }, { wch: 110 }];
 
@@ -4640,12 +4643,14 @@ function exportSelectedIssueToPdf() {
   }
 
   const title = `TICKET:${issue.id || '-'}`;
+  const baseHref = U.escapeAttr(window.location.href);
   printWindow.document.write(`
     <!doctype html>
     <html>
       <head>
         <meta charset="utf-8" />
         <title>${U.escapeHtml(title)}</title>
+        <base href="${baseHref}" />
         <link rel="stylesheet" href="styles.css" />
         <style>
           body { margin: 24px; background: #fff; color: #111; }
@@ -4657,9 +4662,16 @@ function exportSelectedIssueToPdf() {
     </html>
   `);
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  UI.toast('Use Save as PDF in the print dialog.');
+  const printNow = () => {
+    printWindow.focus();
+    printWindow.print();
+    UI.toast('Use Save as PDF in the print dialog.');
+  };
+  if (printWindow.document.readyState === 'complete') {
+    setTimeout(printNow, 150);
+  } else {
+    printWindow.addEventListener('load', () => setTimeout(printNow, 150), { once: true });
+  }
 }
 
 /* ---------- Release Planner wiring & rendering ---------- */
