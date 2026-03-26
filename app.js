@@ -1632,6 +1632,8 @@ function cacheEls() {
     'issueModal',
     'modalBody',
     'modalTitle',
+    'replySenderSelect',
+    'replyEmailBtn',
     'copyId',
     'copyLink',
     'editIssueBtn',
@@ -3091,6 +3093,19 @@ UI.Modals = {
       E.editIssueBtn.disabled = false;
       E.editIssueBtn.dataset.id = r.id || '';
     }
+    if (E.replySenderSelect) {
+      const requesterEmail = (r.emailAddressee || '').trim();
+      const requesterOption = E.replySenderSelect.querySelector('option[value="requester"]');
+      if (requesterOption) {
+        requesterOption.textContent = requesterEmail
+          ? `From: Requester (${requesterEmail})`
+          : 'From: Requester (email missing)';
+        requesterOption.disabled = !requesterEmail;
+      }
+      if (E.replySenderSelect.value === 'requester' && !requesterEmail) {
+        E.replySenderSelect.value = 'khaled.yakan@incheck360.nl';
+      }
+    }
     E.issueModal.style.display = 'flex';
     E.copyId?.focus();
   },
@@ -3315,6 +3330,54 @@ const IssueEditor = {
     };
   }
 };
+
+function buildIssueReplyMail(issue, senderMode = 'khaled.yakan@incheck360.nl') {
+  const requesterEmail = (issue?.emailAddressee || '').trim();
+  const khaledEmail = 'khaled.yakan@incheck360.nl';
+  const fromEmail = senderMode === 'requester' ? requesterEmail : khaledEmail;
+  const toEmail = senderMode === 'requester' ? khaledEmail : requesterEmail;
+  const senderLabel = senderMode === 'requester' ? 'Requester' : 'Khaled Yakan';
+  const safeTitle = issue?.title || '(no title)';
+  const subject = `Re: Ticket ${issue?.id || ''} - ${safeTitle}`.trim();
+  const body =
+    `Hi,\n\n` +
+    `Regarding ticket ${issue?.id || '-'} (${safeTitle}),\n\n` +
+    `[Write your reply here]\n\n` +
+    `Best regards,\n${senderLabel}`;
+
+  return {
+    fromEmail,
+    toEmail,
+    subject,
+    body
+  };
+}
+
+function openReplyComposerForIssue(issue) {
+  if (!issue) {
+    UI.toast('Open a ticket first.');
+    return;
+  }
+
+  const selectedSender = E.replySenderSelect?.value || 'khaled.yakan@incheck360.nl';
+  const mail = buildIssueReplyMail(issue, selectedSender);
+
+  if (!mail.toEmail) {
+    UI.toast('This ticket has no requester email to reply to.');
+    return;
+  }
+
+  const gmailCompose = new URL('https://mail.google.com/mail/u/0/');
+  gmailCompose.searchParams.set('view', 'cm');
+  gmailCompose.searchParams.set('fs', '1');
+  gmailCompose.searchParams.set('tf', '1');
+  gmailCompose.searchParams.set('to', mail.toEmail);
+  gmailCompose.searchParams.set('su', mail.subject);
+  gmailCompose.searchParams.set('body', mail.body);
+  gmailCompose.searchParams.set('from', mail.fromEmail);
+
+  window.open(gmailCompose.toString(), '_blank', 'noopener,noreferrer');
+}
 
 function applyIssueUpdate(savedIssue) {
   if (!savedIssue) return;
@@ -5443,6 +5506,12 @@ function wireModals() {
         .writeText(link)
         .then(() => UI.toast('Issue link copied'))
         .catch(() => UI.toast('Clipboard blocked'));
+    });
+  }
+
+  if (E.replyEmailBtn) {
+    E.replyEmailBtn.addEventListener('click', () => {
+      openReplyComposerForIssue(UI.Modals.selectedIssue);
     });
   }
 
