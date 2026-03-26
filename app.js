@@ -1864,7 +1864,7 @@ const GridState = {
 };
 
 function buildIssueCategoryOptions(extra = []) {
-  const allowedCategories = ['bug', 'enhancement', 'new feature'];
+  const allowedCategories = ['Bug', 'Enhancement', 'New Features'];
   const selectedExtras = extra
     .filter(Boolean)
     .map(v => String(v).trim().toLowerCase())
