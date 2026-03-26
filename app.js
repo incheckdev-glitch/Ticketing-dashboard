@@ -1857,21 +1857,31 @@ const UI = {
 };
 
 const GridState = {
-  sortKey: null,
-  sortAsc: true,
+  sortKey: 'date',
+  sortAsc: false,
   page: 1,
   pageSize: +(localStorage.getItem(LS_KEYS.pageSize) || 20)
 };
 
 function buildIssueCategoryOptions(extra = []) {
-  const uniq = values =>
-    [...new Set(values.filter(Boolean).map(v => String(v).trim()).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b)
-    );
+ const uniq = values => [...new Set(values.filter(Boolean).map(v => String(v).trim()).filter(Boolean))];
 
   const keywordCategories = Object.keys(CONFIG.LABEL_KEYWORDS || {});
   const existingCategories = DataStore.rows.map(r => r.type);
-  return uniq([...keywordCategories, ...existingCategories, ...extra]);
+  const preferredOrder = uniq([
+    ...(CONFIG.CATEGORY_ORDER || []),
+    ...keywordCategories
+  ]).map(v => v.toLowerCase());
+  const all = uniq([...keywordCategories, ...existingCategories, ...extra]);
+  const allByLower = new Map(all.map(v => [v.toLowerCase(), v]));
+  const ordered = preferredOrder
+    .map(v => allByLower.get(v))
+    .filter(Boolean);
+  const orderedSet = new Set(ordered.map(v => v.toLowerCase()));
+  const leftovers = all
+    .filter(v => !orderedSet.has(v.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b));
+  return [...ordered, ...leftovers];
 }
 
 /** Issues UI */
@@ -1881,27 +1891,13 @@ UI.Issues = {
       [...new Set(a.filter(Boolean).map(v => v.trim()))].sort((a, b) =>
         a.localeCompare(b)
       );
-    const inSheetOrder = (values, preferredOrder) => {
-      const trimmed = [...new Set(values.filter(Boolean).map(v => v.trim()))];
-      if (!trimmed.length) return [];
-      const canonicalByLower = new Map(trimmed.map(v => [v.toLowerCase(), v]));
-      const ordered = [];
-      preferredOrder.forEach(v => {
-        const matched = canonicalByLower.get(v.toLowerCase());
-        if (matched) ordered.push(matched);
-      });
-      const preferred = new Set(ordered.map(v => v.toLowerCase()));
-      const leftovers = trimmed
-        .filter(v => !preferred.has(v.toLowerCase()))
-        .sort((a, b) => a.localeCompare(b));
-      return [...ordered, ...leftovers];
-    };
+    
     if (E.moduleFilter)
       E.moduleFilter.innerHTML = ['All', ...uniq(DataStore.rows.map(r => r.module))]
         .map(v => `<option>${v}</option>`)
         .join('');
       if (E.categoryFilter) {
-      const categories = inSheetOrder(DataStore.rows.map(r => r.type), CONFIG.CATEGORY_ORDER);
+      const categories = buildIssueCategoryOptions();
       E.categoryFilter.innerHTML = ['All', ...categories]
         .map(v => `<option>${v}</option>`)
         .join('');
