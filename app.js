@@ -4140,24 +4140,12 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
         await send(directUrl, variant);
       }
 
-    const latestAttempts = attempts.slice(-2);
+     const latestAttempts = attempts.slice(-2);
       const variantSuccess = latestAttempts.find(attempt => {
         if (!attempt.res.ok) return false;
-         // Some Apps Script handlers return 200/204 with an empty body.
-        // Treat those as success and fall back to the submitted payload.
-        if (!attempt.bodyText) return true;
-           // Some Apps Script handlers return 200/204 with an empty body.
-        // Treat those as success and fall back to the submitted payload.
-        if (!attempt.bodyText) return true;
-        if (!attempt.json) return false;
-        // Accept common success shapes from Apps Script handlers:
-        // { ok: true, ... }, { success: true, ... }, or a direct issue payload.
-        if (attempt.json.ok === true || attempt.json.success === true) return true;
-        if (attempt.json.ok === false || attempt.json.success === false) return false;
-        return (
-          typeof attempt.json === 'object' &&
-          !!(attempt.json.id || attempt.json.issue || attempt.json.data)
-        );
+        // Require explicit success from backend so wrong passcodes are rejected.
+        // This prevents treating echoed payloads or ambiguous responses as success.
+        return attempt.json.ok === true || attempt.json.success === true;
       });
       if (variantSuccess) {
         UI.toast(`Issue updated (${variantSuccess.label})`);
