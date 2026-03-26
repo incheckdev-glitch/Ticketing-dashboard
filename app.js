@@ -4636,15 +4636,9 @@ function exportSelectedIssueToPdf() {
   const detailHtml = E.modalBody?.innerHTML || '';
   if (!detailHtml.trim()) return UI.toast('Nothing to export.');
 
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1080,height=900');
-  if (!printWindow) {
-    UI.toast('Pop-up blocked. Allow pop-ups to export PDF.');
-    return;
-  }
-
   const title = `TICKET:${issue.id || '-'}`;
   const baseHref = U.escapeAttr(window.location.href);
-  printWindow.document.write(`
+  const printableDoc = `
     <!doctype html>
     <html>
       <head>
@@ -4660,17 +4654,66 @@ function exportSelectedIssueToPdf() {
       </head>
       <body>${detailHtml}</body>
     </html>
-  `);
-  printWindow.document.close();
-  const printNow = () => {
-    printWindow.focus();
-    printWindow.print();
-    UI.toast('Use Save as PDF in the print dialog.');
+  `;
+
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1080,height=900');
+  if (printWindow) {
+    printWindow.document.write(printableDoc);
+    printWindow.document.close();
+    const printNow = () => {
+      printWindow.focus();
+      printWindow.print();
+      UI.toast('Use Save as PDF in the print dialog.');
+    };
+    if (printWindow.document.readyState === 'complete') {
+      setTimeout(printNow, 150);
+    } else {
+      printWindow.addEventListener('load', () => setTimeout(printNow, 150), { once: true });
+    }
+    return;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    setTimeout(() => iframe.remove(), 1500);
   };
-  if (printWindow.document.readyState === 'complete') {
-    setTimeout(printNow, 150);
+
+  const printFromFrame = () => {
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      cleanup();
+      UI.toast('Unable to open print dialog. Check browser print settings.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast('Pop-up blocked. Opened print dialog without a new window.');
+    cleanup();
+  };
+
+  const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!frameDoc) {
+    cleanup();
+    UI.toast('Unable to prepare PDF export.');
+    return;
+  }
+  frameDoc.open();
+  frameDoc.write(printableDoc);
+  frameDoc.close();
+
+  if (frameDoc.readyState === 'complete') {
+    setTimeout(printFromFrame, 150);
   } else {
-    printWindow.addEventListener('load', () => setTimeout(printNow, 150), { once: true });
+    iframe.addEventListener('load', () => setTimeout(printFromFrame, 150), { once: true });
   }
 }
 
