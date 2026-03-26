@@ -3007,55 +3007,9 @@ UI.Modals = {
     if (!r || !E.issueModal) return;
     this.selectedIssue = r;
     this.lastFocus = document.activeElement;
-    const meta = DataStore.computed.get(r.id) || {};
-    const risk = meta.risk || {
-      technical: 0,
-      business: 0,
-      operational: 0,
-      time: 0,
-      total: 0,
-      severity: 0,
-      impact: 0,
-      urgency: 0,
-      reasons: []
-    };
-    const reasons = risk.reasons?.length
-      ? 'Reasons: ' + risk.reasons.join(', ')
-      : '—';
-
-    // Linked releases (events whose issueId list contains this ticket)
-    const linkedReleases = DataStore.events.filter(ev => {
-      const ids = (ev.issueId || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-      return ids.includes(r.id);
-    });
-    let linkedSection = '';
-    if (linkedReleases.length) {
-      const items = linkedReleases
-        .slice()
-        .sort((a, b) => new Date(a.start) - new Date(b.start))
-        .map(ev => {
-          const when = ev.start ? U.fmtTS(ev.start) : '(no date)';
-          return `<li>${U.escapeHtml(ev.title || '(release)')} – ${U.escapeHtml(
-            when
-          )} · ${U.escapeHtml(ev.env || 'Prod')}</li>`;
-        })
-        .join('');
-      linkedSection = `
-        <p><b>Linked releases:</b>
-          <ul style="margin:4px 0 0 18px;padding:0;font-size:13px;">
-            ${items}
-          </ul>
-        </p>`;
-    }
-
     const ticketId = U.escapeHtml(r.id || '-');
-    const submittedAt = U.escapeHtml(r.createdAt || r.date || '-');
     const personName = U.escapeHtml(r.name || 'Unknown');
     const personInitial = U.escapeHtml((r.name || '?').trim().charAt(0).toUpperCase() || '?');
-    const replyTo = U.escapeHtml(r.emailAddressee || r.email || '-');
     const title = U.escapeHtml(r.title || 'Untitled ticket');
     const description = U.escapeHtml(r.desc || '-');
     const status = U.escapeHtml(r.status || '-');
@@ -3063,16 +3017,9 @@ UI.Modals = {
     const moduleName = U.escapeHtml(r.module || '-');
     const department = U.escapeHtml(r.department || '-');
     const dateValue = U.escapeHtml(r.date || '-');
-    const requesterEmail = U.escapeHtml(r.email || '-');
-    const addresseeEmail = U.escapeHtml(r.emailAddressee || '-');
-    const notificationSent = U.escapeHtml(r.notificationSent || '—');
-    const notificationUnderReview = U.escapeHtml(r.notificationUnderReview || '—');
+    const requesterEmail = U.escapeHtml(r.email || r.emailAddressee || '-');
+    const category = U.escapeHtml(r.type || '-');
     const logValue = U.escapeHtml(r.log || '—');
-    const categories =
-      (meta.suggestions?.categories || [])
-        .slice(0, 3)
-        .map(c => U.escapeHtml(c.label))
-        .join(', ') || '—';
 
     E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
     E.modalBody.innerHTML = `
@@ -3085,53 +3032,26 @@ UI.Modals = {
               <h3>${personName}</h3>
             </div>
           </div>
-          <div class="ticket-risk">Risk: <strong>${risk.total}</strong></div>
-        </section>
-
-        <section class="ticket-summary">
-          <h4>${title}</h4>
-          <div class="ticket-meta-row">
-            <span class="ticket-priority">🔥 Priority: ${priority}</span>
-            <span class="ticket-status">Status: ${status}</span>
-          </div>
+          <div class="ticket-risk"><strong>${status}</strong></div>
         </section>
 
         <section class="ticket-grid">
           <div class="ticket-col">
-            <p><b>Submitted:</b> ${submittedAt}</p>
+            <p><b>Ticket #:</b> ${ticketId}</p>
             <p><b>Date:</b> ${dateValue}</p>
-            <p><b>Email:</b> ${requesterEmail}</p>
+            <p><b>Name:</b> ${personName}</p>
             <p><b>Department:</b> ${department}</p>
-            <p><b>Module:</b> ${moduleName}</p>
+            <p><b>Title:</b> ${title}</p>
+            <p><b>Description:</b> ${description}</p>
+            <p><b>Priority:</b> ${priority}</p>
           </div>
           <div class="ticket-col">
-            <p><b>Email Addressee:</b> ${addresseeEmail}</p>
-            <p><b>Notification Sent:</b> ${notificationSent}</p>
-            <p><b>Notification Under Review:</b> ${notificationUnderReview}</p>
-            <p><b>Reply-to:</b> ${replyTo}</p>
+            <p><b>Category:</b> ${category}</p>
+            <p><b>Module:</b> ${moduleName}</p>
+            <p><b>Status:</b> ${status}</p>
+            <p><b>Email Address:</b> ${requesterEmail}</p>
+            <p><b>Log:</b> ${logValue}</p>
           </div>
-        </section>
-
-        <section class="ticket-description">
-          <h4>Description</h4>
-          <p>${description}</p>
-        </section>
-
-        <section class="ticket-log">
-          <h4>Log: ${logValue}</h4>
-          <p class="muted">Suggested: priority <b>${U.escapeHtml(
-            meta.suggestions?.priority || '-'
-          )}</b>; categories: ${categories}.</p>
-          <p class="muted">Signals: Tech ${risk.technical}, Biz ${risk.business}, Ops ${risk.operational}, Time ${risk.time} · Severity ${risk.severity}, Impact ${risk.impact}, Urgency ${risk.urgency}.</p>
-          <p class="muted">${U.escapeHtml(reasons)}</p>
-          ${
-            r.file
-              ? `<p><b>Attachment:</b> <a href="${U.escapeAttr(
-                  r.file
-                )}" target="_blank" rel="noopener noreferrer">Open link</a></p>`
-              : ''
-          }
-          ${linkedSection}
         </section>
       </article>
     `;
