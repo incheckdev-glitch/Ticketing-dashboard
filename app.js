@@ -541,7 +541,9 @@ const DataStore = {
       emailAddressee: pick('email addressee', 'email', 'email address'),
       notificationSent: pick('notification sent'),
       notificationUnderReview: pick('notification sent under review'),
-      priority: DataStore.normalizePriority(pick('priority')),
+       // Always prefer Google Sheet column L (index 11) for priority when duplicate
+      // "Priority" headers exist.
+      priority: DataStore.normalizePriority(String(raw.__col_11 ?? '').trim() || pick('priority')),
       status: DataStore.normalizeStatus(pick('status') || 'Not Started Yet'),
       type: pick('category', 'type'),
       date: pick('timestamp', 'date', 'created at'),
@@ -556,7 +558,20 @@ const DataStore = {
       .filter(w => w && w.length > 2 && !STOPWORDS.has(w));
   },
   hydrate(csvText) {
-    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true }).data
+    const matrix = Papa.parse(csvText, { header: false, skipEmptyLines: true }).data;
+    const [headers = [], ...rows] = matrix;
+    const parsed = rows
+      .map(values => {
+        const obj = {};
+        headers.forEach((header, idx) => {
+          const key = String(header ?? '').trim() || `column_${idx + 1}`;
+          const val = String(values[idx] ?? '').trim();
+          if (obj[key] === undefined) obj[key] = val;
+          else obj[`${key} (${idx + 1})`] = val;
+          obj[`__col_${idx}`] = val;
+        });
+        return obj;
+      })
       .map(DataStore.normalizeRow)
       .filter(r => r.id && r.id.trim() !== '');
     this.hydrateFromRows(parsed);
