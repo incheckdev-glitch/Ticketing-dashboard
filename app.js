@@ -3367,16 +3367,15 @@ function openReplyComposerForIssue(issue) {
     return;
   }
 
-  const gmailCompose = new URL('https://mail.google.com/mail/u/0/');
-  gmailCompose.searchParams.set('view', 'cm');
-  gmailCompose.searchParams.set('fs', '1');
-  gmailCompose.searchParams.set('tf', '1');
-  gmailCompose.searchParams.set('to', mail.toEmail);
-  gmailCompose.searchParams.set('su', mail.subject);
-  gmailCompose.searchParams.set('body', mail.body);
-  gmailCompose.searchParams.set('from', mail.fromEmail);
+  const outlookCompose = new URL('https://outlook.office.com/mail/deeplink/compose');
+  outlookCompose.searchParams.set('to', mail.toEmail);
+  outlookCompose.searchParams.set('subject', mail.subject);
+  outlookCompose.searchParams.set('body', mail.body);
 
-  window.open(gmailCompose.toString(), '_blank', 'noopener,noreferrer');
+  // Pre-fill of "from" is account-dependent in Outlook and may be ignored.
+  if (mail.fromEmail) outlookCompose.searchParams.set('from', mail.fromEmail);
+
+  window.open(outlookCompose.toString(), '_blank', 'noopener,noreferrer');
 }
 
 function applyIssueUpdate(savedIssue) {
