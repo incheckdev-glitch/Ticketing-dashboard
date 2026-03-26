@@ -520,6 +520,7 @@ const DataStore = {
   },
   normalizeRow(raw) {
     const lower = {};
+      const values = Object.values(raw).map(v => String(v ?? '').trim());
     for (const k in raw) {
       if (!k) continue;
       lower[k.toLowerCase().replace(/\s+/g, ' ').trim()] = String(raw[k] ?? '').trim();
@@ -530,6 +531,23 @@ const DataStore = {
       }
       return '';
     };
+     const pickByIndex = idx => (idx >= 0 && idx < values.length ? values[idx] : '');
+
+    // Column K in the source sheet holds the category dropdown values.
+    // Keep a positional fallback because sheet header names can drift.
+    const columnKCategory = pickByIndex(10);
+    const resolvedType =
+      pick(
+        'category',
+        'type',
+        'issue category',
+        'ticket category',
+        'category/type',
+        'category / type',
+        'column k',
+        'k'
+      ) || columnKCategory;
+    
     return {
       id: pick('ticket id', 'id'),
       name: pick('name', 'requester', 'requester name'),
@@ -545,7 +563,7 @@ const DataStore = {
       // "Priority" headers exist.
       priority: DataStore.normalizePriority(String(raw.__col_11 ?? '').trim() || pick('priority')),
       status: DataStore.normalizeStatus(pick('status') || 'Not Started Yet'),
-      type: pick('category', 'type'),
+      type: resolvedType,
       date: pick('timestamp', 'date', 'created at'),
       log: pick('log', 'logs', 'comment', 'notes')
     };
