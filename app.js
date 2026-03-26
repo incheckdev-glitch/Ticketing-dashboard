@@ -3050,52 +3050,95 @@ UI.Modals = {
         </p>`;
     }
 
-    E.modalTitle.textContent = r.title || r.id || 'Issue';
+    const ticketId = U.escapeHtml(r.id || '-');
+    const submittedAt = U.escapeHtml(r.createdAt || r.date || '-');
+    const personName = U.escapeHtml(r.name || 'Unknown');
+    const personInitial = U.escapeHtml((r.name || '?').trim().charAt(0).toUpperCase() || '?');
+    const replyTo = U.escapeHtml(r.emailAddressee || r.email || '-');
+    const title = U.escapeHtml(r.title || 'Untitled ticket');
+    const description = U.escapeHtml(r.desc || '-');
+    const status = U.escapeHtml(r.status || '-');
+    const priority = U.escapeHtml(r.priority || '-');
+    const moduleName = U.escapeHtml(r.module || '-');
+    const department = U.escapeHtml(r.department || '-');
+    const dateValue = U.escapeHtml(r.date || '-');
+    const requesterEmail = U.escapeHtml(r.email || '-');
+    const addresseeEmail = U.escapeHtml(r.emailAddressee || '-');
+    const notificationSent = U.escapeHtml(r.notificationSent || '—');
+    const notificationUnderReview = U.escapeHtml(r.notificationUnderReview || '—');
+    const logValue = U.escapeHtml(r.log || '—');
+    const categories =
+      (meta.suggestions?.categories || [])
+        .slice(0, 3)
+        .map(c => U.escapeHtml(c.label))
+        .join(', ') || '—';
+
+    E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
     E.modalBody.innerHTML = `
-      <p><b>ID:</b> ${U.escapeHtml(r.id || '-')}</p>
-      <p><b>Name:</b> ${U.escapeHtml(r.name || '-')}</p>
-      <p><b>Department:</b> ${U.escapeHtml(r.department || '-')}</p>
-      <p><b>Module:</b> ${U.escapeHtml(r.module || '-')}</p>
-      <p><b>Priority:</b> ${U.escapeHtml(r.priority || '-')}</p>
-      <p><b>Status:</b> ${U.escapeHtml(r.status || '-')}</p>
-      <p><b>Date:</b> ${U.escapeHtml(r.date || '-')}</p>
-      <p><b>Email Addressee:</b> ${U.escapeHtml(r.emailAddressee || '-')}</p>
-      <p><b>Notification Sent:</b> ${U.escapeHtml(r.notificationSent || '-')}</p>
-      <p><b>Notification Sent Under Review:</b> ${U.escapeHtml(r.notificationUnderReview || '-')}</p>
-      <p><b>Risk:</b> ${risk.total}
-         <br><span class="muted">Tech ${risk.technical}, Biz ${risk.business}, Ops ${risk.operational}, Time ${risk.time}</span>
-         <br><span class="muted">Severity ${risk.severity}, Impact ${risk.impact}, Urgency ${risk.urgency}</span>
-         <br><span class="muted">${U.escapeHtml(reasons)}</span>
-         </p>
-      <p><b>Description:</b><br>${U.escapeHtml(r.desc || '-')}</p>
-      <p><b>Log:</b><br>${U.escapeHtml(r.log || '-')}</p>
-      ${
-        r.file
-          ? `<p><b>Attachment:</b> <a href="${U.escapeAttr(
-              r.file
-            )}" target="_blank" rel="noopener noreferrer">Open link</a></p>`
-          : ''
-      }
-      <div style="margin-top:10px" class="muted">
-        Suggested: priority <b>${U.escapeHtml(
-          meta.suggestions?.priority || '-'
-        )}</b>;
-        categories: ${
-          (meta.suggestions?.categories || [])
-            .slice(0, 3)
-            .map(c => U.escapeHtml(c.label))
-            .join(', ') || '—'
-        }.
-      </div>
-      ${linkedSection}
-      `;
+      <article class="ticket-detail">
+        <section class="ticket-detail-top">
+          <div class="ticket-person">
+            <div class="ticket-avatar">${personInitial}</div>
+            <div>
+              <div class="ticket-id">TICKET:${ticketId}</div>
+              <h3>${personName}</h3>
+            </div>
+          </div>
+          <div class="ticket-risk">Risk: <strong>${risk.total}</strong></div>
+        </section>
+
+        <section class="ticket-summary">
+          <h4>${title}</h4>
+          <div class="ticket-meta-row">
+            <span class="ticket-priority">🔥 Priority: ${priority}</span>
+            <span class="ticket-status">Status: ${status}</span>
+          </div>
+        </section>
+
+        <section class="ticket-grid">
+          <div class="ticket-col">
+            <p><b>Submitted:</b> ${submittedAt}</p>
+            <p><b>Date:</b> ${dateValue}</p>
+            <p><b>Email:</b> ${requesterEmail}</p>
+            <p><b>Department:</b> ${department}</p>
+            <p><b>Module:</b> ${moduleName}</p>
+          </div>
+          <div class="ticket-col">
+            <p><b>Email Addressee:</b> ${addresseeEmail}</p>
+            <p><b>Notification Sent:</b> ${notificationSent}</p>
+            <p><b>Notification Under Review:</b> ${notificationUnderReview}</p>
+            <p><b>Reply-to:</b> ${replyTo}</p>
+          </div>
+        </section>
+
+        <section class="ticket-description">
+          <h4>Description</h4>
+          <p>${description}</p>
+        </section>
+
+        <section class="ticket-log">
+          <h4>Log: ${logValue}</h4>
+          <p class="muted">Suggested: priority <b>${U.escapeHtml(
+            meta.suggestions?.priority || '-'
+          )}</b>; categories: ${categories}.</p>
+          <p class="muted">Signals: Tech ${risk.technical}, Biz ${risk.business}, Ops ${risk.operational}, Time ${risk.time} · Severity ${risk.severity}, Impact ${risk.impact}, Urgency ${risk.urgency}.</p>
+          <p class="muted">${U.escapeHtml(reasons)}</p>
+          ${
+            r.file
+              ? `<p><b>Attachment:</b> <a href="${U.escapeAttr(
+                  r.file
+                )}" target="_blank" rel="noopener noreferrer">Open link</a></p>`
+              : ''
+          }
+          ${linkedSection}
+        </section>
+      </article>
+    `;
     if (E.editIssueBtn) {
       E.editIssueBtn.disabled = false;
       E.editIssueBtn.dataset.id = r.id || '';
     }
-    if (E.replyRecipientLabel) {
-      E.replyRecipientLabel.textContent = 'To: khaled.yakan@incheck360.nl';
-    }
+    if (E.replyRecipientLabel) E.replyRecipientLabel.textContent = `To: ${r.emailAddressee || r.email || '—'}`;
     E.issueModal.style.display = 'flex';
     E.copyId?.focus();
   },
