@@ -3032,7 +3032,15 @@ UI.Modals = {
               <h3>${personName}</h3>
             </div>
           </div>
-          <div class="ticket-risk"><strong>${status}</strong></div>
+          <div class="ticket-risk">Status: <strong>${status}</strong></div>
+        </section>
+
+        <section class="ticket-summary">
+          <h4>${title}</h4>
+          <div class="ticket-meta-row">
+            <span class="ticket-priority">🔥 Priority: ${priority}</span>
+            <span class="ticket-status">Status: ${status}</span>
+          </div>
         </section>
 
         <section class="ticket-grid">
@@ -3041,17 +3049,21 @@ UI.Modals = {
             <p><b>Date:</b> ${dateValue}</p>
             <p><b>Name:</b> ${personName}</p>
             <p><b>Department:</b> ${department}</p>
-            <p><b>Title:</b> ${title}</p>
-            <p><b>Description:</b> ${description}</p>
-            <p><b>Priority:</b> ${priority}</p>
           </div>
           <div class="ticket-col">
             <p><b>Category:</b> ${category}</p>
             <p><b>Module:</b> ${moduleName}</p>
-            <p><b>Status:</b> ${status}</p>
             <p><b>Email Address:</b> ${requesterEmail}</p>
-            <p><b>Log:</b> ${logValue}</p>
           </div>
+        </section>
+
+        <section class="ticket-description">
+          <h4>Description</h4>
+          <p>${description}</p>
+        </section>
+
+        <section class="ticket-log">
+          <h4>Log: ${logValue}</h4>
         </section>
       </article>
     `;
