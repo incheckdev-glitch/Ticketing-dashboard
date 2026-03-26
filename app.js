@@ -11,7 +11,7 @@
  */
 
 const APPS_SCRIPT_WEBAPP_URL =
-  "https://script.google.com/macros/s/AKfycbx1ykxGN7tKDJSf9IjVA3U0zUoBsg8vW209ROM-1jIe7YxxrfNU_GJ4G-MrnjvRS40tIw/exec";
+  "https://script.google.com/macros/s/AKfycbyT0qjB3fCeyQgTzb8cbIEXn03HGBv67AxBFMDKc_0mikFlsf2Q8e2GOxvq-D6cawt_Sw/exec";
 
 const CONFIG = {
   DATA_VERSION: '3',
