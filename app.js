@@ -1837,6 +1837,17 @@ const GridState = {
   pageSize: +(localStorage.getItem(LS_KEYS.pageSize) || 20)
 };
 
+function buildIssueCategoryOptions(extra = []) {
+  const uniq = values =>
+    [...new Set(values.filter(Boolean).map(v => String(v).trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+  const keywordCategories = Object.keys(CONFIG.LABEL_KEYWORDS || {});
+  const existingCategories = DataStore.rows.map(r => r.type);
+  return uniq([...keywordCategories, ...existingCategories, ...extra]);
+}
+
 /** Issues UI */
 UI.Issues = {
   renderFilters() {
@@ -1849,7 +1860,7 @@ UI.Issues = {
         .map(v => `<option>${v}</option>`)
         .join('');
      if (E.categoryFilter) {
-     const categories = uniq(DataStore.rows.map(r => r.type));
+     const categories = buildIssueCategoryOptions();
       E.categoryFilter.innerHTML = ['All', ...categories]
         .map(v => `<option>${v}</option>`)
         .join('');
@@ -3210,6 +3221,18 @@ UI.Modals = {
 
 const IssueEditor = {
   issue: null,
+  syncCategoryOptions(selected = '') {
+    if (!E.editIssueType) return;
+    const categories = buildIssueCategoryOptions(selected ? [selected] : []);
+    E.editIssueType.innerHTML = ['<option value="">Select category</option>']
+      .concat(categories.map(v => `<option value="${U.escapeAttr(v)}">${U.escapeHtml(v)}</option>`))
+      .join('');
+    if (selected && categories.includes(selected)) {
+      E.editIssueType.value = selected;
+    } else {
+      E.editIssueType.value = '';
+    }
+  },
   open(issue) {
     if (!issue || !E.editIssueModal) return;
     this.issue = issue;
@@ -3225,7 +3248,7 @@ const IssueEditor = {
     setVal(E.editIssueModule, issue.module || '');
     setVal(E.editIssuePriority, issue.priority || '');
     setVal(E.editIssueStatus, issue.status || '');
-    setVal(E.editIssueType, issue.type || '');
+    this.syncCategoryOptions(issue.type || '');
     setVal(E.editIssueDepartment, issue.department || '');
     setVal(E.editIssueName, issue.name || '');
     setVal(E.editIssueEmail, issue.emailAddressee || '');
