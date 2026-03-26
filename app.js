@@ -4114,6 +4114,8 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
           module: payload.module,
           priority: payload.priority,
           status: payload.status,
+            category: payload.type,
+          issueType: payload.type,
           log: payload.log,
           date: payload.date,
           file: payload.file,
