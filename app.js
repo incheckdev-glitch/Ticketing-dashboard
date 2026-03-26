@@ -3098,12 +3098,12 @@ UI.Modals = {
       const requesterOption = E.replySenderSelect.querySelector('option[value="requester"]');
       if (requesterOption) {
         requesterOption.textContent = requesterEmail
-          ? `From: Requester (${requesterEmail})`
-          : 'From: Requester (email missing)';
+          ? `To: Requester (${requesterEmail})`
+          : 'To: Requester (email missing)';
         requesterOption.disabled = !requesterEmail;
       }
       if (E.replySenderSelect.value === 'requester' && !requesterEmail) {
-        E.replySenderSelect.value = 'khaled.yakan@incheck360.nl';
+        E.replySenderSelect.value = 'khaled';
       }
     }
     E.issueModal.style.display = 'flex';
@@ -3331,22 +3331,19 @@ const IssueEditor = {
   }
 };
 
-function buildIssueReplyMail(issue, senderMode = 'khaled.yakan@incheck360.nl') {
+function buildIssueReplyMail(issue, recipientMode = 'requester') {
   const requesterEmail = (issue?.emailAddressee || '').trim();
   const khaledEmail = 'khaled.yakan@incheck360.nl';
-  const fromEmail = senderMode === 'requester' ? requesterEmail : khaledEmail;
-  const toEmail = senderMode === 'requester' ? khaledEmail : requesterEmail;
-  const senderLabel = senderMode === 'requester' ? 'Requester' : 'Khaled Yakan';
+  const toEmail = recipientMode === 'khaled' ? khaledEmail : requesterEmail;
   const safeTitle = issue?.title || '(no title)';
   const subject = `Re: Ticket ${issue?.id || ''} - ${safeTitle}`.trim();
   const body =
     `Hi,\n\n` +
     `Regarding ticket ${issue?.id || '-'} (${safeTitle}),\n\n` +
     `[Write your reply here]\n\n` +
-    `Best regards,\n${senderLabel}`;
+    `Best regards,`;
 
   return {
-    fromEmail,
     toEmail,
     subject,
     body
@@ -3359,11 +3356,11 @@ function openReplyComposerForIssue(issue) {
     return;
   }
 
-  const selectedSender = E.replySenderSelect?.value || 'khaled.yakan@incheck360.nl';
-  const mail = buildIssueReplyMail(issue, selectedSender);
+  const selectedRecipient = E.replySenderSelect?.value || 'requester';
+  const mail = buildIssueReplyMail(issue, selectedRecipient);
 
   if (!mail.toEmail) {
-    UI.toast('This ticket has no requester email to reply to.');
+    UI.toast('This ticket has no requester email to send to.');
     return;
   }
 
@@ -3371,9 +3368,6 @@ function openReplyComposerForIssue(issue) {
   outlookCompose.searchParams.set('to', mail.toEmail);
   outlookCompose.searchParams.set('subject', mail.subject);
   outlookCompose.searchParams.set('body', mail.body);
-
-  // Pre-fill of "from" is account-dependent in Outlook and may be ignored.
-  if (mail.fromEmail) outlookCompose.searchParams.set('from', mail.fromEmail);
 
   window.open(outlookCompose.toString(), '_blank', 'noopener,noreferrer');
 }
