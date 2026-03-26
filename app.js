@@ -1864,24 +1864,12 @@ const GridState = {
 };
 
 function buildIssueCategoryOptions(extra = []) {
- const uniq = values => [...new Set(values.filter(Boolean).map(v => String(v).trim()).filter(Boolean))];
-
-  const keywordCategories = Object.keys(CONFIG.LABEL_KEYWORDS || {});
-  const existingCategories = DataStore.rows.map(r => r.type);
-  const preferredOrder = uniq([
-    ...(CONFIG.CATEGORY_ORDER || []),
-    ...keywordCategories
-  ]).map(v => v.toLowerCase());
-  const all = uniq([...keywordCategories, ...existingCategories, ...extra]);
-  const allByLower = new Map(all.map(v => [v.toLowerCase(), v]));
-  const ordered = preferredOrder
-    .map(v => allByLower.get(v))
-    .filter(Boolean);
-  const orderedSet = new Set(ordered.map(v => v.toLowerCase()));
-  const leftovers = all
-    .filter(v => !orderedSet.has(v.toLowerCase()))
-    .sort((a, b) => a.localeCompare(b));
-  return [...ordered, ...leftovers];
+  const allowedCategories = ['bug', 'enhancement', 'new feature'];
+  const selectedExtras = extra
+    .filter(Boolean)
+    .map(v => String(v).trim().toLowerCase())
+    .filter(v => allowedCategories.includes(v));
+  return [...new Set([...allowedCategories, ...selectedExtras])];
 }
 
 /** Issues UI */
