@@ -3919,6 +3919,27 @@ function renderFreezeWindows() {
   }
 }
 
+
+function getIssueIdFromLink() {
+  const url = new URL(window.location.href);
+  const fromQuery = url.searchParams.get('issue');
+  if (fromQuery) return fromQuery;
+
+  const rawHash = (window.location.hash || '').replace(/^#/, '');
+  if (rawHash.startsWith('issue-')) {
+    return decodeURIComponent(rawHash.slice('issue-'.length));
+  }
+
+  return '';
+}
+
+function openIssueFromLink() {
+  const issueId = getIssueIdFromLink();
+  if (!issueId || !DataStore.byId.has(issueId)) return;
+  if (UI.Modals.selectedIssue?.id === issueId && E.issueModal?.style.display === 'flex') return;
+  UI.Modals.openIssue(issueId);
+}
+
 async function loadIssues(force = false) {
   if (!force && !DataStore.rows.length) {
     const cached = IssuesCache.load();
@@ -3931,6 +3952,7 @@ async function loadIssues(force = false) {
       setIfOptionExists(E.statusFilter, Filters.state.status);
       UI.skeleton(false);
       UI.refreshAll();
+      openIssueFromLink();
     }
   }
 
@@ -3946,6 +3968,7 @@ async function loadIssues(force = false) {
     setIfOptionExists(E.priorityFilter, Filters.state.priority);
     setIfOptionExists(E.statusFilter, Filters.state.status);
     UI.refreshAll();
+    openIssueFromLink();
     UI.setSync('issues', true, new Date());
   } catch (e) {
     if (!DataStore.rows.length && E.issuesTbody) {
@@ -5413,8 +5436,9 @@ function wireModals() {
     E.copyLink.addEventListener('click', () => {
       const r = UI.Modals.selectedIssue;
       if (!r) return;
-      const base = window.location.href.split('#')[0];
-      const link = `${base}#issue-${encodeURIComponent(r.id)}`;
+      const url = new URL(window.location.href);
+      url.searchParams.set('issue', r.id || '');
+      const link = url.toString();
       navigator.clipboard
         .writeText(link)
         .then(() => UI.toast('Issue link copied'))
