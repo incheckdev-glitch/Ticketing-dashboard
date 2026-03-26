@@ -142,7 +142,15 @@ const CONFIG = {
       'out of date'
     ]
   },
-
+CATEGORY_ORDER: [
+    'Authentication / Login',
+    'Payments / Billing',
+    'Performance / Latency',
+    'Reliability / Errors',
+    'UI / UX',
+    'Data / Sync'
+  ],
+  
   CHANGE: {
     overlapLookbackMinutes: 60,
     hotIssueRecentDays: 7,
@@ -1873,12 +1881,27 @@ UI.Issues = {
       [...new Set(a.filter(Boolean).map(v => v.trim()))].sort((a, b) =>
         a.localeCompare(b)
       );
+    const inSheetOrder = (values, preferredOrder) => {
+      const trimmed = [...new Set(values.filter(Boolean).map(v => v.trim()))];
+      if (!trimmed.length) return [];
+      const canonicalByLower = new Map(trimmed.map(v => [v.toLowerCase(), v]));
+      const ordered = [];
+      preferredOrder.forEach(v => {
+        const matched = canonicalByLower.get(v.toLowerCase());
+        if (matched) ordered.push(matched);
+      });
+      const preferred = new Set(ordered.map(v => v.toLowerCase()));
+      const leftovers = trimmed
+        .filter(v => !preferred.has(v.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b));
+      return [...ordered, ...leftovers];
+    };
     if (E.moduleFilter)
       E.moduleFilter.innerHTML = ['All', ...uniq(DataStore.rows.map(r => r.module))]
         .map(v => `<option>${v}</option>`)
         .join('');
-     if (E.categoryFilter) {
-     const categories = buildIssueCategoryOptions();
+      if (E.categoryFilter) {
+      const categories = inSheetOrder(DataStore.rows.map(r => r.type), CONFIG.CATEGORY_ORDER);
       E.categoryFilter.innerHTML = ['All', ...categories]
         .map(v => `<option>${v}</option>`)
         .join('');
