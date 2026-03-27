@@ -4038,11 +4038,17 @@ async function loadEvents(force = false) {
 
   try {
     UI.spinner(true);
-   const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events');
+    const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events');
     const res = await fetch(eventsUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Events API failed: ${res.status}`);
-    const data = await res.json().catch(() => ({}));
-    const events = Array.isArray(data.events) ? data.events : [];
+    const text = await res.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+    const events = extractEventsPayload(data);
 
     const normalized = events.map(ev => {
       const modulesArr = Array.isArray(ev.modules)
@@ -4065,8 +4071,8 @@ async function loadEvents(force = false) {
         id: ev.id || 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2),
         title: ev.title || '',
         type: ev.type || 'Other',
-        start: ev.start || ev.startDate || '',
-        end: ev.end || ev.endDate || '',
+        start: normalizeEventDate(ev.start || ev.startDate || ''),
+        end: normalizeEventDate(ev.end || ev.endDate || ''),
         allDay: !!ev.allDay,
         description: ev.description || '',
         issueId: ev.issueId || '',
@@ -4079,7 +4085,7 @@ async function loadEvents(force = false) {
         readiness: readiness && typeof readiness === 'object' ? readiness : {},
         checklist: readiness && typeof readiness === 'object' ? readiness : {}
       };
-    });
+    }).filter(ev => ev.start);
 
     DataStore.events = normalized;
     saveEventsCache();
@@ -4102,6 +4108,36 @@ async function loadEvents(force = false) {
   } finally {
     UI.spinner(false);
   }
+}
+
+function extractEventsPayload(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+
+  const candidates = [data.events, data.data, data.items, data.rows];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+
+  if (typeof data.events === 'string') {
+    try {
+      const parsed = JSON.parse(data.events);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
+  return [];
+}
+
+function normalizeEventDate(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  // FullCalendar parses ISO formats reliably; normalize common "YYYY-MM-DD HH:mm" values.
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(raw)) {
+    return raw.replace(/\s+/, 'T');
+  }
+  return raw;
 }
 
 /* ---------- Save/Delete to Apps Script ---------- */
