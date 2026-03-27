@@ -25,6 +25,9 @@ const CONFIG = {
   CALENDAR_API_URL:
     "https://corsproxy.io/?" +
     encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
+
+  // Exact Google Sheet tab name used by the Apps Script calendar backend
+  CALENDAR_SHEET_NAME: 'CalendarEvents',
   
   // Issues Apps Script web app URL (tickets resource: create/update/delete)
   ISSUE_API_URL:
@@ -4038,7 +4041,10 @@ async function loadEvents(force = false) {
 
   try {
     UI.spinner(true);
-    const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events');
+    const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
+      sheetName: CONFIG.CALENDAR_SHEET_NAME,
+      tabName: CONFIG.CALENDAR_SHEET_NAME
+    });
     const res = await fetch(eventsUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Events API failed: ${res.status}`);
     const text = await res.text();
@@ -4434,10 +4440,19 @@ async function saveEventToSheet(event) {
 
      console.log('[Ticketing Dashboard] sending event payload to Apps Script:', payload);
 
-    const res = await fetch(withResourceParam(CONFIG.CALENDAR_API_URL, 'events'), {
+    const res = await fetch(withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
+      sheetName: CONFIG.CALENDAR_SHEET_NAME,
+      tabName: CONFIG.CALENDAR_SHEET_NAME
+    }), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resource: 'events', action: 'save', event: payload })
+      body: JSON.stringify({
+        resource: 'events',
+        action: 'save',
+        event: payload,
+        sheetName: CONFIG.CALENDAR_SHEET_NAME,
+        tabName: CONFIG.CALENDAR_SHEET_NAME
+      })
     });
 
     let data;
@@ -4480,10 +4495,19 @@ async function saveEventToSheet(event) {
 async function deleteEventFromSheet(id) {
   UI.spinner(true);
   try {
-   const res = await fetch(withResourceParam(CONFIG.CALENDAR_API_URL, 'events'), {
+   const res = await fetch(withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
+      sheetName: CONFIG.CALENDAR_SHEET_NAME,
+      tabName: CONFIG.CALENDAR_SHEET_NAME
+    }), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ resource: 'events', action: 'delete', id })
+       body: JSON.stringify({
+        resource: 'events',
+        action: 'delete',
+        id,
+        sheetName: CONFIG.CALENDAR_SHEET_NAME,
+        tabName: CONFIG.CALENDAR_SHEET_NAME
+      })
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Delete failed');
@@ -4497,9 +4521,9 @@ async function deleteEventFromSheet(id) {
   }
 }
 
-function withResourceParam(url, resource) {
+function withResourceParam(url, resource, extraParams = {}) {
   const value = String(resource || '').trim();
-  if (!value) return url;
+  if (!value && (!extraParams || !Object.keys(extraParams).length)) return url;
 
   if (url.includes('corsproxy.io/?')) {
     try {
@@ -4507,7 +4531,11 @@ function withResourceParam(url, resource) {
       const encodedTarget = url.slice(proxy.length);
       const targetUrl = decodeURIComponent(encodedTarget);
       const target = new URL(targetUrl);
-      target.searchParams.set('resource', value);
+      if (value) target.searchParams.set('resource', value);
+      Object.entries(extraParams || {}).forEach(([k, v]) => {
+        if (v === undefined || v === null || v === '') return;
+        target.searchParams.set(k, String(v));
+      });
       return proxy + encodeURIComponent(target.toString());
     } catch (err) {
       console.warn('Unable to append resource to proxied URL, using original', err);
@@ -4517,7 +4545,11 @@ function withResourceParam(url, resource) {
 
   try {
     const direct = new URL(url);
-    direct.searchParams.set('resource', value);
+    if (value) direct.searchParams.set('resource', value);
+    Object.entries(extraParams || {}).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return;
+      direct.searchParams.set(k, String(v));
+    });
     return direct.toString();
   } catch (err) {
     console.warn('Unable to append resource to URL, using original', err);
