@@ -4049,6 +4049,7 @@ async function loadEvents(force = false) {
   try {
     UI.spinner(true);
     const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
+      action: 'read',
       sheetName: CONFIG.CALENDAR_SHEET_NAME,
       tabName: CONFIG.CALENDAR_SHEET_NAME,
       public: 'true',
@@ -4057,14 +4058,7 @@ async function loadEvents(force = false) {
     const res = await fetch(eventsUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Events API failed: ${res.status}`);
     const text = await res.text();
-    let data = {};
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      throw new Error(
-        'Calendar API returned a non-JSON response. Ensure calendar read access is public (no passcode required).'
-      );
-    }
+    const data = parseApiJson(text, 'Calendar API');
 
     if (
       data &&
@@ -4143,11 +4137,33 @@ async function loadEvents(force = false) {
     UI.toast(
       DataStore.events.length
         ? 'Using cached events (API error)'
-        : 'Unable to load calendar events'
+        : 'Unable to load calendar events: ' + (e?.message || 'Unknown error')
     );
   } finally {
     UI.spinner(false);
   }
+}
+
+function parseApiJson(text, sourceName = 'API') {
+  if (!text || !String(text).trim()) return {};
+
+  const raw = String(text).trim();
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    const candidate = raw.slice(first, last + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  throw new Error(
+    `${sourceName} returned a non-JSON response. Ensure calendar read access is public (no passcode required).`
+  );
 }
 
 function extractEventsPayload(data) {
