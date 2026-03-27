@@ -2239,7 +2239,26 @@ ColumnManager.apply();
     make('byModule', 'bar', group(list, 'module'));
     make('byPriority', 'doughnut', group(list, 'priority'), priorityColors);
     make('byStatus', 'bar', group(list, 'status'), statusColors);
-    make('byType', 'bar', group(list, 'type'));
+
+    const categoryOptions = buildIssueCategoryOptions();
+    const normalizedCategoryMap = new Map(
+      categoryOptions.map(option => [option.toLowerCase(), option])
+    );
+    const byTypeCounts = list.reduce((acc, row) => {
+      const normalized = String(row.type || '')
+        .trim()
+        .toLowerCase();
+      const category = normalizedCategoryMap.get(normalized);
+      if (!category) return acc;
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {});
+    const orderedByTypeCounts = categoryOptions.reduce((acc, category) => {
+      if (!byTypeCounts[category]) return acc;
+      acc[category] = byTypeCounts[category];
+      return acc;
+    }, {});
+    make('byType', 'bar', orderedByTypeCounts);
   }
 };
 
