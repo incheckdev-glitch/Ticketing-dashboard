@@ -10,7 +10,10 @@
  *  - Release planner (F&B / Middle East)
  */
 
+const RUNTIME_CONFIG = window.__TICKETING_DASHBOARD_CONFIG__ || {};
+
 const APPS_SCRIPT_WEBAPP_URL =
+  RUNTIME_CONFIG.APPS_SCRIPT_WEBAPP_URL ||
   "https://script.google.com/macros/s/AKfycbyT0qjB3fCeyQgTzb8cbIEXn03HGBv67AxBFMDKc_0mikFlsf2Q8e2GOxvq-D6cawt_Sw/exec";
 
 const CONFIG = {
@@ -23,16 +26,18 @@ const CONFIG = {
 
   // Calendar Apps Script web app URL (wrapped via corsproxy to handle CORS)
   CALENDAR_API_URL:
+    RUNTIME_CONFIG.CALENDAR_API_URL ||
     "https://corsproxy.io/?" +
-    encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
+      encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
 
   // Exact Google Sheet tab name used by the Apps Script calendar backend
   CALENDAR_SHEET_NAME: 'CalendarEvents',
   
   // Issues Apps Script web app URL (tickets resource: create/update/delete)
   ISSUE_API_URL:
+    RUNTIME_CONFIG.ISSUE_API_URL ||
     "https://corsproxy.io/?" +
-   encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
+      encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
 
   
   TREND_DAYS_RECENT: 7,
@@ -196,6 +201,7 @@ const LS_KEYS = {
   events: 'incheckEvents',
   issues: 'incheckIssues',
   issuesLastUpdated: 'incheckIssuesLastUpdated',
+  eventsLastUpdated: 'incheckEventsLastUpdated',
   dataVersion: 'incheckDataVersion',
   pageSize: 'pageSize',
   view: 'incheckView',
@@ -306,6 +312,28 @@ const U = {
     String(s)
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;'),
+  toStatusClass: status =>
+    String(status || '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^A-Za-z0-9_-]/g, ''),
+  safeExternalUrl: raw => {
+    if (!raw) return '';
+    try {
+      const url = new URL(String(raw), window.location.href);
+      const allowed = new Set(['http:', 'https:', 'mailto:']);
+      if (!allowed.has(url.protocol)) return '';
+      return url.toString();
+    } catch {
+      return '';
+    }
+  },
+  isRecentIso: (iso, maxAgeHours) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    if (isNaN(d)) return false;
+    return Date.now() - d.getTime() <= maxAgeHours * 3600000;
+  },
   pad: n => String(n).padStart(2, '0'),
   dateAddDays: (d, days) => {
     const base = d instanceof Date ? d : new Date(d);
@@ -652,6 +680,8 @@ const IssuesCache = {
     try {
       const storedVersion = localStorage.getItem(LS_KEYS.dataVersion);
       if (storedVersion && storedVersion !== CONFIG.DATA_VERSION) return null;
+      const lastUpdated = localStorage.getItem(LS_KEYS.issuesLastUpdated);
+      if (!U.isRecentIso(lastUpdated, CONFIG.DATA_STALE_HOURS)) return null;
       const raw = localStorage.getItem(LS_KEYS.issues);
       if (!raw) return null;
       const data = JSON.parse(raw);
@@ -2062,9 +2092,7 @@ UI.Issues = {
     });
 
     const badgeStatus = s =>
-      `<span class="pill status-${(s || '').replace(/\s/g, '\\ ')}">${U.escapeHtml(
-        s || '-'
-      )}</span>`;
+      `<span class="pill status-${U.toStatusClass(s)}">${U.escapeHtml(s || '-')}</span>`;
     const badgePrio = p =>
       `<span class="pill priority-${p || ''}">${U.escapeHtml(p || '-')}</span>`;
 
@@ -2072,10 +2100,13 @@ UI.Issues = {
       if (col.key === 'priority') return badgePrio(row.priority || '-');
       if (col.key === 'status') return badgeStatus(row.status || '-');
       if (col.key === 'file') {
+        const safeUrl = U.safeExternalUrl(row.file);
         return row.file
-          ? `<a href="${U.escapeAttr(
-              row.file
-            )}" target="_blank" rel="noopener noreferrer" aria-label="Open attachment link">🔗</a>`
+          ? safeUrl
+            ? `<a href="${U.escapeAttr(
+                safeUrl
+              )}" target="_blank" rel="noopener noreferrer" aria-label="Open attachment link">🔗</a>`
+            : '<span class="muted">Invalid link</span>'
           : '-';
       }
       const value = row[col.key];
@@ -3882,6 +3913,8 @@ async function safeFetchText(url, opts = {}) {
 
 function loadEventsCache() {
   try {
+    const lastUpdated = localStorage.getItem(LS_KEYS.eventsLastUpdated);
+    if (!U.isRecentIso(lastUpdated, CONFIG.DATA_STALE_HOURS)) return [];
     const raw = localStorage.getItem(LS_KEYS.events);
     if (!raw) return [];
     const data = JSON.parse(raw);
@@ -3893,6 +3926,7 @@ function loadEventsCache() {
 function saveEventsCache() {
   try {
     localStorage.setItem(LS_KEYS.events, JSON.stringify(DataStore.events || []));
+    localStorage.setItem(LS_KEYS.eventsLastUpdated, new Date().toISOString());
   } catch {}
 }
 
