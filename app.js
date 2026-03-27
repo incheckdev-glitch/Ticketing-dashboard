@@ -4053,13 +4053,14 @@ async function loadEvents(force = false) {
     const normalized = events.map(ev => {
       const modulesArr = Array.isArray(ev.modules)
         ? ev.modules
-        : typeof ev.modules === 'string'
-        ? ev.modules
-            .split(',')
+        : typeof getEventField(ev, ['modules', 'module']) === 'string'
+        ? getEventField(ev, ['modules', 'module'])
+            .split(/[,\n;|]/)
             .map(s => s.trim())
             .filter(Boolean)
         : [];
-      let readiness = ev.readiness || ev.checklist || {};
+      let readiness =
+        getEventField(ev, ['readiness', 'checklist', 'readinessChecklist']) || {};
       if (typeof readiness === 'string') {
         try {
           readiness = JSON.parse(readiness);
@@ -4068,20 +4069,29 @@ async function loadEvents(force = false) {
         }
       }
       return {
-        id: ev.id || 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2),
-        title: ev.title || '',
-        type: ev.type || 'Other',
-        start: normalizeEventDate(ev.start || ev.startDate || ''),
-        end: normalizeEventDate(ev.end || ev.endDate || ''),
-        allDay: !!ev.allDay,
-        description: ev.description || '',
-        issueId: ev.issueId || '',
-        env: ev.env || ev.environment || 'Prod',
-        status: ev.status || 'Planned',
-        owner: ev.owner || '',
+        id:
+          getEventField(ev, ['id', 'eventId', 'event_id']) ||
+          'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+        title: getEventField(ev, ['title', 'eventTitle', 'name']) || '',
+        type: getEventField(ev, ['type', 'eventType']) || 'Other',
+        start: normalizeEventDate(
+          getEventField(ev, ['start', 'startDate', 'start date', 'date']) || ''
+        ),
+        end: normalizeEventDate(
+          getEventField(ev, ['end', 'endDate', 'end date', 'finish']) || ''
+        ),
+        allDay: parseBoolean(getEventField(ev, ['allDay', 'all_day', 'all day'])),
+        description: getEventField(ev, ['description', 'notes']) || '',
+        issueId: getEventField(ev, ['issueId', 'issue_id', 'ticketId']) || '',
+        env: getEventField(ev, ['env', 'environment']) || 'Prod',
+        status: getEventField(ev, ['status']) || 'Planned',
+        owner: getEventField(ev, ['owner']) || '',
         modules: modulesArr,
-        impactType: ev.impactType || ev.impact || 'No downtime expected',
-       notificationStatus: ev.notificationStatus || '',
+        impactType:
+          getEventField(ev, ['impactType', 'impact', 'impact type']) ||
+          'No downtime expected',
+        notificationStatus:
+          getEventField(ev, ['notificationStatus', 'notification_status']) || '',
         readiness: readiness && typeof readiness === 'object' ? readiness : {},
         checklist: readiness && typeof readiness === 'object' ? readiness : {}
       };
@@ -4111,12 +4121,38 @@ async function loadEvents(force = false) {
 }
 
 function extractEventsPayload(data) {
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return extractEventsPayload(parsed);
+    } catch {
+      return [];
+    }
+  }
   if (Array.isArray(data)) return data;
   if (!data || typeof data !== 'object') return [];
 
-  const candidates = [data.events, data.data, data.items, data.rows];
+  // corsproxy / Apps Script variants may nest JSON in different envelope keys.
+  const candidates = [
+    data.events,
+    data.data,
+    data.items,
+    data.rows,
+    data.result,
+    data.payload,
+    data.response,
+    data.contents
+  ];
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === 'object') {
+      const nested = extractEventsPayload(candidate);
+      if (nested.length) return nested;
+    }
+    if (typeof candidate === 'string') {
+      const nested = extractEventsPayload(candidate);
+      if (nested.length) return nested;
+    }
   }
 
   if (typeof data.events === 'string') {
@@ -4138,6 +4174,31 @@ function normalizeEventDate(value) {
     return raw.replace(/\s+/, 'T');
   }
   return raw;
+}
+
+function getEventField(eventObj, aliases) {
+  if (!eventObj || typeof eventObj !== 'object' || !Array.isArray(aliases)) return '';
+  for (const alias of aliases) {
+    if (!alias) continue;
+    if (Object.prototype.hasOwnProperty.call(eventObj, alias) && eventObj[alias] != null) {
+      return eventObj[alias];
+    }
+    const normalizedAlias = String(alias).replace(/\s+/g, '').toLowerCase();
+    const key = Object.keys(eventObj).find(
+      k => String(k).replace(/\s+/g, '').toLowerCase() === normalizedAlias
+    );
+    if (key && eventObj[key] != null) return eventObj[key];
+  }
+  return '';
+}
+
+function parseBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return ['1', 'true', 'yes', 'y'].includes(normalized);
 }
 
 /* ---------- Save/Delete to Apps Script ---------- */
