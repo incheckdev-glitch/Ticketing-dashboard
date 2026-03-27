@@ -30,6 +30,9 @@ const CONFIG = {
     "https://corsproxy.io/?" +
       encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
 
+  // Optional passcode used when calendar read access is protected.
+  CALENDAR_READ_PASSCODE: RUNTIME_CONFIG.CALENDAR_READ_PASSCODE || '',
+
   // Exact Google Sheet tab name used by the Apps Script calendar backend
   CALENDAR_SHEET_NAME: 'CalendarEvents',
   
@@ -209,7 +212,8 @@ const LS_KEYS = {
  accentColorStorage: 'incheckAccentColor',
   savedViews: 'incheckSavedViews',
   columns: 'incheckColumns',
-  freezeWindows: 'incheckFreezeWindows'
+  freezeWindows: 'incheckFreezeWindows',
+  calendarReadPasscode: 'incheckCalendarReadPasscode'
 };
 
 const STOPWORDS = new Set([
@@ -3931,6 +3935,27 @@ function saveEventsCache() {
   } catch {}
 }
 
+function getCalendarReadPasscode() {
+  const configured = String(CONFIG.CALENDAR_READ_PASSCODE || '').trim();
+  if (configured) return configured;
+  try {
+    return String(localStorage.getItem(LS_KEYS.calendarReadPasscode) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function setCalendarReadPasscode(passcode) {
+  try {
+    const trimmed = String(passcode || '').trim();
+    if (!trimmed) {
+      localStorage.removeItem(LS_KEYS.calendarReadPasscode);
+      return;
+    }
+    localStorage.setItem(LS_KEYS.calendarReadPasscode, trimmed);
+  } catch {}
+}
+
 function loadFreezeWindowsCache() {
   try {
     const raw = localStorage.getItem(LS_KEYS.freezeWindows);
@@ -4072,7 +4097,7 @@ async function loadIssues(force = false) {
   }
 }
 
-async function loadEvents(force = false) {
+async function loadEvents(force = false, options = {}) {
   const cached = loadEventsCache();
   if (cached && cached.length && !force) {
     DataStore.events = cached;
@@ -4087,12 +4112,15 @@ async function loadEvents(force = false) {
 
   try {
     UI.spinner(true);
+    const readPasscode = getCalendarReadPasscode();
     const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
       action: 'read',
       sheetName: CONFIG.CALENDAR_SHEET_NAME,
       tabName: CONFIG.CALENDAR_SHEET_NAME,
       public: 'true',
-      access: 'public'
+      access: 'public',
+      passcode: readPasscode,
+      password: readPasscode
     });
     const res = await fetch(eventsUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Events API failed: ${res.status}`);
@@ -4168,6 +4196,22 @@ async function loadEvents(force = false) {
     Analytics.refresh(UI.Issues.applyFilters());
     UI.setSync('events', true, new Date());
   } catch (e) {
+    const errMsg = String(e?.message || 'Unknown error');
+    const needsPasscode = /unauthorized|invalid\s+passcode|forbidden/i.test(errMsg);
+
+    if (needsPasscode && options?.allowPasscodePrompt !== false) {
+      const entered = window.prompt(
+        'Calendar read access now requires a passcode. Enter passcode to retry loading events:'
+      );
+      if (entered !== null) {
+        const trimmed = entered.trim();
+        if (trimmed) {
+          setCalendarReadPasscode(trimmed);
+          return loadEvents(true, { allowPasscodePrompt: false });
+        }
+      }
+    }
+
     DataStore.events = cached || [];
     ensureCalendar();
     renderCalendarEvents();
@@ -4176,7 +4220,9 @@ async function loadEvents(force = false) {
     UI.toast(
       DataStore.events.length
         ? 'Using cached events (API error)'
-        : 'Unable to load calendar events: ' + (e?.message || 'Unknown error')
+        : needsPasscode
+        ? 'Unable to load calendar events: Invalid or missing calendar read passcode.'
+        : 'Unable to load calendar events: ' + errMsg
     );
   } finally {
     UI.spinner(false);
