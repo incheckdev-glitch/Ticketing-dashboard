@@ -4536,18 +4536,18 @@ async function saveEventToSheet(event, passcode = '') {
       })
     });
 
+    const rawText = await res.text();
     let data;
     try {
-      data = await res.json();
+      data = parseApiJson(rawText, 'Calendar API');
     } catch (jsonErr) {
       console.error('Invalid JSON from calendar backend', jsonErr);
-      const text = await res.text();
-      console.error('Raw response:', text);
-      UI.toast('Calendar: invalid JSON from backend, using local event');
+      console.error('Raw response:', rawText);
+      UI.toast('Calendar: invalid response from backend, using local event');
       return payload;
     }
 
-    if (data.ok) {
+    if (res.ok && (data.ok === true || data.success === true)) {
       UI.toast('Event saved');
       // Make sure we keep notificationStatus from server if set
       const savedEvent = data.event || payload;
@@ -4562,7 +4562,10 @@ async function saveEventToSheet(event, passcode = '') {
       }
       return savedEvent;
     } else {
-      UI.toast('Error saving event: ' + (data.error || 'Unknown error'));
+      UI.toast(
+        'Error saving event: ' +
+          (data.error || data.message || `HTTP ${res.status}`)
+      );
       return null;
     }
   } catch (e) {
@@ -4590,8 +4593,11 @@ async function deleteEventFromSheet(id) {
         tabName: CONFIG.CALENDAR_SHEET_NAME
       })
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Delete failed');
+    const rawText = await res.text();
+    const data = parseApiJson(rawText, 'Calendar API');
+    if (!(res.ok && (data.ok === true || data.success === true))) {
+      throw new Error(data.error || data.message || `Delete failed (HTTP ${res.status})`);
+    }
     UI.toast('Event deleted');
     return true;
   } catch (e) {
