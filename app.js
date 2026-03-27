@@ -1694,6 +1694,7 @@ function cacheEls() {
     'eventModalTitle',
     'eventModalClose',
     'eventForm',
+    'eventPasscode',
     'eventTitle',
     'eventType',
     'eventIssueId',
@@ -3109,6 +3110,10 @@ UI.Modals = {
     if (E.eventForm) E.eventForm.dataset.id = isEdit ? ev.id : '';
     if (E.eventModalTitle) E.eventModalTitle.textContent = isEdit ? 'Edit Event' : 'Add Event';
     if (E.eventDelete) E.eventDelete.style.display = isEdit ? 'inline-flex' : 'none';
+    if (E.eventPasscode) {
+      E.eventPasscode.value = '';
+      E.eventPasscode.required = !isEdit;
+    }
 
     const allDay = !!ev.allDay;
     if (E.eventAllDay) E.eventAllDay.checked = allDay;
@@ -3235,13 +3240,15 @@ UI.Modals = {
 
     if (E.eventModal) {
       E.eventModal.style.display = 'flex';
-      E.eventTitle?.focus();
+      if (!isEdit && E.eventPasscode) E.eventPasscode.focus();
+      else E.eventTitle?.focus();
     }
   },
   closeEvent() {
     if (!E.eventModal) return;
     E.eventModal.style.display = 'none';
     if (E.eventForm) E.eventForm.dataset.id = '';
+    if (E.eventPasscode) E.eventPasscode.value = '';
     if (this.lastEventFocus?.focus) this.lastEventFocus.focus();
   }
 };
@@ -4396,7 +4403,7 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
   }
  }
 
-async function saveEventToSheet(event) {
+async function saveEventToSheet(event, passcode = '') {
   UI.spinner(true);
   try {
     // Ensure we always have a clean ID
@@ -4450,6 +4457,8 @@ async function saveEventToSheet(event) {
         resource: 'events',
         action: 'save',
         event: payload,
+        password: passcode || '',
+        passcode: passcode || '',
         sheetName: CONFIG.CALENDAR_SHEET_NAME,
         tabName: CONFIG.CALENDAR_SHEET_NAME
       })
@@ -5842,7 +5851,14 @@ function wireModals() {
     E.eventForm.addEventListener('submit', async e => {
       e.preventDefault();
       const id = E.eventForm.dataset.id || '';
+      const isNewEvent = !id;
       const allDay = !!(E.eventAllDay && E.eventAllDay.checked);
+      const passcode = (E.eventPasscode?.value || '').trim();
+
+      if (isNewEvent && !passcode) {
+        UI.toast('Passcode is required to create a new event');
+        return;
+      }
 
       const title = (E.eventTitle?.value || '').trim();
       if (!title) {
@@ -5884,7 +5900,7 @@ function wireModals() {
         notificationStatus: ''
       };
 
-      const saved = await saveEventToSheet(ev);
+      const saved = await saveEventToSheet(ev, passcode);
       if (!saved) return;
 
       const idx = DataStore.events.findIndex(x => x.id === saved.id);
