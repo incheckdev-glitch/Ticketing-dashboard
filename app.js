@@ -4050,7 +4050,9 @@ async function loadEvents(force = false) {
     UI.spinner(true);
     const eventsUrl = withResourceParam(CONFIG.CALENDAR_API_URL, 'events', {
       sheetName: CONFIG.CALENDAR_SHEET_NAME,
-      tabName: CONFIG.CALENDAR_SHEET_NAME
+      tabName: CONFIG.CALENDAR_SHEET_NAME,
+      public: 'true',
+      access: 'public'
     });
     const res = await fetch(eventsUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Events API failed: ${res.status}`);
@@ -4059,8 +4061,23 @@ async function loadEvents(force = false) {
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
-      data = {};
+      throw new Error(
+        'Calendar API returned a non-JSON response. Ensure calendar read access is public (no passcode required).'
+      );
     }
+
+    if (
+      data &&
+      typeof data === 'object' &&
+      (data.ok === false || data.success === false)
+    ) {
+      throw new Error(
+        data.error ||
+          data.message ||
+          'Calendar API rejected public read access.'
+      );
+    }
+
     const events = extractEventsPayload(data);
 
     const normalized = events.map(ev => {
