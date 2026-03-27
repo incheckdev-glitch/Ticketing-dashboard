@@ -1783,7 +1783,11 @@ function cacheEls() {
 const UI = {
   toast(msg, ms = 3500) {
     if (!E.toast) return;
-    E.toast.textContent = msg;
+    const normalizedMsg = String(msg ?? '')
+      .replace(/\\n/g, ' ')
+      .replace(/\s*\n\s*/g, ' ')
+      .trim();
+    E.toast.textContent = normalizedMsg;
     E.toast.style.display = 'block';
     setTimeout(() => {
       if (E.toast) E.toast.style.display = 'none';
