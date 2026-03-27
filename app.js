@@ -1831,9 +1831,10 @@ const UI = {
     const txt = which === 'issues' ? E.syncIssuesText : E.syncEventsText;
     const dot = which === 'issues' ? E.syncIssuesDot : E.syncEventsDot;
     if (!txt || !dot) return;
-    txt.textContent = `${which === 'issues' ? 'Issues' : 'Events'}: ${
-      when ? U.fmtTS(when) : 'never'
-    }`;
+    const rawTimestamp = when == null ? '' : String(when).replace(/\s*\n\s*/g, ' ').trim();
+    const formattedTimestamp = rawTimestamp ? U.fmtTS(rawTimestamp) : '';
+    const syncTimestamp = formattedTimestamp && formattedTimestamp !== '—' ? formattedTimestamp : 'never';
+    txt.textContent = `${which === 'issues' ? 'Issues' : 'Events'}: ${syncTimestamp}`;
     dot.className = 'dot ' + (ok ? 'ok' : 'err');
   },
   setAnalyzing(v) {
