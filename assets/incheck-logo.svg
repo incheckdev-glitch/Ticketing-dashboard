@@ -1,5 +1,5 @@
 <svg width="1200" height="500" viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="InCheck 360 logo">
-  <rect width="1200" height="500" fill="#efefef"/>
+  <rect width="1200" height="500" fill="none"/>
 
   <rect x="70" y="120" width="8" height="280" fill="#1E3FE6"/>
   <rect x="140" y="120" width="8" height="280" fill="#1E3FE6"/>
