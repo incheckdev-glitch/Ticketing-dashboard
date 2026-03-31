@@ -669,6 +669,26 @@ th.sorted-desc::after{
 .priority-Medium{background:var(--priority-medium);color:#fff}
 .priority-Low{background:var(--priority-low);color:#fff}
 
+.pill[class*="dev-team-"],
+.pill[class*="issue-related-"]{
+  background:var(--neutral);
+  color:#fff;
+}
+
+/* Dev Team Status color coding */
+.dev-team-Local{background:#6b7280}
+.dev-team-Staging{background:#2563eb}
+.dev-team-Tested-on-stage{background:#0284c7}
+.dev-team-Production{background:#16a34a}
+.dev-team-Tested-on-Production{background:#15803d}
+.dev-team-disregard{background:#dc2626}
+
+/* Issue Related color coding */
+.issue-related-Backend{background:#7c3aed}
+.issue-related-Frontend{background:#2563eb}
+.issue-related-Mobile-App{background:#0d9488}
+.issue-related-Hosting-infrastructure{background:#d97706}
+
 /* Filter chips */
 .filter-chips{
   display:flex;

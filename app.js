@@ -2130,10 +2130,24 @@ UI.Issues = {
       `<span class="pill status-${U.toStatusClass(s)}">${U.escapeHtml(s || '-')}</span>`;
     const badgePrio = p =>
       `<span class="pill priority-${p || ''}">${U.escapeHtml(p || '-')}</span>`;
+    const badgeDevTeamStatus = value =>
+      `<span class="pill dev-team-${U.toStatusClass(value)}">${U.escapeHtml(value || '-')}</span>`;
+    const badgeIssueRelated = value =>
+      `<span class="pill issue-related-${U.toStatusClass(value)}">${U.escapeHtml(value || '-')}</span>`;
+    const badgeIssueRelatedGroup = value => {
+      const tags = String(value || '')
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean);
+      if (!tags.length) return '-';
+      return tags.map(tag => badgeIssueRelated(tag)).join(' ');
+    };
 
     const renderCell = (row, col) => {
       if (col.key === 'priority') return badgePrio(row.priority || '-');
       if (col.key === 'status') return badgeStatus(row.status || '-');
+      if (col.key === 'devTeamStatus') return badgeDevTeamStatus(row.devTeamStatus || '-');
+      if (col.key === 'issueRelated') return badgeIssueRelatedGroup(row.issueRelated || '');
       if (col.key === 'file') {
         const safeUrl = U.safeExternalUrl(row.file);
         return row.file
@@ -3116,6 +3130,17 @@ UI.Modals = {
     const youtrackReference = U.escapeHtml(r.youtrackReference || '—');
     const devTeamStatus = U.escapeHtml(r.devTeamStatus || '—');
     const issueRelated = U.escapeHtml(r.issueRelated || '—');
+    const devTeamStatusBadge = `<span class="pill dev-team-${U.toStatusClass(
+      r.devTeamStatus || ''
+    )}">${devTeamStatus}</span>`;
+    const issueRelatedBadges = String(r.issueRelated || '')
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .map(
+        v => `<span class="pill issue-related-${U.toStatusClass(v)}">${U.escapeHtml(v)}</span>`
+      )
+      .join(' ');
     const notesValue = U.escapeHtml(r.notes || '—');
 
     E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
@@ -3149,7 +3174,7 @@ UI.Modals = {
             <p><span class="ticket-label">📧 Email Address:</span> ${requesterEmail}</p>
             <p><span class="ticket-label">🔗 YouTrack Ref:</span> ${youtrackReference}</p>
             <p><span class="ticket-label">📌 Status:</span> ${status}</p>
-            <p><span class="ticket-label">🧑‍💻 Dev Team Status:</span> ${devTeamStatus}</p>
+            <p><span class="ticket-label">🧑‍💻 Dev Team Status:</span> ${devTeamStatusBadge}</p>
             <p><span class="ticket-label">🆔 Ticket #:</span> ${ticketId}</p>
           </div>
         </section>
@@ -3161,7 +3186,7 @@ UI.Modals = {
 
         <section class="ticket-description">
           <h5>Issue Related</h5>
-          <p>${issueRelated}</p>
+          <p>${issueRelatedBadges || issueRelated}</p>
         </section>
 
         <section class="ticket-description">
