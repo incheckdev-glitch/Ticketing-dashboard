@@ -365,12 +365,14 @@ const U = {
 
 /** Filters persisted */
 const Filters = {
-   state: {
+  state: {
     search: '',
     module: 'All',
     category: 'All',
     priority: 'All',
     status: 'All',
+    devTeamStatus: 'All',
+    issueRelated: 'All',
     start: '',
     end: ''
   },
@@ -1692,6 +1694,8 @@ function cacheEls() {
     'categoryFilter',
     'priorityFilter',
     'statusFilter',
+    'devTeamStatusFilter',
+    'issueRelatedFilter',
     'resetBtn',
     'refreshNow',
     'exportCsv',
@@ -1978,10 +1982,29 @@ UI.Issues = {
       E.statusFilter.innerHTML = ['All', ...uniq(DataStore.rows.map(r => r.status))]
         .map(v => `<option>${v}</option>`)
         .join('');
+    if (E.devTeamStatusFilter)
+      E.devTeamStatusFilter.innerHTML = ['All', ...uniq(DataStore.rows.map(r => r.devTeamStatus))]
+        .map(v => `<option>${v}</option>`)
+        .join('');
+    if (E.issueRelatedFilter) {
+      const issueRelatedOptions = uniq(
+        DataStore.rows.flatMap(r =>
+          String(r.issueRelated || '')
+            .split(',')
+            .map(v => v.trim())
+            .filter(Boolean)
+        )
+      );
+      E.issueRelatedFilter.innerHTML = ['All', ...issueRelatedOptions]
+        .map(v => `<option>${v}</option>`)
+        .join('');
+    }
      setIfOptionExists(E.moduleFilter, Filters.state.module);
     setIfOptionExists(E.categoryFilter, Filters.state.category);
     setIfOptionExists(E.priorityFilter, Filters.state.priority);
     setIfOptionExists(E.statusFilter, Filters.state.status);
+    setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
+    setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
   },
   applyFilters() {
     const s = Filters.state;
@@ -2036,6 +2059,15 @@ UI.Issues = {
          matchesCategory(r) &&
         (!s.priority || s.priority === 'All' || r.priority === s.priority) &&
         (!s.status || s.status === 'All' || r.status === s.status) &&
+        (!s.devTeamStatus ||
+          s.devTeamStatus === 'All' ||
+          (r.devTeamStatus || '') === s.devTeamStatus) &&
+        (!s.issueRelated ||
+          s.issueRelated === 'All' ||
+          String(r.issueRelated || '')
+            .split(',')
+            .map(v => v.trim())
+            .includes(s.issueRelated)) &&
         keepDate
       );
     });
@@ -2062,6 +2094,8 @@ UI.Issues = {
             category: 'All',
             priority: 'All',
             status: 'All',
+            devTeamStatus: 'All',
+            issueRelated: 'All',
             start: '',
             end: ''
           };
@@ -2196,6 +2230,10 @@ UI.Issues = {
         parts.push(`priority = ${Filters.state.priority}`);
       if (Filters.state.status && Filters.state.status !== 'All')
         parts.push(`status = ${Filters.state.status}`);
+      if (Filters.state.devTeamStatus && Filters.state.devTeamStatus !== 'All')
+        parts.push(`dev team status = ${Filters.state.devTeamStatus}`);
+      if (Filters.state.issueRelated && Filters.state.issueRelated !== 'All')
+        parts.push(`issue related = ${Filters.state.issueRelated}`);
       if (Filters.state.start) parts.push(`from ${Filters.state.start}`);
       if (Filters.state.end) parts.push(`to ${Filters.state.end}`);
       const desc = parts.length ? parts.join(', ') : 'no filters';
@@ -2215,6 +2253,8 @@ UI.Issues = {
             category: 'All',
             priority: 'All',
             status: 'All',
+            devTeamStatus: 'All',
+            issueRelated: 'All',
             start: '',
             end: ''
           };
@@ -2374,6 +2414,10 @@ UI.Issues.renderFilterChips = function () {
   if (s.category && s.category !== 'All') addChip('Category', s.category, 'category');
   if (s.priority && s.priority !== 'All') addChip('Priority', s.priority, 'priority');
   if (s.status && s.status !== 'All') addChip('Status', s.status, 'status');
+  if (s.devTeamStatus && s.devTeamStatus !== 'All')
+    addChip('Dev Team Status', s.devTeamStatus, 'devTeamStatus');
+  if (s.issueRelated && s.issueRelated !== 'All')
+    addChip('Issue Related', s.issueRelated, 'issueRelated');
   if (s.start) addChip('From', s.start, 'start');
   if (s.end) addChip('To', s.end, 'end');
 
@@ -2393,6 +2437,8 @@ UI.Issues.renderFilterChips = function () {
       if (key === 'category') Filters.state.category = 'All';
       if (key === 'priority') Filters.state.priority = 'All';
       if (key === 'status') Filters.state.status = 'All';
+      if (key === 'devTeamStatus') Filters.state.devTeamStatus = 'All';
+      if (key === 'issueRelated') Filters.state.issueRelated = 'All';
       if (key === 'start') Filters.state.start = '';
       if (key === 'end') Filters.state.end = '';
 
@@ -2402,6 +2448,8 @@ UI.Issues.renderFilterChips = function () {
       if (E.categoryFilter && key === 'category') E.categoryFilter.value = 'All';
       if (E.priorityFilter && key === 'priority') E.priorityFilter.value = 'All';
       if (E.statusFilter && key === 'status') E.statusFilter.value = 'All';
+      if (E.devTeamStatusFilter && key === 'devTeamStatus') E.devTeamStatusFilter.value = 'All';
+      if (E.issueRelatedFilter && key === 'issueRelated') E.issueRelatedFilter.value = 'All';
       if (E.startDateFilter && key === 'start') E.startDateFilter.value = '';
       if (E.endDateFilter && key === 'end') E.endDateFilter.value = '';
 
@@ -4214,6 +4262,8 @@ async function loadIssues(force = false) {
       setIfOptionExists(E.categoryFilter, Filters.state.category);
       setIfOptionExists(E.priorityFilter, Filters.state.priority);
       setIfOptionExists(E.statusFilter, Filters.state.status);
+      setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
+      setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
       UI.skeleton(false);
       UI.refreshAll();
       openIssueFromLink();
@@ -4231,6 +4281,8 @@ async function loadIssues(force = false) {
     setIfOptionExists(E.categoryFilter, Filters.state.category);
     setIfOptionExists(E.priorityFilter, Filters.state.priority);
     setIfOptionExists(E.statusFilter, Filters.state.status);
+    setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
+    setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
     UI.refreshAll();
     openIssueFromLink();
     UI.setSync('issues', true, new Date());
@@ -5701,6 +5753,9 @@ function syncFilterInputs() {
   if (E.categoryFilter) setIfOptionExists(E.categoryFilter, Filters.state.category);
   if (E.priorityFilter) setIfOptionExists(E.priorityFilter, Filters.state.priority);
   if (E.statusFilter) setIfOptionExists(E.statusFilter, Filters.state.status);
+  if (E.devTeamStatusFilter)
+    setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
+  if (E.issueRelatedFilter) setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
   if (E.startDateFilter) E.startDateFilter.value = Filters.state.start || '';
   if (E.endDateFilter) E.endDateFilter.value = Filters.state.end || '';
 }
@@ -5924,6 +5979,22 @@ function wireFilters() {
     });
     setIfOptionExists(E.statusFilter, Filters.state.status);
   }
+  if (E.devTeamStatusFilter) {
+    E.devTeamStatusFilter.addEventListener('change', () => {
+      Filters.state.devTeamStatus = E.devTeamStatusFilter.value;
+      Filters.save();
+      UI.refreshAll();
+    });
+    setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
+  }
+  if (E.issueRelatedFilter) {
+    E.issueRelatedFilter.addEventListener('change', () => {
+      Filters.state.issueRelated = E.issueRelatedFilter.value;
+      Filters.save();
+      UI.refreshAll();
+    });
+    setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
+  }
   if (E.startDateFilter) {
     E.startDateFilter.value = Filters.state.start || '';
     E.startDateFilter.addEventListener('change', () => {
@@ -5950,6 +6021,8 @@ function wireFilters() {
         category: 'All',
         priority: 'All',
         status: 'All',
+        devTeamStatus: 'All',
+        issueRelated: 'All',
         start: '',
         end: ''
       };
