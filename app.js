@@ -321,6 +321,14 @@ const U = {
       .trim()
       .replace(/\s+/g, '-')
       .replace(/[^A-Za-z0-9_-]/g, ''),
+  toTagClass: value =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, ''),
   safeExternalUrl: raw => {
     if (!raw) return '';
     try {
@@ -2131,9 +2139,9 @@ UI.Issues = {
     const badgePrio = p =>
       `<span class="pill priority-${p || ''}">${U.escapeHtml(p || '-')}</span>`;
     const badgeDevTeamStatus = value =>
-      `<span class="pill dev-team-${U.toStatusClass(value)}">${U.escapeHtml(value || '-')}</span>`;
+      `<span class="pill dev-team-${U.toTagClass(value)}">${U.escapeHtml(value || '-')}</span>`;
     const badgeIssueRelated = value =>
-      `<span class="pill issue-related-${U.toStatusClass(value)}">${U.escapeHtml(value || '-')}</span>`;
+      `<span class="pill issue-related-${U.toTagClass(value)}">${U.escapeHtml(value || '-')}</span>`;
     const badgeIssueRelatedGroup = value => {
       const tags = String(value || '')
         .split(',')
@@ -3130,7 +3138,7 @@ UI.Modals = {
     const youtrackReference = U.escapeHtml(r.youtrackReference || '—');
     const devTeamStatus = U.escapeHtml(r.devTeamStatus || '—');
     const issueRelated = U.escapeHtml(r.issueRelated || '—');
-    const devTeamStatusBadge = `<span class="pill dev-team-${U.toStatusClass(
+    const devTeamStatusBadge = `<span class="pill dev-team-${U.toTagClass(
       r.devTeamStatus || ''
     )}">${devTeamStatus}</span>`;
     const issueRelatedBadges = String(r.issueRelated || '')
@@ -3138,7 +3146,7 @@ UI.Modals = {
       .map(v => v.trim())
       .filter(Boolean)
       .map(
-        v => `<span class="pill issue-related-${U.toStatusClass(v)}">${U.escapeHtml(v)}</span>`
+        v => `<span class="pill issue-related-${U.toTagClass(v)}">${U.escapeHtml(v)}</span>`
       )
       .join(' ');
     const notesValue = U.escapeHtml(r.notes || '—');
