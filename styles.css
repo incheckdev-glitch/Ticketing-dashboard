@@ -676,18 +676,18 @@ th.sorted-desc::after{
 }
 
 /* Dev Team Status color coding */
-.pill.dev-team-local{background:#0ea5e9}
-.pill.dev-team-staging{background:#7c3aed}
-.pill.dev-team-tested-on-stage{background:#2563eb}
-.pill.dev-team-production{background:#16a34a}
-.pill.dev-team-tested-on-production{background:#15803d}
-.pill.dev-team-disregard{background:#6b7280}
+.dev-team-local{background:#0ea5e9}
+.dev-team-staging{background:#7c3aed}
+.dev-team-tested-on-stage{background:#2563eb}
+.dev-team-production{background:#16a34a}
+.dev-team-tested-on-production{background:#15803d}
+.dev-team-disregard{background:#6b7280}
 
 /* Issue Related color coding */
-.pill.issue-related-backend{background:#b91c1c}
-.pill.issue-related-frontend{background:#047857}
-.pill.issue-related-mobile-app{background:#1d4ed8}
-.pill.issue-related-hosting-and-infrastructure{background:#6d28d9}
+.issue-related-backend{background:#b91c1c}
+.issue-related-frontend{background:#047857}
+.issue-related-mobile-app{background:#1d4ed8}
+.issue-related-hosting-and-infrastructure{background:#6d28d9}
 
 /* Filter chips */
 .filter-chips{
