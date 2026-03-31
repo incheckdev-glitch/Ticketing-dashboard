@@ -3341,6 +3341,14 @@ UI.Modals = {
 
 const IssueEditor = {
   issue: null,
+  DEV_TEAM_STATUS_OPTIONS: [
+    'Local',
+    'Staging',
+    'Tested on stage',
+    'Production',
+    'Tested on Production',
+    'disregard'
+  ],
   syncSelectOptions(selectEl, values = [], selected = '', placeholder = 'Select option') {
     if (!selectEl) return;
     const uniqueValues = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
@@ -3353,9 +3361,12 @@ const IssueEditor = {
   },
   syncSheetDropdowns(selectedDevTeamStatus = '', selectedIssueRelated = '') {
     const rows = Array.isArray(DataStore.rows) ? DataStore.rows : [];
+    const devTeamStatusValues = this.DEV_TEAM_STATUS_OPTIONS.concat(
+      rows.map(r => r.devTeamStatus)
+    );
     this.syncSelectOptions(
       E.editIssueDevTeamStatus,
-      rows.map(r => r.devTeamStatus),
+      devTeamStatusValues,
       selectedDevTeamStatus,
       'Select dev team status'
     );
