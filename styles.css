@@ -675,19 +675,19 @@ th.sorted-desc::after{
   color:#fff;
 }
 
-/* Dev Team Status color coding (always gray) */
-.dev-team-Local,
-.dev-team-Staging,
-.dev-team-Tested-on-stage,
-.dev-team-Production,
-.dev-team-Tested-on-Production,
+/* Dev Team Status color coding */
+.dev-team-local{background:#0ea5e9}
+.dev-team-staging{background:#7c3aed}
+.dev-team-tested-on-stage{background:#2563eb}
+.dev-team-production{background:#16a34a}
+.dev-team-tested-on-production{background:#15803d}
 .dev-team-disregard{background:#6b7280}
 
 /* Issue Related color coding */
-.issue-related-Backend{background:#b91c1c}
-.issue-related-Frontend{background:#047857}
-.issue-related-Mobile-App{background:#1d4ed8}
-.issue-related-Hosting-infrastructure{background:#6d28d9}
+.issue-related-backend{background:#b91c1c}
+.issue-related-frontend{background:#047857}
+.issue-related-mobile-app{background:#1d4ed8}
+.issue-related-hosting-and-infrastructure{background:#6d28d9}
 
 /* Filter chips */
 .filter-chips{
