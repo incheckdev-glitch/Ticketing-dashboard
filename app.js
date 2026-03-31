@@ -567,18 +567,26 @@ const DataStore = {
   },
   normalizeRow(raw) {
     const lower = {};
-      const values = Object.values(raw).map(v => String(v ?? '').trim());
+    const values = Object.values(raw).map(v => String(v ?? '').trim());
     for (const k in raw) {
       if (!k) continue;
       lower[k.toLowerCase().replace(/\s+/g, ' ').trim()] = String(raw[k] ?? '').trim();
     }
+    const normalizeHeaderKey = key =>
+      String(key || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+
     const pick = (...keys) => {
       for (const key of keys) {
-        if (lower[key]) return lower[key];
+        const normalized = normalizeHeaderKey(key);
+        if (lower[normalized]) return lower[normalized];
       }
       return '';
     };
-     const pickByIndex = idx => (idx >= 0 && idx < values.length ? values[idx] : '');
+    const pickByIndex = idx => (idx >= 0 && idx < values.length ? values[idx] : '');
 
     // Column K in the source sheet holds the category dropdown values.
     // Keep a positional fallback because sheet header names can drift.
@@ -607,8 +615,14 @@ const DataStore = {
       notificationSent: pick('notification sent'),
       notificationUnderReview: pick('notification sent under review'),
       youtrackReference: pick('youtrack reference', 'you track reference', 'youtrack', 'youtrack ref'),
-      devTeamStatus: pick('dev team status', 'development team status', 'dev status'),
-      issueRelated: pick('issue related', 'related issue', 'related issues'),
+      // Keep positional fallbacks aligned with export order:
+      // O (index 14) = Dev Team Status, P (index 15) = Issue Related.
+      devTeamStatus:
+        pick('dev team status', 'development team status', 'dev status') ||
+        String(raw.__col_14 ?? '').trim(),
+      issueRelated:
+        pick('issue related', 'related issue', 'related issues', 'issue relation') ||
+        String(raw.__col_15 ?? '').trim(),
       notes: pick('notes'),
        // Always prefer Google Sheet column L (index 11) for priority when duplicate
       // "Priority" headers exist.
