@@ -3343,7 +3343,7 @@ const IssueEditor = {
   issue: null,
   syncSelectOptions(selectEl, values = [], selected = '', placeholder = 'Select option') {
     if (!selectEl) return;
-    const uniqueValues = uniq(values.map(v => String(v || '').trim()).filter(Boolean));
+    const uniqueValues = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
     const hasSelected = selected && uniqueValues.includes(selected);
     const finalValues = hasSelected ? uniqueValues : uniqueValues.concat(selected ? [selected] : []);
     selectEl.innerHTML = [`<option value="">${U.escapeHtml(placeholder)}</option>`]
