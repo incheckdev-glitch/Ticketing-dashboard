@@ -4529,11 +4529,18 @@ function buildIssueUpdateFields(payload, candidateId) {
     notificationSentUnderReview: payload.notificationUnderReview,
     'notification sent under review': payload.notificationUnderReview,
     youtrackReference: payload.youtrackReference,
+    youTrackReference: payload.youtrackReference,
+    youtrack_reference: payload.youtrackReference,
     'youtrack reference': payload.youtrackReference,
+    'YouTrack Reference': payload.youtrackReference,
     devTeamStatus: payload.devTeamStatus,
+    dev_team_status: payload.devTeamStatus,
     'dev team status': payload.devTeamStatus,
+    'Dev Team Status': payload.devTeamStatus,
     issueRelated: payload.issueRelated,
+    issue_related: payload.issueRelated,
     'issue related': payload.issueRelated,
+    'Issue Related': payload.issueRelated,
     notes: payload.notes
   };
 }
