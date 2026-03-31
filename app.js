@@ -14,7 +14,7 @@ const RUNTIME_CONFIG = window.__TICKETING_DASHBOARD_CONFIG__ || {};
 
 const APPS_SCRIPT_WEBAPP_URL =
   RUNTIME_CONFIG.APPS_SCRIPT_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbyT0qjB3fCeyQgTzb8cbIEXn03HGBv67AxBFMDKc_0mikFlsf2Q8e2GOxvq-D6cawt_Sw/exec";
+  "https://script.google.com/macros/s/AKfycbxS5zrqzGTKIehIImXTpeO1z8C8PCUOJZZV2oxhY9j9U4CGALCfxMYQFDXSWBfTEv2_lA/exec";
 
 const CONFIG = {
   DATA_VERSION: '4',
