@@ -577,17 +577,17 @@ const DataStore = {
   },
   normalizeRow(raw) {
     const lower = {};
-    const values = Object.values(raw).map(v => String(v ?? '').trim());
-    for (const k in raw) {
-      if (!k) continue;
-      lower[k.toLowerCase().replace(/\s+/g, ' ').trim()] = String(raw[k] ?? '').trim();
-    }
     const normalizeHeaderKey = key =>
       String(key || '')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, ' ')
         .trim()
         .replace(/\s+/g, ' ');
+    const values = Object.values(raw).map(v => String(v ?? '').trim());
+    for (const k in raw) {
+      if (!k) continue;
+      lower[normalizeHeaderKey(k)] = String(raw[k] ?? '').trim();
+    }
 
     const pick = (...keys) => {
       for (const key of keys) {
@@ -628,10 +628,10 @@ const DataStore = {
       // Keep positional fallbacks aligned with export order:
       // R (index 17) = Dev Team Status, S (index 18) = Issue Related.
       devTeamStatus:
-        pick('dev team status', 'development team status', 'dev status') ||
+        pick('dev team status', 'development team status', 'dev status', 'dev_team_status') ||
         String(raw.__col_17 ?? '').trim(),
       issueRelated:
-        pick('issue related', 'related issue', 'related issues', 'issue relation') ||
+        pick('issue related', 'related issue', 'related issues', 'issue relation', 'issue_related') ||
         String(raw.__col_18 ?? '').trim(),
       notes: pick('notes'),
        // Always prefer Google Sheet column L (index 11) for priority when duplicate
