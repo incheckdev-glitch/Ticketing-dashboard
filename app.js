@@ -17,7 +17,7 @@ const APPS_SCRIPT_WEBAPP_URL =
   "https://script.google.com/macros/s/AKfycbyT0qjB3fCeyQgTzb8cbIEXn03HGBv67AxBFMDKc_0mikFlsf2Q8e2GOxvq-D6cawt_Sw/exec";
 
 const CONFIG = {
-  DATA_VERSION: '3',
+  DATA_VERSION: '4',
    DATA_STALE_HOURS: 6,
 
   // Issues CSV (read-only)
@@ -398,6 +398,10 @@ const ColumnManager = {
     { key: 'type', label: 'Category' },
     { key: 'status', label: 'Status' },
     { key: 'notificationSent', label: 'Notification Sent' },
+    { key: 'youtrackReference', label: 'YouTrack Reference' },
+    { key: 'devTeamStatus', label: 'Dev Team Status' },
+    { key: 'issueRelated', label: 'Issue Related' },
+    { key: 'notes', label: 'Notes' },
     { key: 'log', label: 'Log' },
     { key: 'notificationUnderReview', label: 'Notification Sent Under Review' }
   ],
@@ -602,13 +606,17 @@ const DataStore = {
       emailAddressee: pick('email addressee', 'email', 'email address'),
       notificationSent: pick('notification sent'),
       notificationUnderReview: pick('notification sent under review'),
+      youtrackReference: pick('youtrack reference', 'you track reference', 'youtrack', 'youtrack ref'),
+      devTeamStatus: pick('dev team status', 'development team status', 'dev status'),
+      issueRelated: pick('issue related', 'related issue', 'related issues'),
+      notes: pick('notes'),
        // Always prefer Google Sheet column L (index 11) for priority when duplicate
       // "Priority" headers exist.
       priority: DataStore.normalizePriority(String(raw.__col_11 ?? '').trim() || pick('priority')),
       status: DataStore.normalizeStatus(pick('status') || 'Not Started Yet'),
       type: resolvedType,
       date: pick('timestamp', 'date', 'created at'),
-      log: pick('log', 'logs', 'comment', 'notes')
+      log: pick('log', 'logs', 'comment')
     };
   },
   tokenize(issue) {
@@ -1975,6 +1983,10 @@ UI.Issues = {
         r.department,
         r.emailAddressee,
         r.notificationSent,
+        r.youtrackReference,
+        r.devTeamStatus,
+        r.issueRelated,
+        r.notes,
         r.notificationUnderReview
       ]
         .filter(Boolean)
@@ -2149,7 +2161,7 @@ UI.Issues = {
       const desc = parts.length ? parts.join(', ') : 'no filters';
       E.issuesTbody.innerHTML = `
         <tr>
-          <td colspan="15" style="text-align:center;color:var(--muted)">
+          <td colspan="${ColumnManager.columns.length}" style="text-align:center;color:var(--muted)">
             No issues found for ${U.escapeHtml(desc)}.
             <button type="button" class="btn sm" id="clearFiltersBtn" style="margin-left:8px">Clear filters</button>
           </td>
@@ -3083,6 +3095,10 @@ UI.Modals = {
     const requesterEmail = U.escapeHtml(r.email || r.emailAddressee || '-');
     const category = U.escapeHtml(r.type || '-');
     const logValue = U.escapeHtml(r.log || '—');
+    const youtrackReference = U.escapeHtml(r.youtrackReference || '—');
+    const devTeamStatus = U.escapeHtml(r.devTeamStatus || '—');
+    const issueRelated = U.escapeHtml(r.issueRelated || '—');
+    const notesValue = U.escapeHtml(r.notes || '—');
 
     E.modalTitle.textContent = `TICKET:${r.id || '-'}`;
     E.modalBody.innerHTML = `
@@ -3113,7 +3129,9 @@ UI.Modals = {
           <div class="ticket-col">
             <p><span class="ticket-label">🏷 Category:</span> ${category}</p>
             <p><span class="ticket-label">📧 Email Address:</span> ${requesterEmail}</p>
+            <p><span class="ticket-label">🔗 YouTrack Ref:</span> ${youtrackReference}</p>
             <p><span class="ticket-label">📌 Status:</span> ${status}</p>
+            <p><span class="ticket-label">🧑‍💻 Dev Team Status:</span> ${devTeamStatus}</p>
             <p><span class="ticket-label">🆔 Ticket #:</span> ${ticketId}</p>
           </div>
         </section>
@@ -3121,6 +3139,16 @@ UI.Modals = {
         <section class="ticket-description">
           <h5>Description</h5>
           <p>${description}</p>
+        </section>
+
+        <section class="ticket-description">
+          <h5>Issue Related</h5>
+          <p>${issueRelated}</p>
+        </section>
+
+        <section class="ticket-description">
+          <h5>Notes</h5>
+          <p>${notesValue}</p>
         </section>
 
         <section class="ticket-log">
@@ -4081,7 +4109,7 @@ async function loadIssues(force = false) {
     if (!DataStore.rows.length && E.issuesTbody) {
       E.issuesTbody.innerHTML = `
         <tr>
-          <td colspan="15" style="color:#ffb4b4;text-align:center">
+          <td colspan="${ColumnManager.columns.length}" style="color:#ffb4b4;text-align:center">
             Error loading data and no cached data found.
             <button type="button" id="retryLoad" class="btn sm" style="margin-left:8px">Retry</button>
           </td>
@@ -4706,6 +4734,10 @@ function buildIssueExportRow(issue) {
     Category: issue.type,
     Status: issue.status,
     'Notification Sent': issue.notificationSent,
+    'YouTrack Reference': issue.youtrackReference,
+    'Dev Team Status': issue.devTeamStatus,
+    'Issue Related': issue.issueRelated,
+    Notes: issue.notes,
     Log: issue.log,
     'Notification Sent Under Review': issue.notificationUnderReview
   };
@@ -4725,6 +4757,10 @@ const ISSUE_EXPORT_HEADERS = [
   'Category',
   'Status',
   'Notification Sent',
+  'YouTrack Reference',
+  'Dev Team Status',
+  'Issue Related',
+  'Notes',
   'Log',
   'Notification Sent Under Review'
 ];
@@ -4808,6 +4844,10 @@ function buildIssueDetailExportRows(issue, risk = {}, meta = {}) {
     ['Email', issue.email || '—'],
     ['Email Addressee', issue.emailAddressee || '—'],
     ['Notification Sent', issue.notificationSent || '—'],
+    ['YouTrack Reference', issue.youtrackReference || '—'],
+    ['Dev Team Status', issue.devTeamStatus || '—'],
+    ['Issue Related', issue.issueRelated || '—'],
+    ['Notes', issue.notes || '—'],
     ['Notification Under Review', issue.notificationUnderReview || '—'],
     ['Log', issue.log || '—'],
     ['Suggested Priority', meta.suggestions?.priority || '—'],
