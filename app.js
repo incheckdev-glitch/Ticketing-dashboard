@@ -3327,6 +3327,31 @@ UI.Modals = {
 
 const IssueEditor = {
   issue: null,
+  syncSelectOptions(selectEl, values = [], selected = '', placeholder = 'Select option') {
+    if (!selectEl) return;
+    const uniqueValues = uniq(values.map(v => String(v || '').trim()).filter(Boolean));
+    const hasSelected = selected && uniqueValues.includes(selected);
+    const finalValues = hasSelected ? uniqueValues : uniqueValues.concat(selected ? [selected] : []);
+    selectEl.innerHTML = [`<option value="">${U.escapeHtml(placeholder)}</option>`]
+      .concat(finalValues.map(v => `<option value="${U.escapeAttr(v)}">${U.escapeHtml(v)}</option>`))
+      .join('');
+    selectEl.value = selected || '';
+  },
+  syncSheetDropdowns(selectedDevTeamStatus = '', selectedIssueRelated = '') {
+    const rows = Array.isArray(DataStore.rows) ? DataStore.rows : [];
+    this.syncSelectOptions(
+      E.editIssueDevTeamStatus,
+      rows.map(r => r.devTeamStatus),
+      selectedDevTeamStatus,
+      'Select dev team status'
+    );
+    this.syncSelectOptions(
+      E.editIssueRelated,
+      rows.map(r => r.issueRelated),
+      selectedIssueRelated,
+      'Select related issue'
+    );
+  },
   syncCategoryOptions(selected = '') {
     if (!E.editIssueType) return;
     const categories = buildIssueCategoryOptions(selected ? [selected] : []);
@@ -3361,8 +3386,7 @@ const IssueEditor = {
     setVal(E.editIssueNotificationSent, issue.notificationSent || '');
     setVal(E.editIssueNotificationReview, issue.notificationUnderReview || '');
     setVal(E.editIssueYoutrackReference, issue.youtrackReference || '');
-    setVal(E.editIssueDevTeamStatus, issue.devTeamStatus || '');
-    setVal(E.editIssueRelated, issue.issueRelated || '');
+    this.syncSheetDropdowns(issue.devTeamStatus || '', issue.issueRelated || '');
     setVal(E.editIssueNotes, issue.notes || '');
     setVal(E.editIssueLog, issue.log || '');
     setVal(E.editIssueFile, issue.file || '');
