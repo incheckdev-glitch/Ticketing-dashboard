@@ -1701,6 +1701,10 @@ function cacheEls() {
     'editIssueEmail',
     'editIssueNotificationSent',
     'editIssueNotificationReview',
+    'editIssueYoutrackReference',
+    'editIssueDevTeamStatus',
+    'editIssueRelated',
+    'editIssueNotes',
     'editIssueLog',
     'editIssueFile',
     'editIssueDate',
@@ -3356,6 +3360,10 @@ const IssueEditor = {
     setVal(E.editIssueEmail, issue.emailAddressee || '');
     setVal(E.editIssueNotificationSent, issue.notificationSent || '');
     setVal(E.editIssueNotificationReview, issue.notificationUnderReview || '');
+    setVal(E.editIssueYoutrackReference, issue.youtrackReference || '');
+    setVal(E.editIssueDevTeamStatus, issue.devTeamStatus || '');
+    setVal(E.editIssueRelated, issue.issueRelated || '');
+    setVal(E.editIssueNotes, issue.notes || '');
     setVal(E.editIssueLog, issue.log || '');
     setVal(E.editIssueFile, issue.file || '');
 
@@ -3386,6 +3394,10 @@ const IssueEditor = {
       emailAddressee: (E.editIssueEmail?.value || '').trim(),
       notificationSent: (E.editIssueNotificationSent?.value || '').trim(),
       notificationUnderReview: (E.editIssueNotificationReview?.value || '').trim(),
+      youtrackReference: (E.editIssueYoutrackReference?.value || '').trim(),
+      devTeamStatus: (E.editIssueDevTeamStatus?.value || '').trim(),
+      issueRelated: (E.editIssueRelated?.value || '').trim(),
+      notes: (E.editIssueNotes?.value || '').trim(),
       log: (E.editIssueLog?.value || '').trim(),
       file: (E.editIssueFile?.value || '').trim(),
       date: E.editIssueDate?.value || ''
@@ -3461,6 +3473,10 @@ async function onEditIssueSubmit(event) {
   const emailAddressee = (E.editIssueEmail?.value || '').trim();
   const notificationSent = (E.editIssueNotificationSent?.value || '').trim();
   const notificationUnderReview = (E.editIssueNotificationReview?.value || '').trim();
+  const youtrackReference = (E.editIssueYoutrackReference?.value || '').trim();
+  const devTeamStatus = (E.editIssueDevTeamStatus?.value || '').trim();
+  const issueRelated = (E.editIssueRelated?.value || '').trim();
+  const notes = (E.editIssueNotes?.value || '').trim();
   const log = (E.editIssueLog?.value || '').trim();
   const link = (E.editIssueFile?.value || '').trim();
   const date = E.editIssueDate?.value || '';
@@ -3492,6 +3508,10 @@ const issueUpdate = {
     emailAddressee,
     notificationSent,
     notificationUnderReview,
+    youtrackReference,
+    devTeamStatus,
+    issueRelated,
+    notes,
     log,
   file: link,
     date
@@ -4373,6 +4393,10 @@ function normalizeIssueForStore(issue) {
     emailAddressee: issue.emailAddressee || '',
     notificationSent: issue.notificationSent || '',
     notificationUnderReview: issue.notificationUnderReview || '',
+    youtrackReference: issue.youtrackReference || '',
+    devTeamStatus: issue.devTeamStatus || '',
+    issueRelated: issue.issueRelated || '',
+    notes: issue.notes || '',
     priority: DataStore.normalizePriority(issue.priority),
     status: DataStore.normalizeStatus(issue.status),
     type: issue.type || '',
@@ -4443,6 +4467,10 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
           emailAddressee: payload.emailAddressee,
           notificationSent: payload.notificationSent,
           notificationUnderReview: payload.notificationUnderReview,
+          youtrackReference: payload.youtrackReference,
+          devTeamStatus: payload.devTeamStatus,
+          issueRelated: payload.issueRelated,
+          notes: payload.notes,
           type: payload.type
         }
       };
