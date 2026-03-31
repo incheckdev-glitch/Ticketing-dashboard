@@ -4497,6 +4497,47 @@ function buildIssueIdCandidates(id) {
   return Array.from(candidates).filter(Boolean);
 }
 
+function buildIssueUpdateFields(payload, candidateId) {
+  return {
+    id: candidateId,
+    ticket_id: candidateId,
+    title: payload.title,
+    description: payload.desc,
+    desc: payload.desc,
+    module: payload.module,
+    impactedModule: payload.module,
+    'impacted module': payload.module,
+    priority: payload.priority,
+    status: payload.status,
+    category: payload.type,
+    issueType: payload.type,
+    type: payload.type,
+    log: payload.log,
+    date: payload.date,
+    file: payload.file,
+    link: payload.file,
+    fileUpload: payload.file,
+    'file upload': payload.file,
+    department: payload.department,
+    name: payload.name,
+    emailAddressee: payload.emailAddressee,
+    email: payload.emailAddressee,
+    'email addressee': payload.emailAddressee,
+    notificationSent: payload.notificationSent,
+    'notification sent': payload.notificationSent,
+    notificationUnderReview: payload.notificationUnderReview,
+    notificationSentUnderReview: payload.notificationUnderReview,
+    'notification sent under review': payload.notificationUnderReview,
+    youtrackReference: payload.youtrackReference,
+    'youtrack reference': payload.youtrackReference,
+    devTeamStatus: payload.devTeamStatus,
+    'dev team status': payload.devTeamStatus,
+    issueRelated: payload.issueRelated,
+    'issue related': payload.issueRelated,
+    notes: payload.notes
+  };
+}
+
 async function saveIssueToSheet(issue, passcode, options = {}) {
   if (!CONFIG.ISSUE_API_URL) {
     UI.toast('Issue update endpoint is not configured.');
@@ -4513,6 +4554,7 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
       throw new Error('Missing ticket ID for update.');
     }
     const compatibilityBodies = issueIdCandidates.flatMap(candidateId => {
+      const updates = buildIssueUpdateFields(payload, candidateId);
       const updateRequestBody = {
         resource: 'tickets',
         action: 'update',
@@ -4524,31 +4566,7 @@ async function saveIssueToSheet(issue, passcode, options = {}) {
         },
         password: passcode || '',
         passcode: passcode || '',
-        updates: {
-          id: candidateId,
-          ticket_id: candidateId,
-          title: payload.title,
-          description: payload.desc,
-          desc: payload.desc,
-          module: payload.module,
-          priority: payload.priority,
-          status: payload.status,
-            category: payload.type,
-          issueType: payload.type,
-          log: payload.log,
-          date: payload.date,
-          file: payload.file,
-          department: payload.department,
-          name: payload.name,
-          emailAddressee: payload.emailAddressee,
-          notificationSent: payload.notificationSent,
-          notificationUnderReview: payload.notificationUnderReview,
-          youtrackReference: payload.youtrackReference,
-          devTeamStatus: payload.devTeamStatus,
-          issueRelated: payload.issueRelated,
-          notes: payload.notes,
-          type: payload.type
-        }
+        updates
       };
 
      return [
