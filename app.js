@@ -3172,18 +3172,18 @@ UI.Modals = {
 
         <section class="ticket-grid">
           <div class="ticket-col">
-            <p><span class="ticket-label">🗓 Date:</span> ${dateValue}</p>
-            <p><span class="ticket-label">👤 Name:</span> ${personName}</p>
-            <p><span class="ticket-label">🏢 Department:</span> ${department}</p>
-            <p><span class="ticket-label">📦 Module:</span> ${moduleName}</p>
+            <p class="ticket-meta-item"><span class="ticket-label">🗓 Date:</span> <span>${dateValue}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">👤 Name:</span> <span>${personName}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">🏢 Department:</span> <span>${department}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">📦 Module:</span> <span>${moduleName}</span></p>
           </div>
           <div class="ticket-col">
-            <p><span class="ticket-label">🏷 Category:</span> ${category}</p>
-            <p><span class="ticket-label">📧 Email Address:</span> ${requesterEmail}</p>
-            <p><span class="ticket-label">🔗 YouTrack Ref:</span> ${youtrackReference}</p>
-            <p><span class="ticket-label">📌 Status:</span> ${status}</p>
-            <p><span class="ticket-label">🧑‍💻 Dev Team Status:</span> ${devTeamStatusBadge}</p>
-            <p><span class="ticket-label">🆔 Ticket #:</span> ${ticketId}</p>
+            <p class="ticket-meta-item"><span class="ticket-label">🏷 Category:</span> <span>${category}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">📧 Email Address:</span> <span>${requesterEmail}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">🔗 YouTrack Ref:</span> <span>${youtrackReference}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">📌 Status:</span> <span>${status}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">🧑‍💻 Dev Team Status:</span> <span>${devTeamStatusBadge}</span></p>
+            <p class="ticket-meta-item"><span class="ticket-label">🆔 Ticket #:</span> <span>${ticketId}</span></p>
           </div>
         </section>
 
