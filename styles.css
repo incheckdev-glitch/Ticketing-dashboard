@@ -677,7 +677,7 @@ th.sorted-desc::after{
 
 /* Dev Team Status color coding */
 .dev-team-local{background:#0ea5e9}
-.dev-team-staging{background:var(--neutral)}
+.dev-team-staging{background:#7c3aed}
 .dev-team-tested-on-stage{background:#2563eb}
 .dev-team-production{background:#16a34a}
 .dev-team-tested-on-production{background:#15803d}
@@ -686,7 +686,7 @@ th.sorted-desc::after{
 /* Issue Related color coding */
 .issue-related-backend{background:#b91c1c}
 .issue-related-frontend{background:#047857}
-.issue-related-mobile-app{background:var(--neutral)}
+.issue-related-mobile-app{background:#1d4ed8}
 .issue-related-hosting-and-infrastructure{background:#6d28d9}
 
 /* Filter chips */
