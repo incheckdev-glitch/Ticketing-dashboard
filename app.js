@@ -5995,12 +5995,17 @@ function wireModals() {
   }
 
   if (E.editIssueBtn) {
-    E.editIssueBtn.addEventListener('click', () => {
-      if (!UI.Modals.selectedIssue) {
+    E.editIssueBtn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const selectedIssue =
+        UI.Modals.selectedIssue ||
+        DataStore.byId.get(E.editIssueBtn?.dataset?.id || '');
+      if (!selectedIssue) {
         UI.toast('Open a ticket before editing.');
         return;
       }
-      IssueEditor.open(UI.Modals.selectedIssue);
+      IssueEditor.open(selectedIssue);
     });
   }
 
