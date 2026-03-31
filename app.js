@@ -3349,6 +3349,7 @@ const IssueEditor = {
     'Tested on Production',
     'disregard'
   ],
+  ISSUE_RELATED_OPTIONS: ['Backend', 'Frontend', 'Mobile App', 'Hosting & infrastructure'],
   syncSelectOptions(selectEl, values = [], selected = '', placeholder = 'Select option') {
     if (!selectEl) return;
     const uniqueValues = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
@@ -3358,6 +3359,33 @@ const IssueEditor = {
       .concat(finalValues.map(v => `<option value="${U.escapeAttr(v)}">${U.escapeHtml(v)}</option>`))
       .join('');
     selectEl.value = selected || '';
+  },
+  syncMultiSelectOptions(selectEl, values = [], selectedValues = []) {
+    if (!selectEl) return;
+    const uniqueValues = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+    const selectedSet = new Set(
+      (Array.isArray(selectedValues) ? selectedValues : [])
+        .map(v => String(v || '').trim())
+        .filter(Boolean)
+    );
+    selectEl.innerHTML = uniqueValues
+      .map(v => `<option value="${U.escapeAttr(v)}">${U.escapeHtml(v)}</option>`)
+      .join('');
+    Array.from(selectEl.options).forEach(option => {
+      option.selected = selectedSet.has(option.value);
+    });
+  },
+  parseIssueRelatedSelections(value = '') {
+    return String(value || '')
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean);
+  },
+  getSelectedMultiValues(selectEl) {
+    if (!selectEl) return [];
+    return Array.from(selectEl.selectedOptions || [])
+      .map(option => String(option.value || '').trim())
+      .filter(Boolean);
   },
   syncSheetDropdowns(selectedDevTeamStatus = '', selectedIssueRelated = '') {
     const rows = Array.isArray(DataStore.rows) ? DataStore.rows : [];
@@ -3370,11 +3398,10 @@ const IssueEditor = {
       selectedDevTeamStatus,
       'Select dev team status'
     );
-    this.syncSelectOptions(
+    this.syncMultiSelectOptions(
       E.editIssueRelated,
-      rows.map(r => r.issueRelated),
-      selectedIssueRelated,
-      'Select related issue'
+      this.ISSUE_RELATED_OPTIONS,
+      this.parseIssueRelatedSelections(selectedIssueRelated)
     );
   },
   syncCategoryOptions(selected = '') {
@@ -3445,7 +3472,7 @@ const IssueEditor = {
       notificationUnderReview: (E.editIssueNotificationReview?.value || '').trim(),
       youtrackReference: (E.editIssueYoutrackReference?.value || '').trim(),
       devTeamStatus: (E.editIssueDevTeamStatus?.value || '').trim(),
-      issueRelated: (E.editIssueRelated?.value || '').trim(),
+      issueRelated: this.getSelectedMultiValues(E.editIssueRelated).join(', '),
       notes: (E.editIssueNotes?.value || '').trim(),
       log: (E.editIssueLog?.value || '').trim(),
       file: (E.editIssueFile?.value || '').trim(),
@@ -3524,7 +3551,7 @@ async function onEditIssueSubmit(event) {
   const notificationUnderReview = (E.editIssueNotificationReview?.value || '').trim();
   const youtrackReference = (E.editIssueYoutrackReference?.value || '').trim();
   const devTeamStatus = (E.editIssueDevTeamStatus?.value || '').trim();
-  const issueRelated = (E.editIssueRelated?.value || '').trim();
+  const issueRelated = IssueEditor.getSelectedMultiValues(E.editIssueRelated).join(', ');
   const notes = (E.editIssueNotes?.value || '').trim();
   const log = (E.editIssueLog?.value || '').trim();
   const link = (E.editIssueFile?.value || '').trim();

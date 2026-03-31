@@ -730,8 +730,12 @@
 
             <div class="filter-row">
               <label class="muted" for="editIssueRelated">Issue Related</label>
-              <select id="editIssueRelated" class="select">
-                <option value="">Select related issue</option>
+              <select id="editIssueRelated" class="select" multiple size="4"
+                      aria-label="Select one or more issue related options">
+                <option value="Backend">Backend</option>
+                <option value="Frontend">Frontend</option>
+                <option value="Mobile App">Mobile App</option>
+                <option value="Hosting & infrastructure">Hosting & infrastructure</option>
               </select>
             </div>
 
