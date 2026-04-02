@@ -42,7 +42,7 @@ const CONFIG = {
     "https://corsproxy.io/?" +
       encodeURIComponent(APPS_SCRIPT_WEBAPP_URL),
   ADMIN_PASSCODE: RUNTIME_CONFIG.ADMIN_PASSCODE || 'incheck@360',
-  VIEWER_PASSCODE: RUNTIME_CONFIG.VIEWER_PASSCODE || '',
+  VIEWER_PASSCODE: RUNTIME_CONFIG.VIEWER_PASSCODE || '12345678',
 
   
   TREND_DAYS_RECENT: 7,
@@ -291,7 +291,11 @@ const Session = {
     if (!normalizedRole) return false;
     const previousRole = this.state.role;
     const expected =
-      normalizedRole === ROLES.ADMIN ? CONFIG.ADMIN_PASSCODE : '';
+      normalizedRole === ROLES.ADMIN
+        ? CONFIG.ADMIN_PASSCODE
+        : normalizedRole === ROLES.VIEWER
+          ? CONFIG.VIEWER_PASSCODE
+          : '';
     const entered = String(passcode || '');
     if (expected && entered !== expected) return false;
     if (previousRole && previousRole !== normalizedRole) {
@@ -301,6 +305,16 @@ const Session = {
     this.state.authCode = entered;
     this.persist();
     return true;
+  },
+  logout() {
+    if (this.state.role) {
+      this.clearRoleScopedCache();
+    }
+    this.state.role = null;
+    this.state.authCode = '';
+    try {
+      localStorage.removeItem(LS_KEYS.session);
+    } catch {}
   },
   isAuthenticated() {
     return this.state.role === ROLES.ADMIN || this.state.role === ROLES.VIEWER;
@@ -1924,7 +1938,12 @@ function cacheEls() {
     'spinner',
     'toast',
     'searchInput',
-    'launchDashboard',
+    'loginForm',
+    'loginRole',
+    'loginPasscode',
+    'loginBtn',
+    'loginHint',
+    'logoutBtn',
      'savedViews',
     'saveViewBtn',
     'deleteViewBtn',
@@ -2007,6 +2026,7 @@ function cacheEls() {
     'healthSheetSubtext',
     'healthOpenAppLink',
     'healthOpenApiLink',
+    'healthPrintBtn',
     'healthStatusBadge',
     'healthLastChecked',
     'healthLatency',
@@ -2016,6 +2036,8 @@ function cacheEls() {
     'healthFailureStreak',
     'healthFailureCount',
     'healthDowntime',
+    'healthUptimeWidget',
+    'healthDowntimeWidget',
     'healthWindowBar',
     'healthChecksList',
     'healthChecksPagination',
@@ -4561,7 +4583,7 @@ const HealthMonitor = {
     const failures = this.history.filter(item => !item.ok).length;
     const totalDowntimeMs = this.computeDowntimeMs();
     const uptimePct = this.history.length
-      ? Math.round((this.history.filter(h => h.ok).length / this.history.length) * 100)
+      ? (this.history.filter(h => h.ok).length / this.history.length) * 100
       : null;
     const avgLatency = latencies.length
       ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length)
@@ -4587,14 +4609,18 @@ const HealthMonitor = {
         E.healthUptime.textContent = '--';
       } else {
         const up = this.history.filter(h => h.ok).length;
-        E.healthUptime.textContent = `${uptimePct}% (${up}/${this.history.length})`;
+        E.healthUptime.textContent = `${uptimePct.toFixed(2)}% (${up}/${this.history.length})`;
       }
+    }
+    if (E.healthUptimeWidget) {
+      E.healthUptimeWidget.textContent = Number.isFinite(uptimePct) ? `${uptimePct.toFixed(2)}%` : '--';
     }
     if (E.healthAvgLatency) E.healthAvgLatency.textContent = Number.isFinite(avgLatency) ? `${avgLatency} ms` : 'n/a';
     if (E.healthP95Latency) E.healthP95Latency.textContent = Number.isFinite(p95Latency) ? `${p95Latency} ms` : 'n/a';
     if (E.healthFailureStreak) E.healthFailureStreak.textContent = `${currentFailureStreak} check${currentFailureStreak === 1 ? '' : 's'}`;
     if (E.healthFailureCount) E.healthFailureCount.textContent = `${failures} / ${this.history.length || 0}`;
     if (E.healthDowntime) E.healthDowntime.textContent = `${this.formatDurationMs(totalDowntimeMs)} (${failures} checks)`;
+    if (E.healthDowntimeWidget) E.healthDowntimeWidget.textContent = this.formatDurationMs(totalDowntimeMs);
     if (E.healthWindowBar) {
       if (!this.history.length) {
         E.healthWindowBar.innerHTML = '<span class="muted">No checks yet.</span>';
@@ -6268,6 +6294,139 @@ function exportSelectedIssueToPdf() {
   }
 }
 
+function exportHealthMonitorPrintScreen() {
+  const healthView = E.healthView;
+  if (!healthView) return UI.toast('Monitor health screen is unavailable.');
+
+  const clone = healthView.cloneNode(true);
+  const healthWindowBarCard = clone.querySelector('#healthWindowBar')?.closest('.card');
+  if (healthWindowBarCard) healthWindowBarCard.remove();
+  const healthChecksCard = clone.querySelector('#healthChecksList')?.closest('.card');
+  if (healthChecksCard) healthChecksCard.remove();
+
+  const sourceCanvases = healthView.querySelectorAll('canvas');
+  const cloneCanvases = clone.querySelectorAll('canvas');
+  cloneCanvases.forEach((canvas, idx) => {
+    const source = sourceCanvases[idx];
+    if (!source) return;
+    const image = document.createElement('img');
+    image.src = source.toDataURL('image/png');
+    image.alt = source.getAttribute('aria-label') || 'Health chart';
+    image.style.width = '100%';
+    image.style.height = 'auto';
+    image.style.display = 'block';
+    canvas.replaceWith(image);
+  });
+
+  const title = 'Monitor Health Print Screen';
+  const baseHref = U.escapeAttr(window.location.href);
+  const printHeader = `
+    <header class="health-print-header" aria-label="InCheck header">
+      <img src="assets/incheck-logo.svg" alt="InCheck360 MonitorCore logo" width="40" height="40" />
+      <div>
+        <strong>InCheck360 MonitorCore</strong>
+        <div>Monitor Health Report</div>
+      </div>
+    </header>
+  `;
+  const printableDoc = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${U.escapeHtml(title)}</title>
+        <base href="${baseHref}" />
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+          body { margin: 24px; background: #fff; color: #111; }
+          .health-print-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 12px;
+          }
+          .health-print-header strong {
+            display: block;
+            font-size: 18px;
+            line-height: 1.2;
+          }
+          .health-print-header div {
+            color: #4b5563;
+            font-size: 13px;
+          }
+          .view { display: block !important; }
+          .card { break-inside: avoid; page-break-inside: avoid; }
+          .health-actions { display: none !important; }
+          #healthChecksList, #healthChecksPagination { display: none !important; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>${printHeader}${clone.outerHTML}</body>
+    </html>
+  `;
+
+  const printNow = (targetWindow) => {
+    targetWindow.focus();
+    targetWindow.print();
+    UI.toast('Monitor health print screen is ready in the print dialog.');
+  };
+
+  const printWindow = window.open('about:blank', '_blank', 'width=1280,height=920');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(printableDoc);
+    printWindow.document.close();
+    if (printWindow.document.readyState === 'complete') {
+      setTimeout(() => printNow(printWindow), 150);
+    } else {
+      printWindow.addEventListener('load', () => setTimeout(() => printNow(printWindow), 150), {
+        once: true
+      });
+    }
+    return;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '-9999px';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!frameDoc) {
+    iframe.remove();
+    UI.toast('Unable to prepare monitor health print screen.');
+    return;
+  }
+
+  frameDoc.open();
+  frameDoc.write(printableDoc);
+  frameDoc.close();
+
+  const printFromFrame = () => {
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      iframe.remove();
+      UI.toast('Unable to open print dialog. Check browser print settings.');
+      return;
+    }
+    printNow(frameWindow);
+    setTimeout(() => iframe.remove(), 1500);
+  };
+
+  if (frameDoc.readyState === 'complete') {
+    setTimeout(printFromFrame, 150);
+  } else {
+    iframe.addEventListener('load', () => setTimeout(printFromFrame, 150), { once: true });
+  }
+}
+
 /* ---------- Release Planner wiring & rendering ---------- */
 
 let LAST_PLANNER_CONTEXT = null;
@@ -6948,6 +7107,9 @@ function wireCore() {
   if (E.healthRefreshBtn) {
     E.healthRefreshBtn.addEventListener('click', () => HealthMonitor.checkNow());
   }
+  if (E.healthPrintBtn) {
+    E.healthPrintBtn.addEventListener('click', exportHealthMonitorPrintScreen);
+  }
   if (E.healthRangePreset) {
     E.healthRangePreset.addEventListener('change', e => {
       HealthMonitor.setRangePreset(e.target.value);
@@ -7218,47 +7380,86 @@ function wireConnectivity() {
 }
 
 function wireDashboardGate() {
-  if (!E.app || !E.launchDashboard) return;
+  if (!E.app || !E.loginForm || !E.loginRole || !E.loginPasscode) return;
 
-  E.app.classList.add('is-locked');
-  E.app.setAttribute('aria-hidden', 'true');
-  Session.restore();
-  UI.applyRolePermissions();
-
-  const requestSessionLogin = () => {
-    const roleInput = window
-      .prompt('Enter role (admin/viewer)', ROLES.VIEWER)
-      ?.trim()
-      .toLowerCase();
-    if (!roleInput) return false;
-    const role =
-      roleInput === ROLES.ADMIN ? ROLES.ADMIN : roleInput === ROLES.VIEWER ? ROLES.VIEWER : null;
-    if (!role) {
-      UI.toast('Invalid role. Use "admin" or "viewer".');
-      return false;
-    }
-    const needsPasscode = role === ROLES.ADMIN && !!CONFIG.ADMIN_PASSCODE;
-    const passcode = needsPasscode
-      ? window.prompt(`Enter ${role} passcode`) ?? ''
-      : '';
-    const ok = Session.login(role, passcode);
-    if (!ok) {
-      UI.toast('Login failed. Invalid role/passcode.');
-      return false;
-    }
-    UI.applyRolePermissions();
-    return true;
+  const getDefaultViewForRole = role => {
+    if (role === ROLES.ADMIN) return 'issues';
+    if (role === ROLES.VIEWER) return 'calendar';
+    return 'issues';
   };
 
-  E.launchDashboard.addEventListener('click', event => {
-    event.preventDefault();
-    const loggedIn = requestSessionLogin();
-    if (!loggedIn) return;
+  const unlockApp = () => {
+    document.body.classList.remove('auth-locked');
     E.app.classList.remove('is-locked');
     E.app.setAttribute('aria-hidden', 'false');
+    if (E.logoutBtn) E.logoutBtn.hidden = false;
+    const role = Session.role();
+    setActiveView(getDefaultViewForRole(role));
     E.app.scrollIntoView({ behavior: 'smooth' });
     window.location.hash = '#app';
+  };
+
+  const lockApp = () => {
+    document.body.classList.add('auth-locked');
+    E.app.classList.add('is-locked');
+    E.app.setAttribute('aria-hidden', 'true');
+    if (E.logoutBtn) E.logoutBtn.hidden = true;
+    window.location.hash = '#loginSection';
+  };
+
+  lockApp();
+  // Always start in a logged-out state so the login page is the only visible
+  // screen until the user explicitly authenticates in this browser session.
+  Session.logout();
+  UI.applyRolePermissions();
+  E.loginRole.value = ROLES.VIEWER;
+
+  const updateLoginHint = () => {
+    if (!E.loginHint) return;
+    const isAdmin = E.loginRole.value === ROLES.ADMIN;
+    E.loginHint.textContent = isAdmin
+      ? 'Admin passcode is required.'
+      : 'Viewer passcode is required.';
+  };
+
+  E.loginRole.addEventListener('change', updateLoginHint);
+  updateLoginHint();
+
+  E.loginForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const role = String(E.loginRole.value || '').trim().toLowerCase();
+    const passcode = String(E.loginPasscode.value || '');
+
+    const normalizedRole =
+      role === ROLES.ADMIN ? ROLES.ADMIN : role === ROLES.VIEWER ? ROLES.VIEWER : null;
+    if (!normalizedRole) {
+      UI.toast('Invalid role. Use admin or viewer.');
+      return;
+    }
+
+    const ok = Session.login(normalizedRole, passcode);
+    if (!ok) {
+      UI.toast('Login failed. Invalid role/passcode.');
+      return;
+    }
+
+    UI.applyRolePermissions();
+    E.loginPasscode.value = '';
+    unlockApp();
+    UI.toast(`Logged in as ${normalizedRole}.`);
   });
+
+  if (E.logoutBtn) {
+    E.logoutBtn.addEventListener('click', () => {
+      Session.logout();
+      UI.applyRolePermissions();
+      E.loginPasscode.value = '';
+      E.loginRole.value = ROLES.VIEWER;
+      updateLoginHint();
+      lockApp();
+      UI.toast('Logged out.');
+    });
+  }
 }
 
 function wireModals() {
@@ -7800,10 +8001,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadFreezeWindowsCache();
   renderFreezeWindows();
   
-  const view = localStorage.getItem(LS_KEYS.view) || 'issues';
-  setActiveView(
-    view === 'calendar' || view === 'insights' || view === 'health' ? view : 'issues'
-  );
+  if (!Session.isAuthenticated()) {
+    const view = localStorage.getItem(LS_KEYS.view) || 'issues';
+    setActiveView(
+      view === 'calendar' || view === 'insights' || view === 'health' ? view : 'issues'
+    );
+  }
 
   loadIssues(false);
   loadEvents(false);

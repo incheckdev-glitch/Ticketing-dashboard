@@ -97,6 +97,56 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 
+body.auth-locked #appHeader,
+body.auth-locked #features,
+body.auth-locked #app,
+body.auth-locked #appFooter{
+  display:none;
+}
+
+body:not(.auth-locked) #loginSection{
+  display:none;
+}
+
+body.auth-locked #loginSection{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  background:#202994;
+}
+
+body.auth-locked #loginSection .hero-grid{
+  grid-template-columns:minmax(320px, 420px);
+  justify-content:center;
+}
+
+body.auth-locked #loginSection .hero-grid > div{
+  display:none;
+}
+
+body.auth-locked #loginSection .container{
+  max-width:560px;
+}
+
+.login-product-name{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  margin:2px 0 14px;
+  text-align:center;
+}
+.login-product-name strong{
+  font-size:1.05rem;
+  letter-spacing:.01em;
+}
+.login-product-name span{
+  font-size:.78rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.12em;
+}
+
 h1,h2,h3,h4{
   font-weight:700;
   letter-spacing:-.02em;
@@ -334,6 +384,74 @@ header{
   color:var(--muted);
   font-size:.85rem;
 }
+
+.login-card h2{
+  font-size:1.45rem;
+}
+.login-form{
+  display:grid;
+  gap:14px;
+}
+.login-form .input,
+.login-form .select,
+.login-form .btn{
+  width:100%;
+  border-radius:8px;
+}
+.login-form .btn{
+  justify-content:center;
+  margin-top:8px;
+  letter-spacing:.02em;
+  font-weight:700;
+}
+
+body.auth-locked .login-card{
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:0;
+  gap:22px;
+}
+
+body.auth-locked .login-logo{
+  width:170px;
+  height:auto;
+  margin:0 auto 10px;
+  display:block;
+  filter:brightness(0) invert(1);
+}
+
+body.auth-locked .login-form .input,
+body.auth-locked .login-form .select{
+  border:none;
+  background:#f3f4f6;
+  color:#374151;
+  min-height:50px;
+  padding:0 20px;
+  font-size:1.05rem;
+}
+
+body.auth-locked .login-form .input::placeholder{
+  color:#4b5563;
+}
+
+body.auth-locked .login-form .btn.primary{
+  border:none;
+  background:#18256e;
+  color:#fff;
+  min-height:50px;
+}
+
+body.auth-locked .login-form .btn.primary:hover{
+  background:#121d58;
+  transform:none;
+  box-shadow:none;
+}
+
+body.auth-locked .login-hint{
+  color:#dbe3ff;
+  text-align:center;
+}
 .feature-grid{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
@@ -491,6 +609,16 @@ header{
   margin-top:10px;
   width:100% !important;
   max-height:240px;
+}
+.health-kpi-widgets{
+  margin-top:2px;
+}
+.health-kpi-widget .health-kpi-value{
+  margin-top:8px;
+  font-size:clamp(1.5rem,2.8vw,2.2rem);
+  font-weight:700;
+  letter-spacing:-.02em;
+  color:var(--text);
 }
 
 /* Layout */
