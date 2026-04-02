@@ -14,7 +14,7 @@ const RUNTIME_CONFIG = window.__TICKETING_DASHBOARD_CONFIG__ || {};
 
 const APPS_SCRIPT_WEBAPP_URL =
   RUNTIME_CONFIG.APPS_SCRIPT_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbwGOhaKwSnQiRA94TypwbeW3erZpVqoUIt_4vGjdEzSZ3Xn3YgmQG26Uk8n_b-y29RW_w/exec";
+  "https://script.google.com/macros/s/AKfycbzHiXrIQCyt7-N1cT7vxP-BSMxDOghWQx7w8MFHseV8XcAiCefHlryQIUzMCjg-YzHeUw/exec";
 
 const CONFIG = {
   DATA_VERSION: '4',
@@ -199,6 +199,10 @@ CATEGORY_ORDER: [
   HEALTH_MONITOR: {
     TARGET_LABEL: 'app.incheck360.com',
     TARGET_URL: 'https://app.incheck360.com/',
+    TARGETS: RUNTIME_CONFIG.HEALTH_MONITOR_TARGETS || [
+      { label: 'app.incheck360.com', url: 'https://app.incheck360.com/' },
+      { label: 'api.incheck360.com', url: 'https://api.incheck360.com/' }
+    ],
     INTERVAL_MS: 60_000,
     TIMEOUT_MS: 10_000,
     MAX_HISTORY: 25,
@@ -1999,7 +2003,10 @@ function cacheEls() {
     'shortcutsHelp',
     'healthRefreshBtn',
     'healthRangePreset',
+    'healthTargetPreset',
     'healthSheetSubtext',
+    'healthOpenAppLink',
+    'healthOpenApiLink',
     'healthStatusBadge',
     'healthLastChecked',
     'healthLatency',
@@ -2008,6 +2015,7 @@ function cacheEls() {
     'healthP95Latency',
     'healthFailureStreak',
     'healthFailureCount',
+    'healthDowntime',
     'healthWindowBar',
     'healthChecksList',
     'healthChecksPagination',
@@ -4131,6 +4139,7 @@ function setActiveView(view) {
 const HealthMonitor = {
   history: [],
   allHistory: [],
+  rangeHistory: [],
   checksPage: 1,
   checksPerPage: 10,
   timerId: null,
@@ -4138,6 +4147,7 @@ const HealthMonitor = {
   lastLoadedAt: null,
   charts: {},
   rangePreset: 'all',
+  targetPreset: 'all',
 
   formatTs(ts) {
     try {
@@ -4166,6 +4176,13 @@ const HealthMonitor = {
     const okRaw = getEventField(raw, ['is_up', 'is up', 'up', 'status', 'health', 'state']);
     const latencyRaw = getEventField(raw, ['latency_ms', 'latency ms', 'latency']);
     const failureNote = getEventField(raw, ['failure_note', 'failure note', 'note', 'error']);
+    const tcpConnectRaw = getEventField(raw, ['tcp_connect_ms', 'tcp connect ms', 'tcp_ms']);
+    const tlsHandshakeRaw = getEventField(raw, ['tls_handshake_ms', 'tls handshake ms', 'tls_ms']);
+    const ttfbRaw = getEventField(raw, ['ttfb_ms', 'ttfb ms', 'ttfb']);
+    const contentCheckRaw = getEventField(raw, ['content_check_passed', 'content check passed', 'content_ok']);
+    const sslExpiryDaysRaw = getEventField(raw, ['ssl_expiry_days', 'ssl expiry days', 'ssl days']);
+    const consecutiveFailuresRaw = getEventField(raw, ['consecutive_failures', 'consecutive failures']);
+    const alertSentRaw = getEventField(raw, ['alert_sent', 'alert sent']);
 
     return {
       ts,
@@ -4177,7 +4194,14 @@ const HealthMonitor = {
       timeoutMs: Number(getEventField(raw, ['timeout_ms', 'timeout ms'])),
       checkIntervalMs: Number(getEventField(raw, ['check_interval_ms', 'check interval ms'])),
       environment: String(getEventField(raw, ['environment']) || '').trim(),
-      region: String(getEventField(raw, ['region']) || '').trim()
+      region: String(getEventField(raw, ['region']) || '').trim(),
+      tcpConnectMs: Number.isFinite(Number(tcpConnectRaw)) ? Number(tcpConnectRaw) : null,
+      tlsHandshakeMs: Number.isFinite(Number(tlsHandshakeRaw)) ? Number(tlsHandshakeRaw) : null,
+      ttfbMs: Number.isFinite(Number(ttfbRaw)) ? Number(ttfbRaw) : null,
+      contentCheckPassed: parseBoolean(contentCheckRaw),
+      sslExpiryDays: Number.isFinite(Number(sslExpiryDaysRaw)) ? Number(sslExpiryDaysRaw) : null,
+      consecutiveFailures: Number.isFinite(Number(consecutiveFailuresRaw)) ? Number(consecutiveFailuresRaw) : null,
+      alertSent: parseBoolean(alertSentRaw)
     };
   },
 
@@ -4297,17 +4321,65 @@ const HealthMonitor = {
   applyRangePreset() {
     const bounds = this.getRangeBounds();
     if (!bounds) {
-      this.history = [...this.allHistory];
-      this.checksPage = 1;
+      this.rangeHistory = [...this.allHistory];
+      this.applyTargetPreset();
       return;
     }
-    this.history = this.allHistory.filter(item => item.ts >= bounds.start && item.ts < bounds.end);
+    this.rangeHistory = this.allHistory.filter(item => item.ts >= bounds.start && item.ts < bounds.end);
     this.checksPage = 1;
+    this.applyTargetPreset();
   },
 
   setRangePreset(preset) {
     this.rangePreset = String(preset || 'all');
     this.applyRangePreset();
+    this.render();
+  },
+
+  getTargetKey(item) {
+    const label = String(item?.targetLabel || '').trim();
+    const url = String(item?.targetUrl || '').trim();
+    if (label) return label;
+    if (url) return url;
+    return 'Unknown target';
+  },
+
+  getTargetOptions() {
+    const options = new Map();
+    (CONFIG.HEALTH_MONITOR.TARGETS || []).forEach(target => {
+      const key = String(target?.label || target?.url || '').trim();
+      if (!key) return;
+      options.set(key, {
+        key,
+        label: String(target?.label || key).trim(),
+        url: String(target?.url || '').trim()
+      });
+    });
+    this.allHistory.forEach(item => {
+      const key = this.getTargetKey(item);
+      if (!options.has(key)) {
+        options.set(key, {
+          key,
+          label: String(item.targetLabel || key).trim(),
+          url: String(item.targetUrl || '').trim()
+        });
+      }
+    });
+    return [{ key: 'all', label: 'All targets', url: '' }, ...[...options.values()]];
+  },
+
+  applyTargetPreset() {
+    if (this.targetPreset === 'all') {
+      this.history = [...this.rangeHistory];
+    } else {
+      this.history = this.rangeHistory.filter(item => this.getTargetKey(item) === this.targetPreset);
+    }
+    this.checksPage = 1;
+  },
+
+  setTargetPreset(preset) {
+    this.targetPreset = String(preset || 'all');
+    this.applyTargetPreset();
     this.render();
   },
 
@@ -4330,6 +4402,38 @@ const HealthMonitor = {
       else buckets['1000ms+'] += 1;
     });
     return buckets;
+  },
+
+  formatDurationMs(durationMs) {
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return '0m';
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (!parts.length) parts.push(`${seconds}s`);
+    return parts.slice(0, 2).join(' ');
+  },
+
+  computeDowntimeMs() {
+    if (!this.history.length) return 0;
+    const timeline = this.history.slice().sort((a, b) => a.ts - b.ts);
+    let total = 0;
+    for (let i = 0; i < timeline.length; i += 1) {
+      const current = timeline[i];
+      const next = timeline[i + 1];
+      if (current.ok) continue;
+      if (next && Number.isFinite(next.ts)) {
+        total += Math.max(0, next.ts - current.ts);
+      } else if (Number.isFinite(current.checkIntervalMs) && current.checkIntervalMs > 0) {
+        total += current.checkIntervalMs;
+      }
+    }
+    return total;
   },
 
   renderCharts() {
@@ -4443,12 +4547,19 @@ const HealthMonitor = {
   },
 
   render() {
+    const targetOptions = this.getTargetOptions();
+    const knownTargetKeys = new Set(targetOptions.map(item => item.key));
+    if (!knownTargetKeys.has(this.targetPreset)) {
+      this.targetPreset = 'all';
+      this.applyTargetPreset();
+    }
     const latest = this.history[0] || null;
     const latencies = this.history
       .map(item => item.latency)
       .filter(v => Number.isFinite(v))
       .sort((a, b) => a - b);
     const failures = this.history.filter(item => !item.ok).length;
+    const totalDowntimeMs = this.computeDowntimeMs();
     const uptimePct = this.history.length
       ? Math.round((this.history.filter(h => h.ok).length / this.history.length) * 100)
       : null;
@@ -4483,6 +4594,7 @@ const HealthMonitor = {
     if (E.healthP95Latency) E.healthP95Latency.textContent = Number.isFinite(p95Latency) ? `${p95Latency} ms` : 'n/a';
     if (E.healthFailureStreak) E.healthFailureStreak.textContent = `${currentFailureStreak} check${currentFailureStreak === 1 ? '' : 's'}`;
     if (E.healthFailureCount) E.healthFailureCount.textContent = `${failures} / ${this.history.length || 0}`;
+    if (E.healthDowntime) E.healthDowntime.textContent = `${this.formatDurationMs(totalDowntimeMs)} (${failures} checks)`;
     if (E.healthWindowBar) {
       if (!this.history.length) {
         E.healthWindowBar.innerHTML = '<span class="muted">No checks yet.</span>';
@@ -4515,7 +4627,17 @@ const HealthMonitor = {
             const latencyText = Number.isFinite(item.latency) ? ` · ${item.latency} ms` : '';
             const meta = [item.environment, item.region, item.targetLabel].filter(Boolean).join(' · ');
             const metaText = meta ? `<div class="muted">${U.escapeHtml(meta)}</div>` : '';
-            return `<li><span>${U.escapeHtml(this.formatTs(item.ts))}</span><span>${status}${latencyText}${metaText}</span></li>`;
+            const metrics = [
+              Number.isFinite(item.tcpConnectMs) ? `TCP ${item.tcpConnectMs} ms` : '',
+              Number.isFinite(item.tlsHandshakeMs) ? `TLS ${item.tlsHandshakeMs} ms` : '',
+              Number.isFinite(item.ttfbMs) ? `TTFB ${item.ttfbMs} ms` : '',
+              Number.isFinite(item.sslExpiryDays) ? `SSL ${item.sslExpiryDays}d` : '',
+              Number.isFinite(item.consecutiveFailures) ? `Fails ${item.consecutiveFailures}` : '',
+              item.contentCheckPassed ? 'Content ✅' : '',
+              item.alertSent ? 'Alert sent' : ''
+            ].filter(Boolean).join(' · ');
+            const metricsText = metrics ? `<div class="muted">${U.escapeHtml(metrics)}</div>` : '';
+            return `<li><span>${U.escapeHtml(this.formatTs(item.ts))}</span><span>${status}${latencyText}${metaText}${metricsText}</span></li>`;
           })
           .join('');
       }
@@ -4538,6 +4660,14 @@ const HealthMonitor = {
     }
     if (E.healthRangePreset && E.healthRangePreset.value !== this.rangePreset) {
       E.healthRangePreset.value = this.rangePreset;
+    }
+    if (E.healthTargetPreset) {
+      const currentHtml = E.healthTargetPreset.innerHTML;
+      const nextHtml = targetOptions
+        .map(item => `<option value="${U.escapeHtml(item.key)}">${U.escapeHtml(item.label)}</option>`)
+        .join('');
+      if (currentHtml !== nextHtml) E.healthTargetPreset.innerHTML = nextHtml;
+      if (E.healthTargetPreset.value !== this.targetPreset) E.healthTargetPreset.value = this.targetPreset;
     }
     this.renderCharts();
   },
@@ -6821,6 +6951,11 @@ function wireCore() {
   if (E.healthRangePreset) {
     E.healthRangePreset.addEventListener('change', e => {
       HealthMonitor.setRangePreset(e.target.value);
+    });
+  }
+  if (E.healthTargetPreset) {
+    E.healthTargetPreset.addEventListener('change', e => {
+      HealthMonitor.setTargetPreset(e.target.value);
     });
   }
   if (E.healthChecksPrevPage) {
