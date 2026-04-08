@@ -553,7 +553,7 @@ body.auth-locked .login-hint{
 
 /* Layout */
 .wrap{
-  display:grid;grid-template-columns:280px minmax(0,1fr);
+  display:grid;grid-template-columns:minmax(0,1fr) 280px;
   gap:18px;padding:18px;max-width:1440px;margin:0 auto;
 }
 .wrap.csm-filters-only{
@@ -616,6 +616,8 @@ body.auth-locked .login-hint{
 
 /* Content & tabs */
 .content{min-width:0}
+.sidebar{order:2}
+.content{order:1}
 .content-layout{
   display:grid;
   grid-template-columns:220px minmax(0,1fr);
