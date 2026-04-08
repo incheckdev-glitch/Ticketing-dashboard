@@ -631,8 +631,8 @@
             </div>
 
             <div class="csm-panel-actions">
-              <input id="csmFileInput" class="input sm" type="file" accept=".csv,.xlsx,.xls" />
-              <button id="csmClearBtn" class="btn ghost sm" type="button">Clear data</button>
+              <button id="csmCreateBtn" class="btn sm" type="button">Add activity</button>
+              <button id="csmReloadBtn" class="btn ghost sm" type="button">Reload</button>
               <button id="csmResetFiltersBtn" class="btn ghost sm" type="button">Reset filters</button>
             </div>
 
@@ -734,7 +734,7 @@
             <div class="card">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
                 <strong>Submitted Task Details</strong>
-                <span class="muted">Live data rows</span>
+                <span class="muted">Live backend rows</span>
               </div>
               <div class="table-wrap" role="region" aria-label="CSM daily activity table">
                 <table id="csmTable">
@@ -748,6 +748,7 @@
                       <th>Effort Requirement</th>
                       <th>Support Channel</th>
                       <th>Notes</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="csmTableBody"></tbody>
@@ -1163,6 +1164,59 @@
   </div>
 
   <!-- Freeze Windows Modal -->
+
+
+  <div id="csmFormModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="csmFormTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="csmFormTitle" style="margin:0;font-size:20px">Create CSM Activity</h2>
+        <button class="modal-close" id="csmFormCloseBtn" aria-label="Close CSM activity form">✕</button>
+      </div>
+      <form id="csmForm" class="stack" style="margin-top:12px;">
+        <div class="grid cols-2">
+          <div class="filter-row">
+            <label class="muted" for="csmFormTimestamp">Timestamp *</label>
+            <input id="csmFormTimestamp" class="input" type="datetime-local" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="csmFormMinutes">Time Spent (Minutes) *</label>
+            <input id="csmFormMinutes" class="input" type="number" min="0" step="1" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="csmFormCsmName">CSM Name *</label>
+            <input id="csmFormCsmName" class="input" type="text" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="csmFormClient">Client *</label>
+            <input id="csmFormClient" class="input" type="text" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="csmFormSupportType">Type of Support *</label>
+            <input id="csmFormSupportType" class="input" type="text" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="csmFormEffort">Effort Requirement *</label>
+            <input id="csmFormEffort" class="input" type="text" required />
+          </div>
+          <div class="filter-row" style="grid-column:1 / -1;">
+            <label class="muted" for="csmFormChannel">Support Channel *</label>
+            <input id="csmFormChannel" class="input" type="text" required />
+          </div>
+          <div class="filter-row" style="grid-column:1 / -1;">
+            <label class="muted" for="csmFormNotes">Notes</label>
+            <textarea id="csmFormNotes" class="input" rows="3" placeholder="Optional notes"></textarea>
+          </div>
+        </div>
+        <div class="actions" style="justify-content:space-between;gap:8px;">
+          <button id="csmFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
+          <div style="display:flex;gap:8px;">
+            <button id="csmFormCancelBtn" type="button" class="btn ghost">Cancel</button>
+            <button id="csmFormSaveBtn" type="submit" class="btn">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
   <div id="freezeModal" class="modal" role="dialog" aria-modal="true"
        aria-labelledby="freezeModalTitle" aria-describedby="freezeModalBody">
     <div class="modal-content">
