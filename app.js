@@ -4835,6 +4835,8 @@ const CSMActivity = {
     byCsm: null,
     bySupportType: null,
     byChannel: null,
+    byClient: null,
+    effortMix: null,
     trend: null
   },
   parseRecord(raw) {
@@ -4943,44 +4945,66 @@ const CSMActivity = {
     if (chart && typeof chart.destroy === 'function') chart.destroy();
   },
   renderCharts(list) {
-    const minutesBy = key => {
+    const minutesBy = (key, limit = 8) => {
       const map = new Map();
       list.forEach(row => {
         const label = String(row[key] || 'Unspecified').trim() || 'Unspecified';
         map.set(label, (map.get(label) || 0) + (Number(row.timeSpentMinutes) || 0));
       });
-      return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
     };
-    const trendMap = new Map();
+    const tasksByDate = new Map();
     list.forEach(row => {
-      const label = row.parsedDate
-        ? row.parsedDate.toISOString().slice(0, 10)
-        : 'Unknown date';
-      trendMap.set(label, (trendMap.get(label) || 0) + (Number(row.timeSpentMinutes) || 0));
+      const label = row.parsedDate ? row.parsedDate.toISOString().slice(0, 10) : 'Unknown date';
+      tasksByDate.set(label, (tasksByDate.get(label) || 0) + 1);
     });
-    const trendRows = [...trendMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
-    const chartCfg = (label, rows, color) => ({
+    const trendRows = [...tasksByDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-21);
+
+    const barCfg = (label, rows, color, indexAxis = 'x') => ({
       type: 'bar',
       data: { labels: rows.map(r => r[0]), datasets: [{ label, data: rows.map(r => Math.round(r[1])), backgroundColor: color }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis, scales: { y: { beginAtZero: true } } }
     });
+
     if (E.csmByCsmChart?.getContext) {
       this.destroyChart(this.charts.byCsm);
-      this.charts.byCsm = new Chart(E.csmByCsmChart.getContext('2d'), chartCfg('Minutes', minutesBy('csmName'), '#4f46e5'));
+      this.charts.byCsm = new Chart(E.csmByCsmChart.getContext('2d'), barCfg('Minutes', minutesBy('csmName', 10), '#06b6d4'));
     }
     if (E.csmBySupportTypeChart?.getContext) {
       this.destroyChart(this.charts.bySupportType);
-      this.charts.bySupportType = new Chart(E.csmBySupportTypeChart.getContext('2d'), chartCfg('Minutes', minutesBy('supportType'), '#0891b2'));
+      this.charts.bySupportType = new Chart(E.csmBySupportTypeChart.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: minutesBy('supportType', 8).map(r => r[0]),
+          datasets: [{ data: minutesBy('supportType', 8).map(r => Math.round(r[1])), backgroundColor: ['#2563eb','#06b6d4','#16a34a','#f59e0b','#7c3aed','#ef4444','#14b8a6','#94a3b8'] }]
+        },
+        options: { responsive: true }
+      });
     }
     if (E.csmByChannelChart?.getContext) {
       this.destroyChart(this.charts.byChannel);
-      this.charts.byChannel = new Chart(E.csmByChannelChart.getContext('2d'), chartCfg('Minutes', minutesBy('supportChannel'), '#7c3aed'));
+      this.charts.byChannel = new Chart(E.csmByChannelChart.getContext('2d'), barCfg('Tasks', minutesBy('supportChannel', 8), '#8b5cf6'));
+    }
+    if (E.csmByClientChart?.getContext) {
+      this.destroyChart(this.charts.byClient);
+      this.charts.byClient = new Chart(E.csmByClientChart.getContext('2d'), barCfg('Minutes', minutesBy('client', 10), '#f59e0b', 'y'));
+    }
+    if (E.csmEffortMixChart?.getContext) {
+      this.destroyChart(this.charts.effortMix);
+      this.charts.effortMix = new Chart(E.csmEffortMixChart.getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: minutesBy('effortRequirement', 5).map(r => r[0]),
+          datasets: [{ data: minutesBy('effortRequirement', 5).map(r => Math.round(r[1])), backgroundColor: ['#16a34a', '#f59e0b', '#ef4444', '#3b82f6', '#6b7280'] }]
+        },
+        options: { responsive: true }
+      });
     }
     if (E.csmTrendChart?.getContext) {
       this.destroyChart(this.charts.trend);
       this.charts.trend = new Chart(E.csmTrendChart.getContext('2d'), {
         type: 'line',
-        data: { labels: trendRows.map(r => r[0]), datasets: [{ label: 'Daily Minutes', data: trendRows.map(r => Math.round(r[1])), borderColor: '#16a34a', tension: 0.25 }] },
+        data: { labels: trendRows.map(r => r[0]), datasets: [{ label: 'Tasks', data: trendRows.map(r => Math.round(r[1])), borderColor: '#2563eb', backgroundColor: 'rgba(59,130,246,.15)', fill: true, tension: 0.32 }] },
         options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
       });
     }
@@ -5019,10 +5043,64 @@ const CSMActivity = {
     if (E.csmKpiMinutes) E.csmKpiMinutes.textContent = String(Math.round(totalMinutes));
     if (E.csmKpiAvg) E.csmKpiAvg.textContent = averageMinutes ? averageMinutes.toFixed(1) : '0';
     if (E.csmKpiTopCsm) E.csmKpiTopCsm.textContent = topCsm;
+    if (E.csmKpiActiveCsm) E.csmKpiActiveCsm.textContent = `${byCsm.size} active CSM${byCsm.size === 1 ? '' : 's'}`;
+  },
+  renderInsights(list) {
+    const totalMinutes = list.reduce((sum, row) => sum + (Number(row.timeSpentMinutes) || 0), 0);
+    const byCsm = new Map();
+    const byClient = new Map();
+    const bySupport = new Map();
+    const byChannel = new Map();
+    list.forEach(row => {
+      const mins = Number(row.timeSpentMinutes) || 0;
+      byCsm.set(row.csmName || 'Unspecified', (byCsm.get(row.csmName || 'Unspecified') || 0) + mins);
+      byClient.set(row.client || 'Unspecified', (byClient.get(row.client || 'Unspecified') || 0) + mins);
+      bySupport.set(row.supportType || 'Unspecified', (bySupport.get(row.supportType || 'Unspecified') || 0) + 1);
+      byChannel.set(row.supportChannel || 'Unspecified', (byChannel.get(row.supportChannel || 'Unspecified') || 0) + 1);
+    });
+    const topCsm = [...byCsm.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+    const topClient = [...byClient.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+    const primarySupport = [...bySupport.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+    const primaryChannel = [...byChannel.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+    const topClientShare = totalMinutes ? ((topClient[1] / totalMinutes) * 100).toFixed(1) : '0.0';
+
+    if (E.csmInsightList) {
+      const insights = [
+        ['Busiest CSM', `${topCsm[0]} is carrying the heaviest visible load by minutes.`, `${Math.round(topCsm[1])} min`],
+        ['Busiest Client', `${topClient[0]} consumes the most visible support time.`, `${Math.round(topClient[1])} min`],
+        ['Client Concentration', `Top client share of visible workload minutes.`, `${topClientShare}%`],
+        ['Dominant Work Type', `${primarySupport[0]} appears most often in the current filter.`, `${primarySupport[1]}`],
+        ['Primary Channel', `${primaryChannel[0]} is the main route for submitted work.`, `${primaryChannel[1]}`]
+      ];
+      E.csmInsightList.innerHTML = insights
+        .map(([label, text, value]) => `<article class="csm-insight-item"><div><strong>${U.escapeHtml(label)}</strong><p class="muted">${U.escapeHtml(text)}</p></div><span>${U.escapeHtml(value)}</span></article>`)
+        .join('');
+    }
+
+    if (E.csmTopSnapshotBody) {
+      const rows = [...byCsm.entries()]
+        .map(([name, minutes]) => {
+          const personRows = list.filter(item => (item.csmName || 'Unspecified') === name);
+          const tasks = personRows.length;
+          const avg = tasks ? minutes / tasks : 0;
+          const clients = new Set(personRows.map(item => item.client).filter(Boolean)).size;
+          return { name, tasks, minutes, avg, clients };
+        })
+        .sort((a, b) => b.minutes - a.minutes)
+        .slice(0, 8);
+      E.csmTopSnapshotBody.innerHTML = rows.length
+        ? rows
+            .map(
+              row => `<tr><td>${U.escapeHtml(row.name)}</td><td>${row.tasks}</td><td>${Math.round(row.minutes)}</td><td>${row.avg.toFixed(1)}</td><td>${row.clients}</td></tr>`
+            )
+            .join('')
+        : '<tr><td colspan="5" class="muted" style="text-align:center;">No data for current filters.</td></tr>';
+    }
   },
   refresh() {
     const filtered = this.applyFilters();
     this.renderKPIs(filtered);
+    this.renderInsights(filtered);
     this.renderCharts(filtered);
     this.renderTable(filtered);
   }

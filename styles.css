@@ -708,14 +708,26 @@ body.auth-locked .login-hint{
 .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media(max-width:980px){.charts{grid-template-columns:1fr}}
 
-.csm-filters-grid{
-  display:grid;
-  gap:10px;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-}
-@media(max-width:980px){.csm-filters-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:640px){.csm-filters-grid{grid-template-columns:1fr;}}
-.csm-kpi{cursor:default}
+.csm-shell{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start}
+.csm-panel{position:sticky;top:84px}
+.csm-panel-brand{display:flex;gap:10px;align-items:center}
+.csm-avatar{height:34px;width:34px;border-radius:11px;background:linear-gradient(145deg,#0ea5e9,#2563eb);display:grid;place-items:center;font-weight:700;color:#fff;font-size:11px}
+.csm-panel-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.csm-panel h4{font-size:13px;margin:0 0 8px}
+.csm-main{display:grid;gap:14px}
+.csm-header-card h2{font-size:34px;line-height:1.1;margin:0 0 4px}
+.csm-kpi{cursor:default;border-top:3px solid #22d3ee}
+.csm-kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.csm-split-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+.csm-insight-list{display:grid;gap:9px;margin-top:10px}
+.csm-insight-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(148,163,184,.08)}
+.csm-insight-item p{font-size:12px;margin-top:3px}
+.csm-insight-item span{font-size:30px;font-weight:700;color:#2563eb;line-height:1}
+.csm-filters-grid{display:grid;gap:10px;grid-template-columns:1fr}
+@media(max-width:1200px){.csm-shell{grid-template-columns:1fr}.csm-panel{position:static}.csm-split-grid{grid-template-columns:1fr}.csm-header-card h2{font-size:30px}}
+.csm-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:980px){.csm-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.csm-kpi-grid{grid-template-columns:1fr}}
 
 /* Table & skeleton */
 table{
