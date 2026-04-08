@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'users'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'users'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1914,6 +1914,8 @@ function setActiveView(view) {
         ? E.calendarTab
         : name === 'insights'
         ? E.insightsTab
+        : name === 'csm'
+        ? E.csmTab
         : E.usersTab;
     const panel =
       name === 'issues'
@@ -1921,7 +1923,9 @@ function setActiveView(view) {
         : name === 'calendar'
         ? E.calendarView
         : name === 'insights'
-       ? E.insightsView
+        ? E.insightsView
+        : name === 'csm'
+        ? E.csmView
         : E.usersView;
     const active = name === view;
     if (tab) {
@@ -1939,6 +1943,7 @@ function setActiveView(view) {
     scheduleCalendarResize();
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
+  if (view === 'csm') CSMActivity.refresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
 }
 
@@ -3922,7 +3927,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.usersTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.usersTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4010,7 +4015,7 @@ function wireCore() {
 
   if (E.shortcutsHelp) {
     E.shortcutsHelp.addEventListener('click', () => {
-     UI.toast('Shortcuts: 1/2/3 switch tabs · / focus search · Ctrl+K AI query');
+     UI.toast('Shortcuts: 1/2/3/4 switch tabs · / focus search · Ctrl+K AI query');
     });
   }
 
@@ -4049,6 +4054,9 @@ function wireCore() {
     refreshPlannerTickets(list);
     if (E.insightsView && E.insightsView.classList.contains('active')) {
       Analytics.refresh(list);
+    }
+    if (E.csmView && E.csmView.classList.contains('active')) {
+      CSMActivity.refresh();
     }
   };
 }
@@ -4808,6 +4816,314 @@ function wireAIQuery() {
   renderHelp();
 }
 
+/* ---------- CSM Daily Activity ---------- */
+const CSMActivity = {
+  rows: [],
+  state: {
+    search: '',
+    csmName: 'All',
+    client: 'All',
+    supportType: 'All',
+    effort: 'All',
+    channel: 'All',
+    minMinutes: '',
+    maxMinutes: '',
+    startDate: '',
+    endDate: ''
+  },
+  charts: {
+    byCsm: null,
+    bySupportType: null,
+    byChannel: null,
+    trend: null
+  },
+  parseRecord(raw) {
+    const normalized = {};
+    const normalizeHeader = key =>
+      String(key || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+    for (const key in raw) {
+      normalized[normalizeHeader(key)] = String(raw[key] ?? '').trim();
+    }
+    const pick = (...keys) => {
+      for (const key of keys) {
+        const value = normalized[normalizeHeader(key)];
+        if (value) return value;
+      }
+      return '';
+    };
+    const minutesRaw = pick('time spent minutes', 'time spent (minutes)', 'minutes');
+    const timestampRaw = pick('timestamp', 'date', 'created at');
+    const parsedDate = timestampRaw ? new Date(timestampRaw) : null;
+    return {
+      timestamp: timestampRaw,
+      parsedDate: parsedDate && !isNaN(parsedDate) ? parsedDate : null,
+      csmName: pick('csm name', 'csm'),
+      client: pick('client', 'account'),
+      timeSpentMinutes: Number.parseFloat(minutesRaw) || 0,
+      supportType: pick('type of support', 'support type'),
+      effortRequirement: pick('effort requirement', 'effort'),
+      supportChannel: pick('support channel', 'channel'),
+      notes: pick('notes optional', 'notes')
+    };
+  },
+  loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(LS_KEYS.csmActivity);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      this.rows = parsed
+        .map(row => ({
+          ...row,
+          parsedDate: row.timestamp ? new Date(row.timestamp) : null
+        }))
+        .map(row => ({
+          ...row,
+          parsedDate: row.parsedDate && !isNaN(row.parsedDate) ? row.parsedDate : null
+        }));
+    } catch (error) {
+      console.warn('Failed to load CSM activity from local storage', error);
+    }
+  },
+  saveToStorage() {
+    try {
+      localStorage.setItem(LS_KEYS.csmActivity, JSON.stringify(this.rows));
+    } catch (error) {
+      console.warn('Failed to save CSM activity to local storage', error);
+    }
+  },
+  hydrateOptions() {
+    const uniq = values =>
+      [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b)
+      );
+    const assign = (el, values, selected) => {
+      if (!el) return;
+      el.innerHTML = ['All', ...values].map(v => `<option value="${U.escapeHtml(v)}">${U.escapeHtml(v)}</option>`).join('');
+      setIfOptionExists(el, selected || 'All');
+    };
+    assign(E.csmNameFilter, uniq(this.rows.map(r => r.csmName)), this.state.csmName);
+    assign(E.csmClientFilter, uniq(this.rows.map(r => r.client)), this.state.client);
+    assign(E.csmSupportTypeFilter, uniq(this.rows.map(r => r.supportType)), this.state.supportType);
+    assign(E.csmEffortFilter, uniq(this.rows.map(r => r.effortRequirement)), this.state.effort);
+    assign(E.csmChannelFilter, uniq(this.rows.map(r => r.supportChannel)), this.state.channel);
+  },
+  applyFilters() {
+    const s = this.state;
+    const terms = (s.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const minMinutes = s.minMinutes === '' ? null : Number(s.minMinutes);
+    const maxMinutes = s.maxMinutes === '' ? null : Number(s.maxMinutes);
+    const startDate = s.startDate ? new Date(`${s.startDate}T00:00:00`) : null;
+    const endDate = s.endDate ? new Date(`${s.endDate}T23:59:59.999`) : null;
+    return this.rows.filter(row => {
+      const hay = [row.csmName, row.client, row.supportType, row.effortRequirement, row.supportChannel, row.notes]
+        .join(' ')
+        .toLowerCase();
+      if (terms.length && !terms.every(term => hay.includes(term))) return false;
+      if (s.csmName !== 'All' && row.csmName !== s.csmName) return false;
+      if (s.client !== 'All' && row.client !== s.client) return false;
+      if (s.supportType !== 'All' && row.supportType !== s.supportType) return false;
+      if (s.effort !== 'All' && row.effortRequirement !== s.effort) return false;
+      if (s.channel !== 'All' && row.supportChannel !== s.channel) return false;
+      if (minMinutes != null && row.timeSpentMinutes < minMinutes) return false;
+      if (maxMinutes != null && row.timeSpentMinutes > maxMinutes) return false;
+      if (startDate || endDate) {
+        if (!row.parsedDate) return false;
+        if (startDate && row.parsedDate < startDate) return false;
+        if (endDate && row.parsedDate > endDate) return false;
+      }
+      return true;
+    });
+  },
+  destroyChart(chart) {
+    if (chart && typeof chart.destroy === 'function') chart.destroy();
+  },
+  renderCharts(list) {
+    const minutesBy = key => {
+      const map = new Map();
+      list.forEach(row => {
+        const label = String(row[key] || 'Unspecified').trim() || 'Unspecified';
+        map.set(label, (map.get(label) || 0) + (Number(row.timeSpentMinutes) || 0));
+      });
+      return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    };
+    const trendMap = new Map();
+    list.forEach(row => {
+      const label = row.parsedDate
+        ? row.parsedDate.toISOString().slice(0, 10)
+        : 'Unknown date';
+      trendMap.set(label, (trendMap.get(label) || 0) + (Number(row.timeSpentMinutes) || 0));
+    });
+    const trendRows = [...trendMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
+    const chartCfg = (label, rows, color) => ({
+      type: 'bar',
+      data: { labels: rows.map(r => r[0]), datasets: [{ label, data: rows.map(r => Math.round(r[1])), backgroundColor: color }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+    if (E.csmByCsmChart?.getContext) {
+      this.destroyChart(this.charts.byCsm);
+      this.charts.byCsm = new Chart(E.csmByCsmChart.getContext('2d'), chartCfg('Minutes', minutesBy('csmName'), '#4f46e5'));
+    }
+    if (E.csmBySupportTypeChart?.getContext) {
+      this.destroyChart(this.charts.bySupportType);
+      this.charts.bySupportType = new Chart(E.csmBySupportTypeChart.getContext('2d'), chartCfg('Minutes', minutesBy('supportType'), '#0891b2'));
+    }
+    if (E.csmByChannelChart?.getContext) {
+      this.destroyChart(this.charts.byChannel);
+      this.charts.byChannel = new Chart(E.csmByChannelChart.getContext('2d'), chartCfg('Minutes', minutesBy('supportChannel'), '#7c3aed'));
+    }
+    if (E.csmTrendChart?.getContext) {
+      this.destroyChart(this.charts.trend);
+      this.charts.trend = new Chart(E.csmTrendChart.getContext('2d'), {
+        type: 'line',
+        data: { labels: trendRows.map(r => r[0]), datasets: [{ label: 'Daily Minutes', data: trendRows.map(r => Math.round(r[1])), borderColor: '#16a34a', tension: 0.25 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+    }
+  },
+  renderTable(list) {
+    if (!E.csmTableBody) return;
+    if (!list.length) {
+      E.csmTableBody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;">No activity rows match the current filters.</td></tr>';
+      if (E.csmRowCount) E.csmRowCount.textContent = '0 rows';
+      return;
+    }
+    E.csmTableBody.innerHTML = list
+      .map(
+        row => `<tr>
+          <td>${U.escapeHtml(row.timestamp || '—')}</td>
+          <td>${U.escapeHtml(row.csmName || '—')}</td>
+          <td>${U.escapeHtml(row.client || '—')}</td>
+          <td>${Math.round(Number(row.timeSpentMinutes) || 0)}</td>
+          <td>${U.escapeHtml(row.supportType || '—')}</td>
+          <td>${U.escapeHtml(row.effortRequirement || '—')}</td>
+          <td>${U.escapeHtml(row.supportChannel || '—')}</td>
+          <td>${U.escapeHtml(row.notes || '—')}</td>
+        </tr>`
+      )
+      .join('');
+    if (E.csmRowCount) E.csmRowCount.textContent = `${list.length} row${list.length === 1 ? '' : 's'}`;
+  },
+  renderKPIs(list) {
+    const totalActivities = list.length;
+    const totalMinutes = list.reduce((sum, row) => sum + (Number(row.timeSpentMinutes) || 0), 0);
+    const averageMinutes = totalActivities ? totalMinutes / totalActivities : 0;
+    const byCsm = new Map();
+    list.forEach(row => byCsm.set(row.csmName || 'Unspecified', (byCsm.get(row.csmName || 'Unspecified') || 0) + (Number(row.timeSpentMinutes) || 0)));
+    const topCsm = [...byCsm.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    if (E.csmKpiActivities) E.csmKpiActivities.textContent = String(totalActivities);
+    if (E.csmKpiMinutes) E.csmKpiMinutes.textContent = String(Math.round(totalMinutes));
+    if (E.csmKpiAvg) E.csmKpiAvg.textContent = averageMinutes ? averageMinutes.toFixed(1) : '0';
+    if (E.csmKpiTopCsm) E.csmKpiTopCsm.textContent = topCsm;
+  },
+  refresh() {
+    const filtered = this.applyFilters();
+    this.renderKPIs(filtered);
+    this.renderCharts(filtered);
+    this.renderTable(filtered);
+  }
+};
+
+function wireCSMActivity() {
+  CSMActivity.loadFromStorage();
+  CSMActivity.hydrateOptions();
+  CSMActivity.refresh();
+
+  if (E.csmFileInput) {
+    E.csmFileInput.addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        const rows = [];
+        if (ext === 'csv') {
+          const text = await file.text();
+          const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+          (parsed.data || []).forEach(row => rows.push(CSMActivity.parseRecord(row)));
+        } else {
+          const data = await file.arrayBuffer();
+          const wb = XLSX.read(data, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          json.forEach(row => rows.push(CSMActivity.parseRecord(row)));
+        }
+        CSMActivity.rows = rows.filter(row => row.csmName || row.client || row.timestamp);
+        CSMActivity.saveToStorage();
+        CSMActivity.hydrateOptions();
+        CSMActivity.refresh();
+        UI.toast(`Loaded ${CSMActivity.rows.length} CSM activity row(s).`);
+      } catch (error) {
+        console.error('Failed to import CSM activity file', error);
+        UI.toast('Could not parse the selected file. Please validate column headers.');
+      } finally {
+        if (E.csmFileInput) E.csmFileInput.value = '';
+      }
+    });
+  }
+
+  if (E.csmClearBtn) {
+    E.csmClearBtn.addEventListener('click', () => {
+      CSMActivity.rows = [];
+      CSMActivity.saveToStorage();
+      CSMActivity.hydrateOptions();
+      CSMActivity.refresh();
+      UI.toast('CSM activity data cleared.');
+    });
+  }
+
+  const bindState = (element, key, type = 'value') => {
+    if (!element) return;
+    element.addEventListener('input', () => {
+      CSMActivity.state[key] = type === 'valueAsNumber' ? element.valueAsNumber : element.value;
+      if (type === 'valueAsNumber' && Number.isNaN(CSMActivity.state[key])) CSMActivity.state[key] = '';
+      CSMActivity.refresh();
+    });
+    element.addEventListener('change', () => {
+      CSMActivity.state[key] = type === 'valueAsNumber' ? element.valueAsNumber : element.value;
+      if (type === 'valueAsNumber' && Number.isNaN(CSMActivity.state[key])) CSMActivity.state[key] = '';
+      CSMActivity.refresh();
+    });
+  };
+  bindState(E.csmSearchInput, 'search');
+  bindState(E.csmNameFilter, 'csmName');
+  bindState(E.csmClientFilter, 'client');
+  bindState(E.csmSupportTypeFilter, 'supportType');
+  bindState(E.csmEffortFilter, 'effort');
+  bindState(E.csmChannelFilter, 'channel');
+  bindState(E.csmMinMinutesFilter, 'minMinutes');
+  bindState(E.csmMaxMinutesFilter, 'maxMinutes');
+  bindState(E.csmStartDateFilter, 'startDate');
+  bindState(E.csmEndDateFilter, 'endDate');
+
+  if (E.csmResetFiltersBtn) {
+    E.csmResetFiltersBtn.addEventListener('click', () => {
+      CSMActivity.state = {
+        search: '',
+        csmName: 'All',
+        client: 'All',
+        supportType: 'All',
+        effort: 'All',
+        channel: 'All',
+        minMinutes: '',
+        maxMinutes: '',
+        startDate: '',
+        endDate: ''
+      };
+      if (E.csmSearchInput) E.csmSearchInput.value = '';
+      if (E.csmMinMinutesFilter) E.csmMinMinutesFilter.value = '';
+      if (E.csmMaxMinutesFilter) E.csmMaxMinutesFilter.value = '';
+      if (E.csmStartDateFilter) E.csmStartDateFilter.value = '';
+      if (E.csmEndDateFilter) E.csmEndDateFilter.value = '';
+      CSMActivity.hydrateOptions();
+      CSMActivity.refresh();
+    });
+  }
+}
+
 /* ---------- Keyboard shortcuts ---------- */
 
 function wireKeyboardShortcuts() {
@@ -4842,14 +5158,16 @@ function wireKeyboardShortcuts() {
 
     if (isInputLike) return;
 
-    // 1/2/3/4 → switch tabs
+    // 1/2/3/4/5 → switch tabs
     if (e.key === '1') {
       setActiveView('issues');
     } else if (e.key === '2') {
       setActiveView('calendar');
     } else if (e.key === '3') {
       setActiveView('insights');
-    } else if (e.key === '4' && Permissions.canManageUsers()) {
+    } else if (e.key === '4') {
+      setActiveView('csm');
+    } else if (e.key === '5' && Permissions.canManageUsers()) {
       setActiveView('users');
     }
   });
@@ -4890,6 +5208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireFreezeWindows();
   wirePlanner();
   wireAIQuery();
+  wireCSMActivity();
   wireKeyboardShortcuts();
 
   let isAuthenticated = Session.isAuthenticated();
@@ -4912,7 +5231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!Session.isAuthenticated()) {
     const view = localStorage.getItem(LS_KEYS.view) || 'issues';
     setActiveView(
-      view === 'calendar' || view === 'insights' || view === 'users' ? view : 'issues'
+      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'users' ? view : 'issues'
     );
   }
 

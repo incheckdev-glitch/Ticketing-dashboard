@@ -210,6 +210,10 @@
                 role="tab" aria-selected="false" aria-controls="insightsView">
           <span class="icon" aria-hidden="true">🤖</span> AI Insights
         </button>
+        <button id="csmTab" class="view-tab" data-view="csm"
+                role="tab" aria-selected="false" aria-controls="csmView">
+          <span class="icon" aria-hidden="true">🧑‍💼</span> CSM Daily Activity
+        </button>
         <button id="usersTab" class="view-tab" data-view="users"
                 role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
           <span class="icon" aria-hidden="true">👥</span> Users
@@ -221,7 +225,7 @@
         <div class="card summary-bar" id="issuesSummaryCard">
           <span id="issuesSummaryText" aria-live="polite">Loading summary…</span>
           <span id="issuesLastUpdated" class="summary-meta" aria-live="polite">Last updated: --</span>
-         <span class="shortcut-chip">Shortcuts: 1/2/3 tabs · / search · Ctrl+K AI</span>
+         <span class="shortcut-chip">Shortcuts: 1/2/3/4 tabs · / search · Ctrl+K AI</span>
         </div>
 
         <div class="grid cols-4" id="kpis" aria-live="polite"></div>
@@ -612,6 +616,110 @@
             <button id="aiQueryExport" class="btn ghost sm" type="button" title="Export query results as CSV">Export CSV</button>
           </div>
           <div id="aiQueryResults" class="muted" style="font-size:13px;margin-top:8px;"></div>
+        </div>
+      </section>
+
+      <section id="csmView" class="view" role="tabpanel" aria-labelledby="csmTab">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+              <strong>CSM Daily Activity</strong>
+              <div class="muted" style="margin-top:4px;">
+                Track daily support effort by CSM and client. Upload CSV/Excel with columns:
+                Timestamp, CSM Name, Client, Time Spent (Minutes), Type of Support, Effort Requirement, Support Channel, Notes.
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="csmFileInput" class="input sm" type="file" accept=".csv,.xlsx,.xls" />
+              <button id="csmClearBtn" class="btn ghost sm" type="button">Clear Data</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid cols-4">
+          <div class="card csm-kpi"><div class="label">Activities</div><div id="csmKpiActivities" class="value">0</div></div>
+          <div class="card csm-kpi"><div class="label">Total Minutes</div><div id="csmKpiMinutes" class="value">0</div></div>
+          <div class="card csm-kpi"><div class="label">Avg Minutes / Activity</div><div id="csmKpiAvg" class="value">0</div></div>
+          <div class="card csm-kpi"><div class="label">Top CSM</div><div id="csmKpiTopCsm" class="value">—</div></div>
+        </div>
+
+        <div class="card">
+          <div class="csm-filters-grid">
+            <div class="filter-row">
+              <label class="muted" for="csmSearchInput">Search</label>
+              <input id="csmSearchInput" class="input" type="search" placeholder="CSM, client, notes..." />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmNameFilter">CSM Name</label>
+              <select id="csmNameFilter" class="select"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmClientFilter">Client</label>
+              <select id="csmClientFilter" class="select"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmSupportTypeFilter">Type of Support</label>
+              <select id="csmSupportTypeFilter" class="select"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmEffortFilter">Effort Requirement</label>
+              <select id="csmEffortFilter" class="select"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmChannelFilter">Support Channel</label>
+              <select id="csmChannelFilter" class="select"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmMinMinutesFilter">Min Minutes</label>
+              <input id="csmMinMinutesFilter" class="input" type="number" min="0" step="5" placeholder="0" />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmMaxMinutesFilter">Max Minutes</label>
+              <input id="csmMaxMinutesFilter" class="input" type="number" min="0" step="5" placeholder="No max" />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmStartDateFilter">Start Date</label>
+              <input id="csmStartDateFilter" class="input" type="date" />
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="csmEndDateFilter">End Date</label>
+              <input id="csmEndDateFilter" class="input" type="date" />
+            </div>
+            <div class="filter-row" style="align-self:flex-end;">
+              <button id="csmResetFiltersBtn" class="btn ghost sm" type="button">Reset Filters</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="charts" aria-label="CSM analytics charts">
+          <div class="card"><canvas id="csmByCsmChart" height="140" aria-label="Minutes by CSM" role="img"></canvas></div>
+          <div class="card"><canvas id="csmBySupportTypeChart" height="140" aria-label="Minutes by support type" role="img"></canvas></div>
+          <div class="card"><canvas id="csmByChannelChart" height="140" aria-label="Minutes by channel" role="img"></canvas></div>
+          <div class="card"><canvas id="csmTrendChart" height="140" aria-label="Daily trend of minutes" role="img"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <strong>Activity Records</strong>
+            <span id="csmRowCount" class="muted">0 rows</span>
+          </div>
+          <div class="table-wrap" role="region" aria-label="CSM daily activity table">
+            <table id="csmTable">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>CSM Name</th>
+                  <th>Client</th>
+                  <th>Time Spent (Minutes)</th>
+                  <th>Type of Support</th>
+                  <th>Effort Requirement</th>
+                  <th>Support Channel</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="csmTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
