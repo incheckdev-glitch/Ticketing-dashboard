@@ -67,7 +67,7 @@ function cacheEls() {
     'toast',
     'searchInput',
     'loginForm',
-    'loginRole',
+    'loginIdentifier',
     'loginPasscode',
     'loginBtn',
     'loginHint',
@@ -140,7 +140,20 @@ function cacheEls() {
     'activeFiltersChips',
     'calendarTz',
     'onlineStatusChip',
+    'currentUserChip',
     'currentRoleChip',
+    'usersTab',
+    'usersView',
+    'usersRefreshBtn',
+    'usersState',
+    'usersTbody',
+    'userCreateForm',
+    'userCreateName',
+    'userCreateUsername',
+    'userCreateEmail',
+    'userCreateRole',
+    'userCreatePassword',
+    'userCreateSubmit',
     'accentColor',
     'heroTriagePct',
     'heroHighImpactCount',
@@ -217,6 +230,7 @@ const UI = {
   },
   applyRolePermissions() {
     const role = Session.role() || 'guest';
+    const displayName = Session.displayName() || Session.username() || 'guest';
     const canUseInternalIssueFilters = Permissions.canUseInternalIssueFilters();
     const canManageFreezeWindows = Permissions.canManageFreezeWindows();
     const canChangePlanner = Permissions.canChangePlanner();
@@ -229,7 +243,12 @@ const UI = {
       setIfOptionExists(E.issueRelatedFilter, 'All');
     }
 
+    if (E.currentUserChip) E.currentUserChip.textContent = `User: ${displayName}`;
     if (E.currentRoleChip) E.currentRoleChip.textContent = `Role: ${role}`;
+    if (E.usersTab) E.usersTab.style.display = Permissions.canManageUsers() ? '' : 'none';
+    if (!Permissions.canManageUsers() && E.usersView?.classList.contains('active')) {
+      setActiveView('issues');
+    }
     if (E.addEventBtn) E.addEventBtn.style.display = Permissions.canManageEvents() ? '' : 'none';
     if (E.freezeManageBtn) E.freezeManageBtn.style.display = canManageFreezeWindows ? '' : 'none';
     if (E.freezeManageBtnSecondary) E.freezeManageBtnSecondary.style.display = canManageFreezeWindows ? '' : 'none';

@@ -11,6 +11,9 @@ const Permissions = {
   canManageEvents() {
     return this.isAdmin();
   },
+  canManageUsers() {
+    return this.isAdmin();
+  },
   canChangePlanner() {
     return this.isAdmin();
   },
@@ -32,10 +35,10 @@ async function handleExpiredSession(message = 'Session expired. Please log in ag
   Session.clearClientSession();
   UI.applyRolePermissions();
   try {
+    const loginIdentifierEl = document.getElementById('loginIdentifier');
     const loginPasscodeEl = document.getElementById('loginPasscode');
-    const loginRoleEl = document.getElementById('loginRole');
+    if (loginIdentifierEl) loginIdentifierEl.value = '';
     if (loginPasscodeEl) loginPasscodeEl.value = '';
-    if (loginRoleEl) loginRoleEl.value = ROLES.VIEWER;
     const loginSection = document.getElementById('loginSection');
     if (loginSection) window.location.hash = '#loginSection';
     document.body.classList.add('auth-locked');

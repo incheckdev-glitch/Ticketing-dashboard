@@ -1904,20 +1904,25 @@ function trapFocus(container, e) {
 }
 
 function setActiveView(view) {
- const names = ['issues', 'calendar', 'insights'];
+ if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
+ const names = ['issues', 'calendar', 'insights', 'users'];
   names.forEach(name => {
     const tab =
       name === 'issues'
         ? E.issuesTab
         : name === 'calendar'
         ? E.calendarTab
-      : E.insightsTab;
+        : name === 'insights'
+        ? E.insightsTab
+        : E.usersTab;
     const panel =
       name === 'issues'
         ? E.issuesView
         : name === 'calendar'
         ? E.calendarView
-       : E.insightsView;
+        : name === 'insights'
+       ? E.insightsView
+        : E.usersView;
     const active = name === view;
     if (tab) {
       tab.classList.toggle('active', active);
@@ -1934,6 +1939,7 @@ function setActiveView(view) {
     scheduleCalendarResize();
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
+  if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
 }
 
 /* ---------- Calendar wiring ---------- */
@@ -3916,7 +3922,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.usersTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4258,7 +4264,7 @@ function wireConnectivity() {
 }
 
 function wireDashboardGate() {
-  if (!E.app || !E.loginForm || !E.loginRole || !E.loginPasscode) return;
+  if (!E.app || !E.loginForm || !E.loginIdentifier || !E.loginPasscode) return;
 
   const getDefaultViewForRole = role => {
     if (role === ROLES.ADMIN) return 'issues';
@@ -4289,51 +4295,44 @@ function wireDashboardGate() {
 
   lockApp();
   UI.applyRolePermissions();
-  E.loginRole.value = ROLES.VIEWER;
 
-  const updateLoginHint = () => {
-    if (!E.loginHint) return;
-    const isAdmin = E.loginRole.value === ROLES.ADMIN;
-    E.loginHint.textContent = isAdmin
-      ? 'Enter your admin passcode.'
-      : 'Enter your viewer passcode.';
-  };
-
-  E.loginRole.addEventListener('change', updateLoginHint);
-  updateLoginHint();
   if (Session.isAuthenticated()) {
-    E.loginRole.value = Session.role() || ROLES.VIEWER;
     unlockApp();
   }
 
   E.loginForm.addEventListener('submit', async event => {
     event.preventDefault();
-    const selectedRole = String(E.loginRole.value || '').trim().toLowerCase();
+    const identifier = String(E.loginIdentifier.value || '');
     const passcode = String(E.loginPasscode.value || '');
 
-    if (selectedRole !== ROLES.ADMIN && selectedRole !== ROLES.VIEWER) {
-      UI.toast('Role is required.');
+    if (!identifier.trim()) {
+      UI.toast('Username or email is required.');
       return;
     }
     if (!passcode.trim()) {
-      UI.toast('Passcode is required.');
+      UI.toast('Password is required.');
       return;
     }
 
     try {
-      const session = await Session.login(selectedRole, passcode);
+      const user = await Session.login(identifier, passcode);
       UI.applyRolePermissions();
+      E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
-      E.loginRole.value = session.role || selectedRole || ROLES.VIEWER;
       unlockApp();
       await Promise.all([loadIssues(true), loadEvents(true)]);
-      if (selectedRole && session.role !== selectedRole) {
-        UI.toast(`Logged in as ${session.role}. Selected role was adjusted to match backend.`);
-      } else {
-        UI.toast(`Logged in as ${session.role}.`);
-      }
+      UI.toast(`Logged in as ${user.role}.`);
     } catch (error) {
-      UI.toast(`Login failed: ${error.message}`);
+      const message = String(error?.message || '').toLowerCase();
+      if (/invalid|credential|password|passcode|identifier|unauthorized/.test(message)) {
+        UI.toast('Invalid credentials. Please check your username/email and password.');
+      } else if (/failed before a response|network|cors|unreachable/.test(message)) {
+        UI.toast('Backend unavailable. Please try again in a moment.');
+      } else if (/http 404/.test(message)) {
+        UI.toast('Auth backend route not found. Please verify API_BASE_URL/proxy.');
+      } else {
+        UI.toast(`Login failed: ${error.message}`);
+      }
       return;
     }
   });
@@ -4342,9 +4341,8 @@ function wireDashboardGate() {
     E.logoutBtn.addEventListener('click', async () => {
       await Session.logout();
       UI.applyRolePermissions();
+      E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
-      E.loginRole.value = ROLES.VIEWER;
-      updateLoginHint();
       lockApp();
       UI.toast('Logged out.');
     });
@@ -4844,13 +4842,15 @@ function wireKeyboardShortcuts() {
 
     if (isInputLike) return;
 
-    // 1/2/3 → switch tabs
+    // 1/2/3/4 → switch tabs
     if (e.key === '1') {
       setActiveView('issues');
     } else if (e.key === '2') {
       setActiveView('calendar');
     } else if (e.key === '3') {
       setActiveView('insights');
+    } else if (e.key === '4' && Permissions.canManageUsers()) {
+      setActiveView('users');
     }
   });
 }
@@ -4879,6 +4879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   wireDashboardGate();
   wireCore();
+  if (window.UserAdmin?.wire) UserAdmin.wire();
   wireSorting();
   wirePaging();
   wireFilters();
@@ -4911,7 +4912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!Session.isAuthenticated()) {
     const view = localStorage.getItem(LS_KEYS.view) || 'issues';
     setActiveView(
-      view === 'calendar' || view === 'insights' ? view : 'issues'
+      view === 'calendar' || view === 'insights' || view === 'users' ? view : 'issues'
     );
   }
 
