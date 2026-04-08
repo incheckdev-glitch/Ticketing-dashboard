@@ -297,6 +297,10 @@ const UI = {
 
     if (E.currentUserChip) E.currentUserChip.textContent = `User: ${displayName}`;
     if (E.currentRoleChip) E.currentRoleChip.textContent = `Role: ${role}`;
+    if (E.csmTab) E.csmTab.style.display = Permissions.canViewCsmActivity() ? '' : 'none';
+    if (!Permissions.canViewCsmActivity() && E.csmView?.classList.contains('active')) {
+      setActiveView('issues');
+    }
     if (E.usersTab) E.usersTab.style.display = Permissions.canManageUsers() ? '' : 'none';
     if (!Permissions.canManageUsers() && E.usersView?.classList.contains('active')) {
       setActiveView('issues');

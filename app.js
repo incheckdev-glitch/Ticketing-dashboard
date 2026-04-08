@@ -1904,6 +1904,7 @@ function trapFocus(container, e) {
 }
 
 function setActiveView(view) {
+ if (view === 'csm' && !Permissions.canViewCsmActivity()) view = 'issues';
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
  const names = ['issues', 'calendar', 'insights', 'csm', 'users'];
   names.forEach(name => {
@@ -4288,7 +4289,7 @@ function wireDashboardGate() {
   if (!E.app || !E.loginForm || !E.loginIdentifier || !E.loginPasscode) return;
 
   const getDefaultViewForRole = role => {
-    if (role === ROLES.ADMIN) return 'issues';
+    if (role === ROLES.ADMIN || role === ROLES.DEV) return 'issues';
     if (role === ROLES.VIEWER) return 'calendar';
     return 'issues';
   };

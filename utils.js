@@ -191,6 +191,20 @@ const ColumnManager = {
       'devTeamStatus',
       'issueRelated',
       'notes'
+    ]),
+    [ROLES.DEV]: new Set([
+      'id',
+      'date',
+      'title',
+      'desc',
+      'priority',
+      'file',
+      'type',
+      'status',
+      'youtrackReference',
+      'devTeamStatus',
+      'issueRelated',
+      'notes'
     ])
   },
   columns: [
@@ -217,7 +231,7 @@ const ColumnManager = {
   state: {},
   isColumnAllowed(colKey) {
     const role = Session.role();
-    if (role === ROLES.ADMIN) return true;
+    if (role === ROLES.ADMIN || role === ROLES.DEV) return true;
     return !this.restrictedForViewer.has(colKey);
   },
   getAvailableColumns() {

@@ -29,6 +29,8 @@ const Session = {
     const role =
       backendRole === ROLES.ADMIN
         ? ROLES.ADMIN
+        : backendRole === ROLES.DEV
+        ? ROLES.DEV
         : backendRole === ROLES.HOO
         ? ROLES.HOO
         : backendRole === ROLES.VIEWER
@@ -171,6 +173,7 @@ const Session = {
     return (
       !!this.state.authToken &&
       (this.state.role === ROLES.ADMIN ||
+        this.state.role === ROLES.DEV ||
         this.state.role === ROLES.VIEWER ||
         this.state.role === ROLES.HOO)
     );

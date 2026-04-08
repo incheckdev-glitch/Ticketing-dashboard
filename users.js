@@ -150,6 +150,8 @@ const UserAdmin = {
         const role =
           rawRole === ROLES.ADMIN
             ? ROLES.ADMIN
+            : rawRole === ROLES.DEV
+            ? ROLES.DEV
             : rawRole === ROLES.HOO
             ? ROLES.HOO
             : ROLES.VIEWER;
@@ -200,12 +202,14 @@ const UserAdmin = {
     if (email == null) return;
     const username = window.prompt('Username', String(user.username || ''));
     if (username == null) return;
-    const role = window.prompt('Role (admin/viewer/hoo)', String(user.role || ROLES.VIEWER));
+    const role = window.prompt('Role (admin/dev/viewer/hoo)', String(user.role || ROLES.VIEWER));
     if (role == null) return;
     const enteredRole = String(role).trim().toLowerCase();
     const normalizedRole =
       enteredRole === ROLES.ADMIN
         ? ROLES.ADMIN
+        : enteredRole === ROLES.DEV
+        ? ROLES.DEV
         : enteredRole === ROLES.HOO
         ? ROLES.HOO
         : ROLES.VIEWER;

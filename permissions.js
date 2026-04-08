@@ -2,32 +2,41 @@ const Permissions = {
   isAdmin() {
     return Session.role() === ROLES.ADMIN;
   },
+  isDev() {
+    return Session.role() === ROLES.DEV;
+  },
   isHoo() {
     return Session.role() === ROLES.HOO;
   },
+  isAdminLike() {
+    return this.isAdmin() || this.isDev();
+  },
   canCreateTicket() {
     return Session.isAuthenticated();
+  },
+  canViewCsmActivity() {
+    return Session.isAuthenticated() && !this.isDev();
   },
   canManageCsmActivity() {
     return this.isAdmin() || this.isHoo();
   },
   canEditTicket() {
-    return this.isAdmin();
+    return this.isAdminLike();
   },
   canManageEvents() {
-    return this.isAdmin();
+    return this.isAdminLike();
   },
   canManageUsers() {
     return this.isAdmin();
   },
   canChangePlanner() {
-    return this.isAdmin();
+    return this.isAdminLike();
   },
   canManageFreezeWindows() {
-    return this.isAdmin();
+    return this.isAdminLike();
   },
   canUseInternalIssueFilters() {
-    return this.isAdmin();
+    return this.isAdminLike();
   }
 };
 
