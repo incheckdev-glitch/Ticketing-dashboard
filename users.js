@@ -150,14 +150,11 @@ const UserAdmin = {
         const created = this.formatDate(this.getCreatedAt(user));
         const updated = this.formatDate(this.getUpdatedAt(user));
         const lastLogin = this.formatDate(this.getLastLoginAt(user));
-        const passwordHash = user.password_hash || user.passwordHash || '';
         return `<tr data-user-id="${U.escapeHtml(userId)}">
-          <td>${U.escapeHtml(userId || '—')}</td>
           <td>${U.escapeHtml(user.name || '—')}</td>
           <td>${U.escapeHtml(user.email || '—')}</td>
           <td>${U.escapeHtml(user.username || '—')}</td>
           <td>${U.escapeHtml(role)}</td>
-          <td>${U.escapeHtml(passwordHash || '—')}</td>
           <td>${active ? 'true' : 'false'}</td>
           <td>${U.escapeHtml(created)}</td>
           <td>${U.escapeHtml(updated)}</td>
