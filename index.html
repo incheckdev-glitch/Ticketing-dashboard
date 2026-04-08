@@ -119,53 +119,57 @@
   <div class="wrap" id="app">
     <aside class="sidebar" id="sidebar" aria-label="Filters">
       <h3>Filters</h3>
-      <div class="filter-group" role="group" aria-label="Field filters">
-        <div class="filter-row">
-          <label class="muted" for="moduleFilter">Module</label>
-          <select id="moduleFilter" class="select" aria-label="Filter by module"></select>
-        </div>
-        <div class="filter-row">
-          <label class="muted" for="categoryFilter">Category</label>
-          <select id="categoryFilter" class="select" aria-label="Filter by category"></select>
-        </div>
-        <div class="filter-row">
-          <label class="muted" for="priorityFilter">Priority</label>
-          <select id="priorityFilter" class="select" aria-label="Filter by priority"></select>
-        </div>
-        <div class="filter-row">
-          <label class="muted" for="statusFilter">Status</label>
-          <select id="statusFilter" class="select" aria-label="Filter by status"></select>
-        </div>
-        <div class="filter-row" id="devTeamStatusFilterRow">
-          <label class="muted" for="devTeamStatusFilter">Dev Team Status</label>
-          <select id="devTeamStatusFilter" class="select" aria-label="Filter by dev team status"></select>
-        </div>
-        <div class="filter-row" id="issueRelatedFilterRow">
-          <label class="muted" for="issueRelatedFilter">Issue Related</label>
-          <select id="issueRelatedFilter" class="select" aria-label="Filter by issue related"></select>
-        </div>
-      </div>
+      <div class="filters-layout">
+        <section class="filter-panel" role="group" aria-label="Field filters">
+          <h4 class="filter-panel-title">Issue Filters</h4>
+          <div class="filter-grid">
+            <div class="filter-row">
+              <label class="muted" for="moduleFilter">Module</label>
+              <select id="moduleFilter" class="select" aria-label="Filter by module"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="categoryFilter">Category</label>
+              <select id="categoryFilter" class="select" aria-label="Filter by category"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="priorityFilter">Priority</label>
+              <select id="priorityFilter" class="select" aria-label="Filter by priority"></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="statusFilter">Status</label>
+              <select id="statusFilter" class="select" aria-label="Filter by status"></select>
+            </div>
+            <div class="filter-row" id="devTeamStatusFilterRow">
+              <label class="muted" for="devTeamStatusFilter">Dev Team Status</label>
+              <select id="devTeamStatusFilter" class="select" aria-label="Filter by dev team status"></select>
+            </div>
+            <div class="filter-row" id="issueRelatedFilterRow">
+              <label class="muted" for="issueRelatedFilter">Issue Related</label>
+              <select id="issueRelatedFilter" class="select" aria-label="Filter by issue related"></select>
+            </div>
+          </div>
+        </section>
 
-            <div class="divider" role="separator"></div>
+        <section class="filter-panel" role="group" aria-label="Date range">
+          <h4 class="filter-panel-title">Date Range</h4>
+          <div class="filter-grid filter-grid-dates">
+            <div class="filter-row">
+              <label class="muted" for="endDateFilter">End Date</label>
+              <input type="date" id="endDateFilter" class="input" aria-label="End date">
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="startDateFilter">Start Date</label>
+              <input type="date" id="startDateFilter" class="input" aria-label="Start date">
+            </div>
+          </div>
+        </section>
 
-      <div class="filter-group" role="group" aria-label="Date range">
-        <div class="filter-row">
-          <label class="muted" for="endDateFilter">End Date</label>
-          <input type="date" id="endDateFilter" class="input" aria-label="End date">
-        </div>
-        <div class="filter-row">
-          <label class="muted" for="startDateFilter">Start Date</label>
-          <input type="date" id="startDateFilter" class="input" aria-label="Start date">
-        </div>
-      </div>
-
-            <div class="divider" role="separator"></div>
-
-      <div class="filter-group">
-        <button id="resetBtn" class="btn ghost" aria-label="Reset all filters">Reset</button>
-        <span class="muted">
-          Tip: click any KPI to filter by that status. “Total Issues” resets everything.
-        </span>
+        <section class="filter-panel filter-panel-actions">
+          <button id="resetBtn" class="btn ghost" aria-label="Reset all filters">Reset</button>
+          <span class="muted">
+            Tip: click any KPI to filter by that status. “Total Issues” resets everything.
+          </span>
+        </section>
       </div>
     </aside>
 
