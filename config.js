@@ -188,7 +188,8 @@ window.LS_KEYS = {
   savedViews: 'incheckSavedViews',
   columns: 'incheckColumns',
   freezeWindows: 'incheckFreezeWindows',
-  session: 'incheckSession'
+  session: 'incheckSession',
+  csmActivity: 'incheckCsmActivity'
 };
 
 const LS_KEYS = window.LS_KEYS;
