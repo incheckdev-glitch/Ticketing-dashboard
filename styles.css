@@ -1218,9 +1218,7 @@ th.sorted-desc::after{
 
 @media(min-width:981px){
   .sidebar{
-    position:sticky;
-    top:82px;
-    z-index:15;
+    position:static;
   }
   .sidebar h3{
     margin-bottom:12px;
