@@ -737,6 +737,11 @@ body.auth-locked .login-hint{
 @media(max-width:980px){.csm-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.csm-kpi-grid{grid-template-columns:1fr}}
 
+.csm-widget-card{display:grid;gap:10px}
+.csm-widget-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.csm-widget-head strong{font-size:21px;line-height:1.2}
+.csm-widget-head .chip{font-size:11px}
+
 /* Table & skeleton */
 table{
   width:100%;

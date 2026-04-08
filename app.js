@@ -4838,12 +4838,11 @@ const CSMActivity = {
     endDate: ''
   },
   charts: {
-    byCsm: null,
-    bySupportType: null,
-    byChannel: null,
-    byClient: null,
-    effortMix: null,
-    trend: null
+    weekdayWorkload: null,
+    weeklyTrend: null,
+    effortMixByCsm: null,
+    clientConcentration: null,
+    workloadBalance: null
   },
   backendToView(raw = {}) {
     const timestamp = String(raw.timestamp || raw.date || raw.created_at || '').trim();
@@ -4978,67 +4977,109 @@ const CSMActivity = {
     if (chart && typeof chart.destroy === 'function') chart.destroy();
   },
   renderCharts(list) {
-    const minutesBy = (key, limit = 8) => {
+    const minutes = row => Number(row.timeSpentMinutes) || 0;
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weekdayIndex = date => (date.getUTCDay() + 6) % 7;
+    const isoWeekLabel = date => {
+      const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+    };
+    const totalByKey = key => {
       const map = new Map();
       list.forEach(row => {
         const label = String(row[key] || 'Unspecified').trim() || 'Unspecified';
-        map.set(label, (map.get(label) || 0) + (Number(row.timeSpentMinutes) || 0));
+        map.set(label, (map.get(label) || 0) + minutes(row));
       });
-      return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+      return map;
     };
-    const tasksByDate = new Map();
-    list.forEach(row => {
-      const label = row.parsedDate ? row.parsedDate.toISOString().slice(0, 10) : 'Unknown date';
-      tasksByDate.set(label, (tasksByDate.get(label) || 0) + 1);
-    });
-    const trendRows = [...tasksByDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-21);
 
-    const barCfg = (label, rows, color, indexAxis = 'x') => ({
-      type: 'bar',
-      data: { labels: rows.map(r => r[0]), datasets: [{ label, data: rows.map(r => Math.round(r[1])), backgroundColor: color }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis, scales: { y: { beginAtZero: true } } }
-    });
-
-    if (E.csmByCsmChart?.getContext) {
-      this.destroyChart(this.charts.byCsm);
-      this.charts.byCsm = new Chart(E.csmByCsmChart.getContext('2d'), barCfg('Minutes', minutesBy('csmName', 10), '#06b6d4'));
+    if (E.csmWeekdayWorkloadChart?.getContext) {
+      const weekdayMinutes = new Array(7).fill(0);
+      list.forEach(row => {
+        if (!row.parsedDate) return;
+        weekdayMinutes[weekdayIndex(row.parsedDate)] += minutes(row);
+      });
+      this.destroyChart(this.charts.weekdayWorkload);
+      this.charts.weekdayWorkload = new Chart(E.csmWeekdayWorkloadChart.getContext('2d'), {
+        type: 'bar',
+        data: { labels: weekdays, datasets: [{ label: 'Minutes', data: weekdayMinutes.map(v => Math.round(v)), backgroundColor: '#0ea5e9' }] },
+        options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Minutes' } } } }
+      });
     }
-    if (E.csmBySupportTypeChart?.getContext) {
-      this.destroyChart(this.charts.bySupportType);
-      this.charts.bySupportType = new Chart(E.csmBySupportTypeChart.getContext('2d'), {
+
+    if (E.csmWeeklyTrendChart?.getContext) {
+      const byWeek = new Map();
+      list.forEach(row => {
+        if (!row.parsedDate) return;
+        const week = isoWeekLabel(row.parsedDate);
+        byWeek.set(week, (byWeek.get(week) || 0) + minutes(row));
+      });
+      const weeklyRows = [...byWeek.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+      this.destroyChart(this.charts.weeklyTrend);
+      this.charts.weeklyTrend = new Chart(E.csmWeeklyTrendChart.getContext('2d'), {
+        type: 'line',
+        data: { labels: weeklyRows.map(r => r[0]), datasets: [{ label: 'Minutes', data: weeklyRows.map(r => Math.round(r[1])), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.15)', fill: true, tension: 0.35 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: false, title: { display: true, text: 'Minutes' } } } }
+      });
+    }
+
+    if (E.csmEffortMixByCsmChart?.getContext) {
+      const names = [...new Set(list.map(row => row.csmName || 'Unspecified'))];
+      const byEffort = { Low: new Map(), Medium: new Map(), High: new Map() };
+      list.forEach(row => {
+        const csm = row.csmName || 'Unspecified';
+        const effort = String(row.effortRequirement || '').trim().toLowerCase();
+        const bucket = effort.startsWith('h') ? 'High' : effort.startsWith('m') ? 'Medium' : 'Low';
+        byEffort[bucket].set(csm, (byEffort[bucket].get(csm) || 0) + 1);
+      });
+      this.destroyChart(this.charts.effortMixByCsm);
+      this.charts.effortMixByCsm = new Chart(E.csmEffortMixByCsmChart.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: names,
+          datasets: [
+            { label: 'Low', data: names.map(n => byEffort.Low.get(n) || 0), backgroundColor: '#16a34a' },
+            { label: 'Medium', data: names.map(n => byEffort.Medium.get(n) || 0), backgroundColor: '#f59e0b' },
+            { label: 'High', data: names.map(n => byEffort.High.get(n) || 0), backgroundColor: '#ef4444' }
+          ]
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Tasks' } } } }
+      });
+    }
+
+    if (E.csmClientConcentrationChart?.getContext) {
+      const byClient = [...totalByKey('client').entries()].sort((a, b) => b[1] - a[1]);
+      const top = byClient.slice(0, 5);
+      const otherMinutes = byClient.slice(5).reduce((sum, row) => sum + row[1], 0);
+      if (otherMinutes > 0) top.push(['Others', otherMinutes]);
+      this.destroyChart(this.charts.clientConcentration);
+      this.charts.clientConcentration = new Chart(E.csmClientConcentrationChart.getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels: minutesBy('supportType', 8).map(r => r[0]),
-          datasets: [{ data: minutesBy('supportType', 8).map(r => Math.round(r[1])), backgroundColor: ['#2563eb','#06b6d4','#16a34a','#f59e0b','#7c3aed','#ef4444','#14b8a6','#94a3b8'] }]
+          labels: top.map(r => r[0]),
+          datasets: [{ data: top.map(r => Math.round(r[1])), backgroundColor: ['#2563eb', '#06b6d4', '#16a34a', '#f59e0b', '#8b5cf6', '#94a3b8'] }]
         },
-        options: { responsive: true }
+        options: { responsive: true, cutout: '50%' }
       });
     }
-    if (E.csmByChannelChart?.getContext) {
-      this.destroyChart(this.charts.byChannel);
-      this.charts.byChannel = new Chart(E.csmByChannelChart.getContext('2d'), barCfg('Tasks', minutesBy('supportChannel', 8), '#8b5cf6'));
-    }
-    if (E.csmByClientChart?.getContext) {
-      this.destroyChart(this.charts.byClient);
-      this.charts.byClient = new Chart(E.csmByClientChart.getContext('2d'), barCfg('Minutes', minutesBy('client', 10), '#f59e0b', 'y'));
-    }
-    if (E.csmEffortMixChart?.getContext) {
-      this.destroyChart(this.charts.effortMix);
-      this.charts.effortMix = new Chart(E.csmEffortMixChart.getContext('2d'), {
-        type: 'pie',
+
+    if (E.csmWorkloadBalanceChart?.getContext) {
+      const byCsm = [...totalByKey('csmName').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const avg = byCsm.length ? byCsm.reduce((sum, row) => sum + row[1], 0) / byCsm.length : 0;
+      this.destroyChart(this.charts.workloadBalance);
+      this.charts.workloadBalance = new Chart(E.csmWorkloadBalanceChart.getContext('2d'), {
         data: {
-          labels: minutesBy('effortRequirement', 5).map(r => r[0]),
-          datasets: [{ data: minutesBy('effortRequirement', 5).map(r => Math.round(r[1])), backgroundColor: ['#16a34a', '#f59e0b', '#ef4444', '#3b82f6', '#6b7280'] }]
+          labels: byCsm.map(r => r[0]),
+          datasets: [
+            { type: 'bar', label: 'Total Minutes', data: byCsm.map(r => Math.round(r[1])), backgroundColor: '#3b82f6' },
+            { type: 'line', label: 'Average Minutes', data: byCsm.map(() => Math.round(avg)), borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, tension: 0 }
+          ]
         },
-        options: { responsive: true }
-      });
-    }
-    if (E.csmTrendChart?.getContext) {
-      this.destroyChart(this.charts.trend);
-      this.charts.trend = new Chart(E.csmTrendChart.getContext('2d'), {
-        type: 'line',
-        data: { labels: trendRows.map(r => r[0]), datasets: [{ label: 'Tasks', data: trendRows.map(r => Math.round(r[1])), borderColor: '#2563eb', backgroundColor: 'rgba(59,130,246,.15)', fill: true, tension: 0.32 }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Minutes' } } } }
       });
     }
   },
