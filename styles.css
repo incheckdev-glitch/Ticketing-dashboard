@@ -681,19 +681,23 @@ body.auth-locked .login-hint{
   }
 }
 @media(max-width:980px){
+  .wrap{
+    padding-top:8px;
+  }
   .content-layout{
-    grid-template-columns:1fr;
+    grid-template-columns:220px minmax(0,1fr);
   }
   .view-menu{
-    position:static;
+    position:sticky;
+    top:82px;
     padding:10px;
   }
   .view-tabs{
-    flex-direction:row;
-    flex-wrap:wrap;
+    flex-direction:column;
+    flex-wrap:nowrap;
   }
   .view-tab{
-    width:auto;
+    width:100%;
   }
 }
 
