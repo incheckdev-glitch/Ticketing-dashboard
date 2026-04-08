@@ -189,7 +189,8 @@ window.LS_KEYS = {
   columns: 'incheckColumns',
   freezeWindows: 'incheckFreezeWindows',
   session: 'incheckSession',
-  csmActivity: 'incheckCsmActivity'
+  csmActivity: 'incheckCsmActivity',
+  crmView: 'incheckCrmView'
 };
 
 const LS_KEYS = window.LS_KEYS;

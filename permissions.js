@@ -11,6 +11,12 @@ const Permissions = {
   canManageCsmActivity() {
     return this.isAdmin() || this.isHoo();
   },
+  canCreateCrm() {
+    return Session.isAuthenticated();
+  },
+  canManageCrm() {
+    return this.isAdmin() || this.isHoo();
+  },
   canEditTicket() {
     return this.isAdmin();
   },
