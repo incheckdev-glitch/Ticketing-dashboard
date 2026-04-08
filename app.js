@@ -1944,7 +1944,7 @@ function setActiveView(view) {
     scheduleCalendarResize();
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
-  if (view === 'csm') CSMActivity.refresh();
+  if (view === 'csm') CSMActivity.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
 }
 
@@ -3998,6 +3998,7 @@ function wireCore() {
     E.refreshNow.addEventListener('click', () => {
       loadIssues(true);
       loadEvents(true);
+      if (E.csmView?.classList.contains('active')) CSMActivity.loadAndRefresh({ force: true });
     });
   if (E.exportCsv)
     E.exportCsv.addEventListener('click', () => {
@@ -4820,6 +4821,10 @@ function wireAIQuery() {
 /* ---------- CSM Daily Activity ---------- */
 const CSMActivity = {
   rows: [],
+  loaded: false,
+  isLoading: false,
+  isSaving: false,
+  loadError: '',
   state: {
     search: '',
     csmName: 'All',
@@ -4840,63 +4845,90 @@ const CSMActivity = {
     effortMix: null,
     trend: null
   },
-  parseRecord(raw) {
-    const normalized = {};
-    const normalizeHeader = key =>
-      String(key || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
-    for (const key in raw) {
-      normalized[normalizeHeader(key)] = String(raw[key] ?? '').trim();
-    }
-    const pick = (...keys) => {
-      for (const key of keys) {
-        const value = normalized[normalizeHeader(key)];
-        if (value) return value;
-      }
-      return '';
-    };
-    const minutesRaw = pick('time spent minutes', 'time spent (minutes)', 'minutes');
-    const timestampRaw = pick('timestamp', 'date', 'created at');
-    const parsedDate = timestampRaw ? new Date(timestampRaw) : null;
+  backendToView(raw = {}) {
+    const timestamp = String(raw.timestamp || raw.date || raw.created_at || '').trim();
+    const parsedDate = timestamp ? new Date(timestamp) : null;
     return {
-      timestamp: timestampRaw,
+      id: String(raw.id || '').trim(),
+      timestamp,
       parsedDate: parsedDate && !isNaN(parsedDate) ? parsedDate : null,
-      csmName: pick('csm name', 'csm'),
-      client: pick('client', 'account'),
-      timeSpentMinutes: Number.parseFloat(minutesRaw) || 0,
-      supportType: pick('type of support', 'support type'),
-      effortRequirement: pick('effort requirement', 'effort'),
-      supportChannel: pick('support channel', 'channel'),
-      notes: pick('notes optional', 'notes')
+      csmName: String(raw.csm_name || raw.csmName || '').trim(),
+      client: String(raw.client || '').trim(),
+      timeSpentMinutes: Number.parseFloat(raw.time_spent_minutes ?? raw.timeSpentMinutes ?? 0) || 0,
+      supportType: String(raw.type_of_support || raw.supportType || '').trim(),
+      effortRequirement: String(raw.effort_requirement || raw.effortRequirement || '').trim(),
+      supportChannel: String(raw.support_channel || raw.supportChannel || '').trim(),
+      notes: String(raw.notes_optional || raw.notes || '').trim(),
+      createdAt: String(raw.created_at || '').trim(),
+      updatedAt: String(raw.updated_at || '').trim()
     };
   },
-  loadFromStorage() {
-    try {
-      const raw = localStorage.getItem(LS_KEYS.csmActivity);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return;
-      this.rows = parsed
-        .map(row => ({
-          ...row,
-          parsedDate: row.timestamp ? new Date(row.timestamp) : null
-        }))
-        .map(row => ({
-          ...row,
-          parsedDate: row.parsedDate && !isNaN(row.parsedDate) ? row.parsedDate : null
-        }));
-    } catch (error) {
-      console.warn('Failed to load CSM activity from local storage', error);
-    }
+  viewToBackendActivity(row = {}) {
+    return {
+      timestamp: String(row.timestamp || '').trim(),
+      csm_name: String(row.csmName || '').trim(),
+      client: String(row.client || '').trim(),
+      time_spent_minutes: Number(row.timeSpentMinutes) || 0,
+      type_of_support: String(row.supportType || '').trim(),
+      effort_requirement: String(row.effortRequirement || '').trim(),
+      support_channel: String(row.supportChannel || '').trim(),
+      notes_optional: String(row.notes || '').trim()
+    };
   },
-  saveToStorage() {
+  extractRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.data)) return payload.data;
+    return [];
+  },
+  setBusySaving(v) {
+    this.isSaving = !!v;
+    const saveBtn = E.csmFormSaveBtn;
+    const deleteBtn = E.csmFormDeleteBtn;
+    if (saveBtn) {
+      saveBtn.disabled = !!v;
+      saveBtn.textContent = v ? 'Saving…' : 'Save';
+    }
+    if (deleteBtn) deleteBtn.disabled = !!v;
+    ['csmFormTimestamp','csmFormCsmName','csmFormClient','csmFormMinutes','csmFormSupportType','csmFormEffort','csmFormChannel','csmFormNotes']
+      .forEach(id => { if (E[id]) E[id].disabled = !!v; });
+  },
+  canCreate() {
+    return Permissions.canCreateTicket();
+  },
+  canEditDelete() {
+    return Permissions.isAdmin();
+  },
+  async loadAndRefresh(options = {}) {
+    const force = !!options.force;
+    if (this.isLoading) return;
+    if (this.loaded && !force) {
+      this.refresh();
+      return;
+    }
+    this.isLoading = true;
+    this.loadError = '';
+    this.refresh();
     try {
-      localStorage.setItem(LS_KEYS.csmActivity, JSON.stringify(this.rows));
+      const response = await Api.postAuthenticated('csm', 'list', {}, { requireAuth: true });
+      const rows = this.extractRows(response).map(raw => this.backendToView(raw));
+      this.rows = rows.filter(row => row.id || row.csmName || row.client || row.timestamp);
+      this.loaded = true;
+      this.hydrateOptions();
+      this.refresh();
     } catch (error) {
-      console.warn('Failed to save CSM activity to local storage', error);
+      if (isAuthError(error)) {
+        await handleExpiredSession('Session expired while loading CSM activity.');
+        return;
+      }
+      this.loadError = String(error?.message || 'Unknown backend error');
+      this.rows = [];
+      this.loaded = false;
+      this.hydrateOptions();
+      this.refresh();
+      UI.toast('Error loading CSM activity: ' + this.loadError);
+    } finally {
+      this.isLoading = false;
+      this.refresh();
     }
   },
   hydrateOptions() {
@@ -5012,8 +5044,21 @@ const CSMActivity = {
   },
   renderTable(list) {
     if (!E.csmTableBody) return;
+    if (this.isLoading) {
+      E.csmTableBody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">Loading CSM activity…</td></tr>';
+      if (E.csmRowCount) E.csmRowCount.textContent = 'Loading…';
+      return;
+    }
+    if (this.loadError) {
+      E.csmTableBody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.loadError)}</td></tr>`;
+      if (E.csmRowCount) E.csmRowCount.textContent = 'Error';
+      return;
+    }
     if (!list.length) {
-      E.csmTableBody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;">No activity rows match the current filters.</td></tr>';
+      const msg = this.rows.length
+        ? 'No activity rows match the current filters.'
+        : 'No CSM activities found in backend yet.';
+      E.csmTableBody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;">${U.escapeHtml(msg)}</td></tr>`;
       if (E.csmRowCount) E.csmRowCount.textContent = '0 rows';
       return;
     }
@@ -5028,6 +5073,7 @@ const CSMActivity = {
           <td>${U.escapeHtml(row.effortRequirement || '—')}</td>
           <td>${U.escapeHtml(row.supportChannel || '—')}</td>
           <td>${U.escapeHtml(row.notes || '—')}</td>
+          <td>${this.canEditDelete() ? `<button class="btn ghost sm" type="button" data-csm-edit="${U.escapeAttr(row.id)}">Edit</button> <button class="btn ghost sm" type="button" data-csm-delete="${U.escapeAttr(row.id)}">Delete</button>` : '<span class="muted">—</span>'}</td>
         </tr>`
       )
       .join('');
@@ -5104,69 +5150,118 @@ const CSMActivity = {
     this.renderInsights(filtered);
     this.renderCharts(filtered);
     this.renderTable(filtered);
+  },
+  openForm(row = null) {
+    if (!E.csmFormModal || !E.csmForm) return;
+    E.csmForm.dataset.mode = row ? 'edit' : 'create';
+    E.csmForm.dataset.id = row?.id || '';
+    if (E.csmFormTitle) E.csmFormTitle.textContent = row ? 'Edit CSM Activity' : 'Create CSM Activity';
+    if (E.csmFormTimestamp) E.csmFormTimestamp.value = row?.timestamp ? String(row.timestamp).slice(0, 16) : '';
+    if (E.csmFormCsmName) E.csmFormCsmName.value = row?.csmName || '';
+    if (E.csmFormClient) E.csmFormClient.value = row?.client || '';
+    if (E.csmFormMinutes) E.csmFormMinutes.value = row ? String(Math.round(Number(row.timeSpentMinutes) || 0)) : '';
+    if (E.csmFormSupportType) E.csmFormSupportType.value = row?.supportType || '';
+    if (E.csmFormEffort) E.csmFormEffort.value = row?.effortRequirement || '';
+    if (E.csmFormChannel) E.csmFormChannel.value = row?.supportChannel || '';
+    if (E.csmFormNotes) E.csmFormNotes.value = row?.notes || '';
+    if (E.csmFormDeleteBtn) E.csmFormDeleteBtn.style.display = row && this.canEditDelete() ? '' : 'none';
+    this.setBusySaving(false);
+    E.csmFormModal.style.display = 'flex';
+    E.csmFormModal.setAttribute('aria-hidden', 'false');
+  },
+  closeForm() {
+    if (!E.csmFormModal) return;
+    E.csmFormModal.style.display = 'none';
+    E.csmFormModal.setAttribute('aria-hidden', 'true');
+  },
+  readFormValues() {
+    return {
+      timestamp: String(E.csmFormTimestamp?.value || '').trim(),
+      csmName: String(E.csmFormCsmName?.value || '').trim(),
+      client: String(E.csmFormClient?.value || '').trim(),
+      timeSpentMinutes: Number(E.csmFormMinutes?.value || 0),
+      supportType: String(E.csmFormSupportType?.value || '').trim(),
+      effortRequirement: String(E.csmFormEffort?.value || '').trim(),
+      supportChannel: String(E.csmFormChannel?.value || '').trim(),
+      notes: String(E.csmFormNotes?.value || '').trim()
+    };
+  },
+  validateForm(activity) {
+    if (!activity.timestamp || !activity.csmName || !activity.client || !activity.supportType || !activity.effortRequirement || !activity.supportChannel) {
+      return 'Please complete all required fields.';
+    }
+    if (!Number.isFinite(activity.timeSpentMinutes) || activity.timeSpentMinutes < 0) {
+      return 'Time spent minutes must be a valid non-negative number.';
+    }
+    return '';
+  },
+  async submitForm() {
+    const mode = E.csmForm?.dataset.mode === 'edit' ? 'edit' : 'create';
+    const id = String(E.csmForm?.dataset.id || '').trim();
+    const activity = this.readFormValues();
+    const validationError = this.validateForm(activity);
+    if (validationError) {
+      UI.toast(validationError);
+      return;
+    }
+    this.setBusySaving(true);
+    try {
+      if (mode === 'edit') {
+        await Api.postAuthenticated('csm', 'update', { id, updates: this.viewToBackendActivity(activity) }, { requireAuth: true });
+        UI.toast('CSM activity updated.');
+      } else {
+        await Api.postAuthenticated('csm', 'create', { activity: this.viewToBackendActivity(activity) }, { requireAuth: true });
+        UI.toast('CSM activity created.');
+      }
+      this.closeForm();
+      await this.loadAndRefresh({ force: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        await handleExpiredSession('Session expired while saving CSM activity.');
+        return;
+      }
+      UI.toast('Unable to save CSM activity: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setBusySaving(false);
+    }
+  },
+  async deleteActivity(id) {
+    if (!id || !this.canEditDelete()) return;
+    const confirmed = window.confirm('Delete this CSM activity? This cannot be undone.');
+    if (!confirmed) return;
+    this.setBusySaving(true);
+    try {
+      await Api.postAuthenticated('csm', 'delete', { id }, { requireAuth: true });
+      UI.toast('CSM activity deleted.');
+      this.closeForm();
+      await this.loadAndRefresh({ force: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        await handleExpiredSession('Session expired while deleting CSM activity.');
+        return;
+      }
+      UI.toast('Unable to delete CSM activity: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setBusySaving(false);
+    }
   }
 };
 
 function wireCSMActivity() {
-  CSMActivity.loadFromStorage();
   CSMActivity.hydrateOptions();
   CSMActivity.refresh();
 
-  if (E.csmFileInput) {
-    E.csmFileInput.addEventListener('change', async event => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      try {
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        const rows = [];
-        if (ext === 'csv') {
-          const text = await file.text();
-          const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-          (parsed.data || []).forEach(row => rows.push(CSMActivity.parseRecord(row)));
-        } else {
-          const data = await file.arrayBuffer();
-          const wb = XLSX.read(data, { type: 'array' });
-          const sheet = wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          json.forEach(row => rows.push(CSMActivity.parseRecord(row)));
-        }
-        CSMActivity.rows = rows.filter(row => row.csmName || row.client || row.timestamp);
-        CSMActivity.saveToStorage();
-        CSMActivity.hydrateOptions();
-        CSMActivity.refresh();
-        UI.toast(`Loaded ${CSMActivity.rows.length} CSM activity row(s).`);
-      } catch (error) {
-        console.error('Failed to import CSM activity file', error);
-        UI.toast('Could not parse the selected file. Please validate column headers.');
-      } finally {
-        if (E.csmFileInput) E.csmFileInput.value = '';
-      }
-    });
-  }
-
-  if (E.csmClearBtn) {
-    E.csmClearBtn.addEventListener('click', () => {
-      CSMActivity.rows = [];
-      CSMActivity.saveToStorage();
-      CSMActivity.hydrateOptions();
-      CSMActivity.refresh();
-      UI.toast('CSM activity data cleared.');
-    });
-  }
-
   const bindState = (element, key, type = 'value') => {
     if (!element) return;
-    element.addEventListener('input', () => {
+    const sync = () => {
       CSMActivity.state[key] = type === 'valueAsNumber' ? element.valueAsNumber : element.value;
       if (type === 'valueAsNumber' && Number.isNaN(CSMActivity.state[key])) CSMActivity.state[key] = '';
       CSMActivity.refresh();
-    });
-    element.addEventListener('change', () => {
-      CSMActivity.state[key] = type === 'valueAsNumber' ? element.valueAsNumber : element.value;
-      if (type === 'valueAsNumber' && Number.isNaN(CSMActivity.state[key])) CSMActivity.state[key] = '';
-      CSMActivity.refresh();
-    });
+    };
+    element.addEventListener('input', sync);
+    element.addEventListener('change', sync);
   };
+
   bindState(E.csmSearchInput, 'search');
   bindState(E.csmNameFilter, 'csmName');
   bindState(E.csmClientFilter, 'client');
@@ -5199,6 +5294,49 @@ function wireCSMActivity() {
       if (E.csmEndDateFilter) E.csmEndDateFilter.value = '';
       CSMActivity.hydrateOptions();
       CSMActivity.refresh();
+    });
+  }
+
+  if (E.csmCreateBtn) {
+    E.csmCreateBtn.style.display = CSMActivity.canCreate() ? '' : 'none';
+    E.csmCreateBtn.addEventListener('click', () => CSMActivity.openForm(null));
+  }
+  if (E.csmReloadBtn) {
+    E.csmReloadBtn.addEventListener('click', () => CSMActivity.loadAndRefresh({ force: true }));
+  }
+
+  if (E.csmTableBody) {
+    E.csmTableBody.addEventListener('click', event => {
+      const editId = event.target?.getAttribute('data-csm-edit');
+      if (editId) {
+        const row = CSMActivity.rows.find(item => item.id === editId);
+        if (row) CSMActivity.openForm(row);
+        return;
+      }
+      const deleteId = event.target?.getAttribute('data-csm-delete');
+      if (deleteId) {
+        CSMActivity.deleteActivity(deleteId);
+      }
+    });
+  }
+
+  if (E.csmFormCloseBtn) E.csmFormCloseBtn.addEventListener('click', () => CSMActivity.closeForm());
+  if (E.csmFormCancelBtn) E.csmFormCancelBtn.addEventListener('click', () => CSMActivity.closeForm());
+  if (E.csmFormModal) {
+    E.csmFormModal.addEventListener('click', event => {
+      if (event.target === E.csmFormModal) CSMActivity.closeForm();
+    });
+  }
+  if (E.csmForm) {
+    E.csmForm.addEventListener('submit', event => {
+      event.preventDefault();
+      CSMActivity.submitForm();
+    });
+  }
+  if (E.csmFormDeleteBtn) {
+    E.csmFormDeleteBtn.addEventListener('click', () => {
+      const id = String(E.csmForm?.dataset.id || '').trim();
+      if (id) CSMActivity.deleteActivity(id);
     });
   }
 }

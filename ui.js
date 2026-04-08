@@ -146,8 +146,8 @@ function cacheEls() {
     'currentRoleChip',
     'usersTab',
     'usersView',
-    'csmFileInput',
-    'csmClearBtn',
+    'csmCreateBtn',
+    'csmReloadBtn',
     'csmSearchInput',
     'csmNameFilter',
     'csmClientFilter',
@@ -174,6 +174,21 @@ function cacheEls() {
     'csmTrendChart',
     'csmRowCount',
     'csmTableBody',
+    'csmFormModal',
+    'csmForm',
+    'csmFormTitle',
+    'csmFormCloseBtn',
+    'csmFormCancelBtn',
+    'csmFormSaveBtn',
+    'csmFormDeleteBtn',
+    'csmFormTimestamp',
+    'csmFormCsmName',
+    'csmFormClient',
+    'csmFormMinutes',
+    'csmFormSupportType',
+    'csmFormEffort',
+    'csmFormChannel',
+    'csmFormNotes',
     'usersRefreshBtn',
     'usersState',
     'usersTbody',
@@ -288,6 +303,7 @@ const UI = {
     if (E.releasePlannerCard) E.releasePlannerCard.style.display = canChangePlanner ? '' : 'none';
     if (E.editIssueBtn) E.editIssueBtn.style.display = Permissions.canEditTicket() ? '' : 'none';
     if (E.bulkEditBtn) E.bulkEditBtn.style.display = Permissions.canEditTicket() ? '' : 'none';
+    if (E.csmCreateBtn) E.csmCreateBtn.style.display = Permissions.canCreateTicket() ? '' : 'none';
     if (E.devTeamStatusFilterRow)
       E.devTeamStatusFilterRow.style.display = canUseInternalIssueFilters ? '' : 'none';
     if (E.issueRelatedFilterRow)
