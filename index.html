@@ -68,6 +68,7 @@
       </button>
 
       <span class="chip online" id="onlineStatusChip" aria-live="polite">Online</span>
+      <span class="chip" id="currentUserChip" aria-live="polite">User: guest</span>
       <span class="chip" id="currentRoleChip" aria-live="polite">Role: guest</span>
       <button id="logoutBtn" class="btn ghost sm" type="button" aria-label="Log out">
         Logout
@@ -102,17 +103,14 @@
           <span>Secure operations access</span>
         </div>
         <form id="loginForm" class="login-form">
-          <label for="loginRole" class="sr-only">Role</label>
-          <select id="loginRole" class="select" required>
-            <option value="viewer">Viewer</option>
-            <option value="admin">Admin</option>
-          </select>
+          <label for="loginIdentifier" class="sr-only">Username or email</label>
+          <input id="loginIdentifier" class="input" type="text" placeholder="Username or email *" autocomplete="username" />
 
-          <label for="loginPasscode" class="sr-only">Passcode</label>
+          <label for="loginPasscode" class="sr-only">Password</label>
           <input id="loginPasscode" class="input" type="password" placeholder="Password *" autocomplete="current-password" />
 
           <button id="loginBtn" class="btn primary" type="submit">LOG IN</button>
-          <small id="loginHint" class="login-hint">Viewer passcode is required.</small>
+          <small id="loginHint" class="login-hint">Sign in with your assigned account credentials.</small>
         </form>
       </aside>
     </div>
@@ -211,6 +209,10 @@
         <button id="insightsTab" class="view-tab" data-view="insights"
                 role="tab" aria-selected="false" aria-controls="insightsView">
           <span class="icon" aria-hidden="true">🤖</span> AI Insights
+        </button>
+        <button id="usersTab" class="view-tab" data-view="users"
+                role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
+          <span class="icon" aria-hidden="true">👥</span> Users
         </button>
       </div>
 
@@ -610,6 +612,51 @@
             <button id="aiQueryExport" class="btn ghost sm" type="button" title="Export query results as CSV">Export CSV</button>
           </div>
           <div id="aiQueryResults" class="muted" style="font-size:13px;margin-top:8px;"></div>
+        </div>
+      </section>
+
+      <section id="usersView" class="view" role="tabpanel" aria-labelledby="usersTab">
+        <div class="card" aria-label="User management">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Users</strong>
+              <div class="muted">Admin-only account and role management.</div>
+            </div>
+            <button id="usersRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+          </div>
+          <div id="usersState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Users table">
+            <table id="usersTable">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Username</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Last login</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" aria-label="Create user">
+          <strong>Create user</strong>
+          <form id="userCreateForm" class="user-form-grid" style="margin-top:10px;">
+            <input id="userCreateName" class="input" type="text" placeholder="Full name *" required />
+            <input id="userCreateUsername" class="input" type="text" placeholder="Username *" required />
+            <input id="userCreateEmail" class="input" type="email" placeholder="Email *" required />
+            <select id="userCreateRole" class="select">
+              <option value="viewer">viewer</option>
+              <option value="admin">admin</option>
+            </select>
+            <input id="userCreatePassword" class="input" type="password" placeholder="Temporary password *" required />
+            <button id="userCreateSubmit" class="btn primary" type="submit">Create user</button>
+          </form>
         </div>
       </section>
       
@@ -1069,6 +1116,7 @@
   <script src="calendar.js"></script>
   <script src="planner.js"></script>
   <script src="ui.js"></script>
+  <script src="users.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

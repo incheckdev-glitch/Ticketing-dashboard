@@ -1,7 +1,11 @@
 const Session = {
   state: {
     role: null,
-    authToken: ''
+    authToken: '',
+    user_id: '',
+    name: '',
+    email: '',
+    username: ''
   },
   clearRoleScopedCache() {
     const roleScopedKeys = [
@@ -17,17 +21,62 @@ const Session = {
       } catch {}
     });
   },
+  normalizeSessionPayload(session = {}, fallbackToken = '') {
+    const token = String(session?.token || fallbackToken || '').trim();
+    const backendRole = String(session?.role || '')
+      .trim()
+      .toLowerCase();
+    const role =
+      backendRole === ROLES.ADMIN
+        ? ROLES.ADMIN
+        : backendRole === ROLES.VIEWER
+        ? ROLES.VIEWER
+        : null;
+    if (!token || !role) return null;
+    return {
+      authToken: token,
+      role,
+      user_id: String(session?.user_id || '').trim(),
+      name: String(session?.name || '').trim(),
+      email: String(session?.email || '').trim(),
+      username: String(session?.username || '').trim()
+    };
+  },
+  applySessionPayload(payload, { clearRoleCacheOnChange = true } = {}) {
+    if (!payload) return false;
+    const previousRole = this.state.role;
+    if (clearRoleCacheOnChange && previousRole && previousRole !== payload.role) {
+      this.clearRoleScopedCache();
+    }
+    this.state = {
+      role: payload.role,
+      authToken: payload.authToken,
+      user_id: payload.user_id,
+      name: payload.name,
+      email: payload.email,
+      username: payload.username
+    };
+    this.persist();
+    return true;
+  },
   restore() {
     try {
       const raw = sessionStorage.getItem(LS_KEYS.session);
       if (!raw) return false;
       const parsed = JSON.parse(raw);
-      const role = parsed?.role === ROLES.ADMIN ? ROLES.ADMIN : parsed?.role === ROLES.VIEWER ? ROLES.VIEWER : null;
-      const authToken = String(parsed?.authToken || '');
-      if (!role || !authToken) return false;
-      this.state.role = role;
-      this.state.authToken = authToken;
-      return true;
+      const normalized = this.normalizeSessionPayload(
+        {
+          token: parsed?.authToken,
+          role: parsed?.role,
+          user_id: parsed?.user_id,
+          name: parsed?.name,
+          email: parsed?.email,
+          username: parsed?.username
+        },
+        ''
+      );
+      if (!normalized) return false;
+      return this.applySessionPayload(normalized, { clearRoleCacheOnChange: false });
     } catch {
       return false;
     }
@@ -37,35 +86,23 @@ const Session = {
       sessionStorage.setItem(LS_KEYS.session, JSON.stringify(this.state));
     } catch {}
   },
-  async login(role = '', passcode = '') {
-    const selectedRole = String(role || '').trim().toLowerCase();
+  async login(identifier = '', passcode = '') {
+    const enteredIdentifier = String(identifier || '').trim();
     const enteredPasscode = String(passcode || '').trim();
-    const normalizedSelectedRole =
-      selectedRole === ROLES.ADMIN ? ROLES.ADMIN : selectedRole === ROLES.VIEWER ? ROLES.VIEWER : null;
-    if (!normalizedSelectedRole) throw new Error('Role is required.');
-    if (!enteredPasscode) throw new Error('Passcode is required.');
+    if (!enteredIdentifier) throw new Error('Username or email is required.');
+    if (!enteredPasscode) throw new Error('Password is required.');
 
     const response = await Api.post('auth', 'login', {
-      role: normalizedSelectedRole,
+      identifier: enteredIdentifier,
       passcode: enteredPasscode
     });
-    const session = response?.session || {};
-    const authToken = String(session.token || '').trim();
-    const backendRole = String(session.role || '').trim().toLowerCase();
-    const normalizedRole =
-      backendRole === ROLES.ADMIN ? ROLES.ADMIN : backendRole === ROLES.VIEWER ? ROLES.VIEWER : null;
-    if (!authToken || !normalizedRole) {
-      throw new Error('Login succeeded but backend did not return a valid session.');
+    const normalized = this.normalizeSessionPayload(response?.session || {});
+    if (!normalized) {
+      throw new Error('Login succeeded but backend returned an invalid session payload.');
     }
 
-    const previousRole = this.state.role;
-    if (previousRole && previousRole !== normalizedRole) {
-      this.clearRoleScopedCache();
-    }
-    this.state.role = normalizedRole;
-    this.state.authToken = authToken;
-    this.persist();
-    return { role: normalizedRole };
+    this.applySessionPayload(normalized);
+    return this.user();
   },
   async logout() {
     const authToken = this.state.authToken || '';
@@ -82,8 +119,14 @@ const Session = {
     if (this.state.role) {
       this.clearRoleScopedCache();
     }
-    this.state.role = null;
-    this.state.authToken = '';
+    this.state = {
+      role: null,
+      authToken: '',
+      user_id: '',
+      name: '',
+      email: '',
+      username: ''
+    };
     try {
       sessionStorage.removeItem(LS_KEYS.session);
     } catch {}
@@ -92,25 +135,38 @@ const Session = {
     const authToken = this.state.authToken || '';
     if (!authToken) return false;
     const response = await Api.post('auth', 'session', { authToken });
-    const session = response?.session || {};
-    const backendRole = String(session.role || '').trim().toLowerCase();
-    const refreshedAuthToken = String(session.token || authToken).trim();
-    const normalizedRole =
-      backendRole === ROLES.ADMIN ? ROLES.ADMIN : backendRole === ROLES.VIEWER ? ROLES.VIEWER : null;
-    if (!normalizedRole || !refreshedAuthToken) return false;
-    this.state.role = normalizedRole;
-    this.state.authToken = refreshedAuthToken;
-    this.persist();
+    const normalized = this.normalizeSessionPayload(response?.session || {}, authToken);
+    if (!normalized) return false;
+    this.applySessionPayload(normalized, { clearRoleCacheOnChange: false });
     return true;
   },
+  user() {
+    return {
+      role: this.state.role,
+      authToken: this.state.authToken,
+      user_id: this.state.user_id,
+      name: this.state.name,
+      email: this.state.email,
+      username: this.state.username
+    };
+  },
   isAuthenticated() {
-    return this.state.role === ROLES.ADMIN || this.state.role === ROLES.VIEWER;
+    return !!this.state.authToken && (this.state.role === ROLES.ADMIN || this.state.role === ROLES.VIEWER);
   },
   role() {
     return this.state.role || null;
   },
+  username() {
+    return this.state.username || '';
+  },
+  displayName() {
+    return this.state.name || this.state.username || this.state.email || '';
+  },
   getAuthToken() {
     return this.state.authToken || '';
+  },
+  isAdmin() {
+    return this.role() === ROLES.ADMIN;
   },
   authContext() {
     return { role: this.role(), authToken: this.getAuthToken() };
