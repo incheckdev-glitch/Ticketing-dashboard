@@ -736,6 +736,10 @@ body.auth-locked .login-hint{
 .csm-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:980px){.csm-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.csm-kpi-grid{grid-template-columns:1fr}}
+.csm-kpi-grid-six{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:1280px){.csm-kpi-grid-six{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:980px){.csm-kpi-grid-six{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.csm-kpi-grid-six{grid-template-columns:1fr}}
 
 .csm-widget-card{display:grid;gap:10px}
 .csm-widget-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
