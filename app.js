@@ -5098,26 +5098,59 @@ const CSMActivity = {
     const byClient = new Map();
     const bySupport = new Map();
     const byChannel = new Map();
+    const byWeekday = new Map();
+    const durations = [];
     list.forEach(row => {
       const mins = Number(row.timeSpentMinutes) || 0;
       byCsm.set(row.csmName || 'Unspecified', (byCsm.get(row.csmName || 'Unspecified') || 0) + mins);
       byClient.set(row.client || 'Unspecified', (byClient.get(row.client || 'Unspecified') || 0) + mins);
       bySupport.set(row.supportType || 'Unspecified', (bySupport.get(row.supportType || 'Unspecified') || 0) + 1);
       byChannel.set(row.supportChannel || 'Unspecified', (byChannel.get(row.supportChannel || 'Unspecified') || 0) + 1);
+      durations.push(mins);
+      if (row.timestamp) {
+        const date = new Date(row.timestamp);
+        if (!isNaN(date.getTime())) {
+          const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+          byWeekday.set(weekday, (byWeekday.get(weekday) || 0) + mins);
+        }
+      }
     });
     const topCsm = [...byCsm.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
     const topClient = [...byClient.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
     const primarySupport = [...bySupport.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
     const primaryChannel = [...byChannel.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
-    const topClientShare = totalMinutes ? ((topClient[1] / totalMinutes) * 100).toFixed(1) : '0.0';
+    const top5ClientMinutes = [...byClient.values()]
+      .sort((a, b) => b - a)
+      .slice(0, 5)
+      .reduce((sum, value) => sum + value, 0);
+    const top5ClientShare = totalMinutes ? ((top5ClientMinutes / totalMinutes) * 100).toFixed(1) : '0.0';
+    const peakWeekday = [...byWeekday.entries()].sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+    const orderedDurations = durations.slice().sort((a, b) => a - b);
+    const medianMinutes = orderedDurations.length
+      ? orderedDurations.length % 2 === 0
+        ? (orderedDurations[orderedDurations.length / 2 - 1] + orderedDurations[orderedDurations.length / 2]) / 2
+        : orderedDurations[Math.floor(orderedDurations.length / 2)]
+      : 0;
+    const meanMinutes = durations.length ? totalMinutes / durations.length : 0;
+    const variance = durations.length
+      ? durations.reduce((sum, mins) => sum + (mins - meanMinutes) ** 2, 0) / durations.length
+      : 0;
+    const stdDevMinutes = Math.sqrt(variance);
+    const csmMinutes = [...byCsm.values()];
+    const avgCsmMinutes = csmMinutes.length ? csmMinutes.reduce((sum, mins) => sum + mins, 0) / csmMinutes.length : 0;
+    const overloadedCount = csmMinutes.filter(mins => mins > avgCsmMinutes * 1.25).length;
 
     if (E.csmInsightList) {
       const insights = [
         ['Busiest CSM', `${topCsm[0]} is carrying the heaviest visible load by minutes.`, `${Math.round(topCsm[1])} min`],
         ['Busiest Client', `${topClient[0]} consumes the most visible support time.`, `${Math.round(topClient[1])} min`],
-        ['Client Concentration', `Top client share of visible workload minutes.`, `${topClientShare}%`],
+        ['Client Concentration', `Top 5 clients share of visible workload minutes.`, `${top5ClientShare}%`],
         ['Dominant Work Type', `${primarySupport[0]} appears most often in the current filter.`, `${primarySupport[1]}`],
-        ['Primary Channel', `${primaryChannel[0]} is the main route for submitted work.`, `${primaryChannel[1]}`]
+        ['Primary Channel', `${primaryChannel[0]} is the main route for submitted work.`, `${primaryChannel[1]}`],
+        ['Peak Weekday', `${peakWeekday[0]} carries the highest visible workload minutes.`, `${Math.round(peakWeekday[1])} min`],
+        ['Median Task Duration', `Middle task duration for visible records.`, `${Math.round(medianMinutes)} min`],
+        ['Workload Variability', `Standard deviation of task duration (minutes).`, `${Math.round(stdDevMinutes)} min`],
+        ['Overloaded CSMs', `CSMs above 125% of average visible CSM minutes.`, `${overloadedCount}`]
       ];
       E.csmInsightList.innerHTML = insights
         .map(([label, text, value]) => `<article class="csm-insight-item"><div><strong>${U.escapeHtml(label)}</strong><p class="muted">${U.escapeHtml(text)}</p></div><span>${U.escapeHtml(value)}</span></article>`)
