@@ -723,12 +723,26 @@
             </div>
 
             <div class="charts" aria-label="CSM analytics charts">
-              <div class="card"><canvas id="csmTrendChart" height="130" aria-label="Tasks over time" role="img"></canvas></div>
-              <div class="card"><canvas id="csmByCsmChart" height="130" aria-label="Top CSM workload minutes" role="img"></canvas></div>
-              <div class="card"><canvas id="csmByClientChart" height="130" aria-label="Minutes by client" role="img"></canvas></div>
-              <div class="card"><canvas id="csmBySupportTypeChart" height="130" aria-label="Type of support" role="img"></canvas></div>
-              <div class="card"><canvas id="csmEffortMixChart" height="130" aria-label="Effort requirement" role="img"></canvas></div>
-              <div class="card"><canvas id="csmByChannelChart" height="130" aria-label="Support channels" role="img"></canvas></div>
+              <div class="card csm-widget-card">
+                <div class="csm-widget-head"><strong>Weekday Workload</strong><span class="chip">Minutes by day of week</span></div>
+                <canvas id="csmWeekdayWorkloadChart" height="130" aria-label="Weekday workload" role="img"></canvas>
+              </div>
+              <div class="card csm-widget-card">
+                <div class="csm-widget-head"><strong>Weekly Workload Trend</strong><span class="chip">Minutes by week</span></div>
+                <canvas id="csmWeeklyTrendChart" height="130" aria-label="Weekly workload trend" role="img"></canvas>
+              </div>
+              <div class="card csm-widget-card">
+                <div class="csm-widget-head"><strong>Effort Mix by CSM</strong><span class="chip">Stacked task count</span></div>
+                <canvas id="csmEffortMixByCsmChart" height="130" aria-label="Effort mix by CSM" role="img"></canvas>
+              </div>
+              <div class="card csm-widget-card">
+                <div class="csm-widget-head"><strong>Client Concentration</strong><span class="chip">Share of total minutes</span></div>
+                <canvas id="csmClientConcentrationChart" height="130" aria-label="Client concentration" role="img"></canvas>
+              </div>
+              <div class="card csm-widget-card">
+                <div class="csm-widget-head"><strong>Workload Balance by CSM</strong><span class="chip">Total minutes vs average minutes</span></div>
+                <canvas id="csmWorkloadBalanceChart" height="130" aria-label="Workload balance by CSM" role="img"></canvas>
+              </div>
             </div>
 
             <div class="card">
