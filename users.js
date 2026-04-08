@@ -44,8 +44,7 @@ const UserAdmin = {
     this.render();
     try {
       const response = await Api.postAuthenticated('users', 'list', {});
-      const rows = response?.users || response?.items || response?.rows || [];
-      this.state.rows = Array.isArray(rows) ? rows : [];
+      this.state.rows = this.extractRows(response);
       this.render();
     } catch (error) {
       this.state.rows = [];
@@ -55,6 +54,40 @@ const UserAdmin = {
       this.state.loading = false;
       this.render();
     }
+  },
+  extractRows(response) {
+    const candidates = [
+      response,
+      response?.users,
+      response?.items,
+      response?.rows,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.users?.items,
+      response?.users?.rows,
+      response?.data?.users,
+      response?.data?.items,
+      response?.data?.rows,
+      response?.result?.users,
+      response?.payload?.users
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    const objectCandidates = [
+      response?.users,
+      response?.data?.users,
+      response?.result?.users,
+      response?.payload?.users
+    ];
+    for (const candidate of objectCandidates) {
+      if (candidate && typeof candidate === 'object') return Object.values(candidate);
+    }
+
+    return [];
   },
   formatDate(value) {
     if (!value) return '—';
