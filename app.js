@@ -4978,6 +4978,14 @@ const CSMActivity = {
   },
   renderCharts(list) {
     const minutes = row => Number(row.timeSpentMinutes) || 0;
+    const countByKey = key => {
+      const map = new Map();
+      list.forEach(row => {
+        const label = String(row[key] || 'Unspecified').trim() || 'Unspecified';
+        map.set(label, (map.get(label) || 0) + 1);
+      });
+      return map;
+    };
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const weekdayIndex = date => (date.getUTCDay() + 6) % 7;
     const isoWeekLabel = date => {
@@ -4996,6 +5004,64 @@ const CSMActivity = {
       });
       return map;
     };
+
+    if (E.csmMinutesByClientChart?.getContext) {
+      const byClient = [...totalByKey('client').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      this.destroyChart(this.charts.minutesByClient);
+      this.charts.minutesByClient = new Chart(E.csmMinutesByClientChart.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: byClient.map(row => row[0]),
+          datasets: [{ label: 'Minutes', data: byClient.map(row => Math.round(row[1])), backgroundColor: '#f59e0b' }]
+        },
+        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: true } }, scales: { x: { beginAtZero: true, title: { display: true, text: 'Minutes' } } } }
+      });
+    }
+
+    if (E.csmTypeOfSupportChart?.getContext) {
+      const bySupport = [...countByKey('supportType').entries()].sort((a, b) => b[1] - a[1]);
+      this.destroyChart(this.charts.typeOfSupport);
+      this.charts.typeOfSupport = new Chart(E.csmTypeOfSupportChart.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: bySupport.map(row => row[0]),
+          datasets: [{ data: bySupport.map(row => row[1]), backgroundColor: ['#2563eb', '#06b6d4', '#16a34a', '#f59e0b', '#8b5cf6', '#ef4444', '#94a3b8'] }]
+        },
+        options: { responsive: true, cutout: '50%' }
+      });
+    }
+
+    if (E.csmEffortRequirementChart?.getContext) {
+      const effortCounts = { Low: 0, Medium: 0, High: 0 };
+      list.forEach(row => {
+        const effort = String(row.effortRequirement || '').trim().toLowerCase();
+        if (effort.startsWith('h')) effortCounts.High += 1;
+        else if (effort.startsWith('m')) effortCounts.Medium += 1;
+        else effortCounts.Low += 1;
+      });
+      this.destroyChart(this.charts.effortRequirement);
+      this.charts.effortRequirement = new Chart(E.csmEffortRequirementChart.getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: ['Low', 'Medium', 'High'],
+          datasets: [{ data: [effortCounts.Low, effortCounts.Medium, effortCounts.High], backgroundColor: ['#16a34a', '#f59e0b', '#ef4444'] }]
+        },
+        options: { responsive: true }
+      });
+    }
+
+    if (E.csmSupportChannelsChart?.getContext) {
+      const byChannel = [...countByKey('supportChannel').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      this.destroyChart(this.charts.supportChannels);
+      this.charts.supportChannels = new Chart(E.csmSupportChannelsChart.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: byChannel.map(row => row[0]),
+          datasets: [{ label: 'Tasks', data: byChannel.map(row => row[1]), backgroundColor: '#8b5cf6' }]
+        },
+        options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Tasks' } } } }
+      });
+    }
 
     if (E.csmWeekdayWorkloadChart?.getContext) {
       const weekdayMinutes = new Array(7).fill(0);
