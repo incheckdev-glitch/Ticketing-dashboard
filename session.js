@@ -29,6 +29,8 @@ const Session = {
     const role =
       backendRole === ROLES.ADMIN
         ? ROLES.ADMIN
+        : backendRole === ROLES.HOO
+        ? ROLES.HOO
         : backendRole === ROLES.VIEWER
         ? ROLES.VIEWER
         : null;
@@ -166,7 +168,12 @@ const Session = {
     };
   },
   isAuthenticated() {
-    return !!this.state.authToken && (this.state.role === ROLES.ADMIN || this.state.role === ROLES.VIEWER);
+    return (
+      !!this.state.authToken &&
+      (this.state.role === ROLES.ADMIN ||
+        this.state.role === ROLES.VIEWER ||
+        this.state.role === ROLES.HOO)
+    );
   },
   role() {
     return this.state.role || null;

@@ -196,7 +196,8 @@ const LS_KEYS = window.LS_KEYS;
 
 window.ROLES = Object.freeze({
   ADMIN: 'admin',
-  VIEWER: 'viewer'
+  VIEWER: 'viewer',
+  HOO: 'hoo'
 });
 
 const ROLES = window.ROLES;

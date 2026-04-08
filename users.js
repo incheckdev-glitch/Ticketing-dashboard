@@ -146,7 +146,13 @@ const UserAdmin = {
         const currentUserId = Session.user().user_id;
         const isSelf = !!userId && userId === currentUserId;
         const active = this.normalizeActive(user);
-        const role = String(user.role || '').toLowerCase() === ROLES.ADMIN ? ROLES.ADMIN : ROLES.VIEWER;
+        const rawRole = String(user.role || '').toLowerCase();
+        const role =
+          rawRole === ROLES.ADMIN
+            ? ROLES.ADMIN
+            : rawRole === ROLES.HOO
+            ? ROLES.HOO
+            : ROLES.VIEWER;
         const created = this.formatDate(this.getCreatedAt(user));
         const updated = this.formatDate(this.getUpdatedAt(user));
         const lastLogin = this.formatDate(this.getLastLoginAt(user));
@@ -194,9 +200,15 @@ const UserAdmin = {
     if (email == null) return;
     const username = window.prompt('Username', String(user.username || ''));
     if (username == null) return;
-    const role = window.prompt('Role (admin/viewer)', String(user.role || ROLES.VIEWER));
+    const role = window.prompt('Role (admin/viewer/hoo)', String(user.role || ROLES.VIEWER));
     if (role == null) return;
-    const normalizedRole = String(role).trim().toLowerCase() === ROLES.ADMIN ? ROLES.ADMIN : ROLES.VIEWER;
+    const enteredRole = String(role).trim().toLowerCase();
+    const normalizedRole =
+      enteredRole === ROLES.ADMIN
+        ? ROLES.ADMIN
+        : enteredRole === ROLES.HOO
+        ? ROLES.HOO
+        : ROLES.VIEWER;
     if (isSelf && normalizedRole !== ROLES.ADMIN) {
       const allow = window.confirm('You are editing your own account. Changing your role may end admin access. Continue?');
       if (!allow) return;

@@ -2,8 +2,14 @@ const Permissions = {
   isAdmin() {
     return Session.role() === ROLES.ADMIN;
   },
+  isHoo() {
+    return Session.role() === ROLES.HOO;
+  },
   canCreateTicket() {
     return Session.isAuthenticated();
+  },
+  canManageCsmActivity() {
+    return this.isAdmin() || this.isHoo();
   },
   canEditTicket() {
     return this.isAdmin();
