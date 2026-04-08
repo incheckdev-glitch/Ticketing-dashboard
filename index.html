@@ -190,10 +190,6 @@
                     role="tab" aria-selected="false" aria-controls="csmView">
               <span class="icon" aria-hidden="true">🧑‍💼</span> CSM Daily Activity
             </button>
-            <button id="crmTab" class="view-tab" data-view="crm"
-                    role="tab" aria-selected="false" aria-controls="crmView">
-              <span class="icon" aria-hidden="true">💼</span> CRM
-            </button>
             <button id="usersTab" class="view-tab" data-view="users"
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
@@ -207,7 +203,7 @@
         <div class="card summary-bar" id="issuesSummaryCard">
           <span id="issuesSummaryText" aria-live="polite">Loading summary…</span>
           <span id="issuesLastUpdated" class="summary-meta" aria-live="polite">Last updated: --</span>
-         <span class="shortcut-chip">Shortcuts: 1/2/3/4/5/6 tabs · / search · Ctrl+K AI</span>
+         <span class="shortcut-chip">Shortcuts: 1/2/3/4 tabs · / search · Ctrl+K AI</span>
         </div>
 
         <div class="grid cols-4" id="kpis" aria-live="polite"></div>
@@ -777,78 +773,6 @@
         </div>
       </section>
 
-
-      <section id="crmView" class="view" role="tabpanel" aria-labelledby="crmTab">
-        <div class="card" aria-label="CRM overview">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <div>
-              <strong>CRM</strong>
-              <div class="muted">Leads and deals managed from the same backend.</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <span id="crmLeadCount" class="chip">0 leads</span>
-              <span id="crmDealCount" class="chip">0 deals</span>
-              <span id="crmVisibleCount" class="chip">0 visible</span>
-              <button id="crmRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
-            <button id="crmLeadSubtab" class="chip-btn active" type="button">Leads</button>
-            <button id="crmDealSubtab" class="chip-btn" type="button">Deals</button>
-            <input id="crmSearchInput" class="input" type="search" placeholder="Search CRM..." style="min-width:220px;flex:1;" />
-            <select id="crmStatusFilter" class="select" aria-label="Stage filter" title="Stage filter">
-              <option value="All">All stages</option>
-            </select>
-            <select id="crmOwnerFilter" class="select" aria-label="Owner filter" title="Owner filter">
-              <option value="All">All owners</option>
-            </select>
-          </div>
-
-          <div id="crmLeadsPanel">
-            <div class="table-wrap" role="region" aria-label="CRM leads table">
-              <table id="crmLeadsTable">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Lead Name</th>
-                    <th>Company</th>
-                    <th>Contact Email</th>
-                    <th>Source</th>
-                    <th>Stage</th>
-                    <th>Owner</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="crmLeadTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="crmDealsPanel" style="display:none;">
-            <div class="table-wrap" role="region" aria-label="CRM deals table">
-              <table id="crmDealsTable">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Deal Name</th>
-                    <th>Company</th>
-                    <th>Amount</th>
-                    <th>Stage</th>
-                    <th>Owner</th>
-                    <th>Close Date</th>
-                    <th>Updated</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="crmDealTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="usersView" class="view" role="tabpanel" aria-labelledby="usersTab">
         <div class="card" aria-label="User management">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
@@ -1258,77 +1182,6 @@
   <!-- Freeze Windows Modal -->
 
 
-  <div id="crmFormModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="crmFormTitle">
-    <div class="modal-content">
-      <div class="header">
-        <h2 id="crmFormTitle" style="margin:0;font-size:20px">Create CRM Item</h2>
-        <button class="modal-close" id="crmFormCloseBtn" aria-label="Close CRM form">✕</button>
-      </div>
-      <form id="crmForm" class="stack" style="margin-top:12px;">
-        <input id="crmFormEntity" type="hidden" value="leads" />
-        <input id="crmFormId" type="hidden" />
-        <div class="grid cols-2">
-          <div>
-            <label class="muted" id="crmFormNameLabel" for="crmFormName">Lead Name *</label>
-            <input id="crmFormName" class="input" type="text" required />
-          </div>
-          <div>
-            <label class="muted" for="crmFormCompany">Company</label>
-            <input id="crmFormCompany" class="input" type="text" />
-          </div>
-          <div>
-            <label class="muted" for="crmFormContactName">Contact Name</label>
-            <input id="crmFormContactName" class="input" type="text" />
-          </div>
-          <div>
-            <label class="muted" for="crmFormContactEmail">Contact Email</label>
-            <input id="crmFormContactEmail" class="input" type="email" />
-          </div>
-          <div id="crmFormContactPhoneWrap">
-            <label class="muted" for="crmFormContactPhone">Contact Phone</label>
-            <input id="crmFormContactPhone" class="input" type="text" />
-          </div>
-          <div id="crmFormSourceWrap">
-            <label class="muted" for="crmFormSource">Source</label>
-            <input id="crmFormSource" class="input" type="text" placeholder="Website, referral, LinkedIn..." />
-          </div>
-          <div id="crmFormAmountWrap" style="display:none;">
-            <label class="muted" for="crmFormAmount">Amount</label>
-            <input id="crmFormAmount" class="input" type="number" min="0" step="0.01" />
-          </div>
-          <div id="crmFormCurrencyWrap" style="display:none;">
-            <label class="muted" for="crmFormCurrency">Currency</label>
-            <input id="crmFormCurrency" class="input" type="text" value="USD" />
-          </div>
-          <div>
-            <label class="muted" for="crmFormStage">Stage</label>
-            <input id="crmFormStage" class="input" type="text" placeholder="New / Contacted / Won..." />
-          </div>
-          <div>
-            <label class="muted" for="crmFormOwner">Owner</label>
-            <input id="crmFormOwner" class="input" type="text" />
-          </div>
-          <div id="crmFormCloseDateWrap" style="display:none;">
-            <label class="muted" for="crmFormCloseDate">Close Date</label>
-            <input id="crmFormCloseDate" class="input" type="date" />
-          </div>
-        </div>
-        <div>
-          <label class="muted" for="crmFormNotes">Notes</label>
-          <textarea id="crmFormNotes" class="input" rows="4" placeholder="Optional notes"></textarea>
-        </div>
-        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <button id="crmFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
-          <div style="display:flex;gap:8px;">
-            <button id="crmFormCancelBtn" type="button" class="btn ghost">Cancel</button>
-            <button id="crmFormSaveBtn" type="submit" class="btn">Save</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-
-
   <div id="csmFormModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="csmFormTitle">
     <div class="modal-content">
       <div class="modal-header">
@@ -1476,7 +1329,6 @@
   <script src="calendar.js"></script>
   <script src="planner.js"></script>
   <script src="ui.js"></script>
-  <script src="crm.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>
 </body>

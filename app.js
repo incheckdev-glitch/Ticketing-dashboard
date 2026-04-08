@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'crm', 'users'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'users'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1916,8 +1916,6 @@ function setActiveView(view) {
         ? E.insightsTab
         : name === 'csm'
         ? E.csmTab
-        : name === 'crm'
-        ? E.crmTab
         : E.usersTab;
     const panel =
       name === 'issues'
@@ -1928,8 +1926,6 @@ function setActiveView(view) {
         ? E.insightsView
         : name === 'csm'
         ? E.csmView
-        : name === 'crm'
-        ? E.crmView
         : E.usersView;
     const active = name === view;
     if (tab) {
@@ -1949,7 +1945,6 @@ function setActiveView(view) {
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
   if (view === 'csm') CSMActivity.loadAndRefresh();
-  if (view === 'crm' && window.CRMManager?.loadAndRefresh) CRMManager.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   updatePrimaryActionButton(view);
 }
@@ -1957,18 +1952,10 @@ function setActiveView(view) {
 function updatePrimaryActionButton(activeView) {
   if (!E.createTicketBtn) return;
   const isCsm = activeView === 'csm';
-  const isCrm = activeView === 'crm';
-  const crmLabel =
-    window.CRMManager?.state?.activeSection === 'deals' ? 'Add deal' : 'Add lead';
   E.createTicketBtn.innerHTML = isCsm
     ? '<span class="icon" aria-hidden="true">➕</span> Add activity'
-    : isCrm
-    ? `<span class="icon" aria-hidden="true">➕</span> ${crmLabel}`
     : '<span class="icon" aria-hidden="true">➕</span> Create Ticket';
-  E.createTicketBtn.setAttribute(
-    'aria-label',
-    isCsm ? 'Add activity' : isCrm ? crmLabel : 'Create new ticket'
-  );
+  E.createTicketBtn.setAttribute('aria-label', isCsm ? 'Add activity' : 'Create new ticket');
 }
 
 /* ---------- Calendar wiring ---------- */
@@ -3951,7 +3938,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.crmTab, E.usersTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.usersTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4022,7 +4009,6 @@ function wireCore() {
       loadIssues(true);
       loadEvents(true);
       if (E.csmView?.classList.contains('active')) CSMActivity.loadAndRefresh({ force: true });
-      if (E.crmView?.classList.contains('active') && window.CRMManager?.loadAndRefresh) CRMManager.loadAndRefresh({ force: true });
     });
   if (E.exportCsv)
     E.exportCsv.addEventListener('click', () => {
@@ -4033,11 +4019,6 @@ function wireCore() {
       if (!requirePermission(() => Permissions.canCreateTicket(), 'Login is required to create a ticket.'))
         return;
       const isCsmView = E.csmView?.classList.contains('active');
-      const isCrmView = E.crmView?.classList.contains('active');
-      if (isCrmView && window.CRMManager?.openForm) {
-        CRMManager.openForm(null, CRMManager.state.activeSection);
-        return;
-      }
       window.open(
         isCsmView ? 'https://forms.gle/jV7XLrquc8beyi228' : 'https://forms.gle/PPnEP1AQneoBT79s5',
         '_blank',
@@ -4047,7 +4028,7 @@ function wireCore() {
 
   if (E.shortcutsHelp) {
     E.shortcutsHelp.addEventListener('click', () => {
-     UI.toast('Shortcuts: 1/2/3/4/5/6 switch tabs · / focus search · Ctrl+K AI query');
+     UI.toast('Shortcuts: 1/2/3/4 switch tabs · / focus search · Ctrl+K AI query');
     });
   }
 
@@ -5539,7 +5520,7 @@ function wireKeyboardShortcuts() {
 
     if (isInputLike) return;
 
-    // 1/2/3/4/5/6 → switch tabs
+    // 1/2/3/4/5 → switch tabs
     if (e.key === '1') {
       setActiveView('issues');
     } else if (e.key === '2') {
@@ -5548,9 +5529,7 @@ function wireKeyboardShortcuts() {
       setActiveView('insights');
     } else if (e.key === '4') {
       setActiveView('csm');
-    } else if (e.key === '5') {
-      setActiveView('crm');
-    } else if (e.key === '6' && Permissions.canManageUsers()) {
+    } else if (e.key === '5' && Permissions.canManageUsers()) {
       setActiveView('users');
     }
   });
@@ -5592,7 +5571,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   wirePlanner();
   wireAIQuery();
   wireCSMActivity();
-  if (window.wireCRMManager) wireCRMManager();
   wireKeyboardShortcuts();
 
   let isAuthenticated = Session.isAuthenticated();
@@ -5615,7 +5593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!Session.isAuthenticated()) {
     const view = localStorage.getItem(LS_KEYS.view) || 'issues';
     setActiveView(
-      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'crm' || view === 'users' ? view : 'issues'
+      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'users' ? view : 'issues'
     );
   }
 
