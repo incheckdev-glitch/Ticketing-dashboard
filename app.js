@@ -5294,7 +5294,10 @@ const CSMActivity = {
         ['Overloaded CSMs', `CSMs above 125% of average visible CSM minutes.`, `${overloadedCount}`]
       ];
       E.csmInsightList.innerHTML = insights
-        .map(([label, text, value]) => `<article class="csm-insight-item"><div><strong>${U.escapeHtml(label)}</strong><p class="muted">${U.escapeHtml(text)}</p></div><span>${U.escapeHtml(value)}</span></article>`)
+        .map(
+          ([label, text, value]) =>
+            `<article class="csm-insight-item"><div><strong>${U.escapeHtml(label)}</strong><p class="muted">${U.escapeHtml(text)}</p></div><span class="csm-insight-value">${U.escapeHtml(value)}</span></article>`
+        )
         .join('');
     }
 
