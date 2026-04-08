@@ -625,55 +625,35 @@ body.auth-locked .login-hint{
 .view-menu{
   position:sticky;
   top:82px;
-  padding:0;
-  overflow:hidden;
-  background:linear-gradient(180deg,#0f172a 0%,#060b16 100%);
-  border-color:#1f2a44;
-}
-.view-menu-brand{
-  background:#1d4ed8;
-  color:#fff;
-  font-weight:700;
-  font-size:34px;
-  line-height:1;
-  padding:18px 14px;
+  padding:12px;
 }
 .view-menu-title{
-  margin:16px 12px 8px;
-  font-size:10px;
-  color:#94a3b8;
+  margin:0 0 10px;
+  font-size:11px;
+  color:var(--muted);
   text-transform:uppercase;
-  letter-spacing:.1em;
-  font-weight:700;
+  letter-spacing:.12em;
 }
 .view-tabs{
   display:flex;
   flex-direction:column;
-  gap:0;
-  margin:0 10px 8px;
-  border-bottom:1px solid rgba(148,163,184,.2);
-  padding-bottom:8px;
-}
-.view-tabs:last-child{
-  border-bottom:none;
+  gap:6px;
 }
 .view-tab{
-  border:1px solid transparent;background:transparent;color:#dbe4ff;
-  padding:10px 10px;border-radius:8px;font-size:15px;cursor:pointer;
+  border:1px solid transparent;background:transparent;color:var(--muted);
+  padding:8px 10px;border-radius:10px;font-size:13px;cursor:pointer;
   display:flex;align-items:center;gap:8px;width:100%;
   text-align:left;
-  font-weight:600;
-  margin-bottom:2px;
 }
 .view-tab .icon{font-size:15px}
 .view-tab.active{
   background:rgba(37,99,235,.28);
   color:#fff;
-  border-color:rgba(59,130,246,.45);
+  border-color:transparent;
 }
 .view-tab:not(.active):hover{
-  background:rgba(148,163,184,.08);
-  color:#fff;
+  border-color:var(--border);
+  color:var(--text);
 }
 .content-panels{
   min-width:0;
@@ -706,18 +686,14 @@ body.auth-locked .login-hint{
   }
   .view-menu{
     position:static;
-    padding:0 0 10px;
+    padding:10px;
   }
   .view-tabs{
     flex-direction:row;
     flex-wrap:wrap;
-    border-bottom:none;
-    margin:0 10px 10px;
-    gap:6px;
   }
   .view-tab{
     width:auto;
-    margin-bottom:0;
   }
 }
 
