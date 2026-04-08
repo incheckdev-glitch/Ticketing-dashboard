@@ -760,9 +760,9 @@ body.auth-locked .login-hint{
 .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media(max-width:980px){.charts{grid-template-columns:1fr}}
 
-.csm-shell{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:14px;align-items:start}
+.csm-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
 .csm-panel,.csm-main{min-width:0}
-.csm-panel{position:sticky;top:84px}
+.csm-panel{position:static}
 .csm-filters-title{
   margin:0 0 10px;
   font-size:18px;
@@ -815,7 +815,7 @@ body.auth-locked .login-hint{
 @media(max-width:900px){
   .csm-insight-list{grid-template-columns:1fr}
 }
-.csm-filters-grid{display:grid;gap:10px;grid-template-columns:1fr}
+.csm-filters-grid{display:grid;gap:10px;grid-template-columns:repeat(4,minmax(0,1fr))}
 .csm-panel .filter-row{min-width:0}
 .csm-panel .filter-row .input,
 .csm-panel .filter-row .select{
@@ -828,7 +828,9 @@ body.auth-locked .login-hint{
   margin-bottom:6px;
   font-size:11px;
 }
-@media(max-width:1400px){.csm-shell{grid-template-columns:1fr}.csm-panel{position:static}.csm-split-grid{grid-template-columns:1fr}.csm-header-card h2{font-size:30px}}
+@media(max-width:1400px){.csm-split-grid{grid-template-columns:1fr}.csm-header-card h2{font-size:30px}}
+@media(max-width:1200px){.csm-filters-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.csm-filters-grid{grid-template-columns:1fr}}
 .csm-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:980px){.csm-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.csm-kpi-grid{grid-template-columns:1fr}}
