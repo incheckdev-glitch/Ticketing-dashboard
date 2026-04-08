@@ -5191,13 +5191,36 @@ const CSMActivity = {
     const totalMinutes = list.reduce((sum, row) => sum + (Number(row.timeSpentMinutes) || 0), 0);
     const averageMinutes = totalActivities ? totalMinutes / totalActivities : 0;
     const byCsm = new Map();
-    list.forEach(row => byCsm.set(row.csmName || 'Unspecified', (byCsm.get(row.csmName || 'Unspecified') || 0) + (Number(row.timeSpentMinutes) || 0)));
-    const topCsm = [...byCsm.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    const clients = new Set();
+    const effortScoreByLabel = { low: 1, medium: 2, high: 3 };
+    let weightedLoadScore = 0;
+    let highEffortCount = 0;
+    list.forEach(row => {
+      const csmName = row.csmName || 'Unspecified';
+      byCsm.set(csmName, (byCsm.get(csmName) || 0) + (Number(row.timeSpentMinutes) || 0));
+      if (row.client) clients.add(row.client);
+      const effort = String(row.effortRequirement || '').trim().toLowerCase();
+      const effortScore = effortScoreByLabel[effort] || 0;
+      weightedLoadScore += effortScore;
+      if (effort === 'high') highEffortCount += 1;
+    });
+    const activeCsmCount = byCsm.size;
+    const activeClientCount = clients.size;
+    const highEffortShare = totalActivities ? (highEffortCount / totalActivities) * 100 : 0;
+    const avgWeightedScore = totalActivities ? weightedLoadScore / totalActivities : 0;
+
     if (E.csmKpiActivities) E.csmKpiActivities.textContent = String(totalActivities);
+    if (E.csmKpiActivitiesSub) E.csmKpiActivitiesSub.textContent = `${activeCsmCount} active CSM${activeCsmCount === 1 ? '' : 's'} in current view`;
     if (E.csmKpiMinutes) E.csmKpiMinutes.textContent = String(Math.round(totalMinutes));
+    if (E.csmKpiMinutesSub) E.csmKpiMinutesSub.textContent = `${Math.round(totalMinutes)} tracked minutes`;
     if (E.csmKpiAvg) E.csmKpiAvg.textContent = averageMinutes ? averageMinutes.toFixed(1) : '0';
-    if (E.csmKpiTopCsm) E.csmKpiTopCsm.textContent = topCsm;
-    if (E.csmKpiActiveCsm) E.csmKpiActiveCsm.textContent = `${byCsm.size} active CSM${byCsm.size === 1 ? '' : 's'}`;
+    if (E.csmKpiAvgSub) E.csmKpiAvgSub.textContent = 'Time spent efficiency snapshot';
+    if (E.csmKpiActiveClients) E.csmKpiActiveClients.textContent = String(activeClientCount);
+    if (E.csmKpiActiveClientsSub) E.csmKpiActiveClientsSub.textContent = `${activeClientCount} unique clients in current view`;
+    if (E.csmKpiWeightedLoad) E.csmKpiWeightedLoad.textContent = String(weightedLoadScore);
+    if (E.csmKpiWeightedLoadSub) E.csmKpiWeightedLoadSub.textContent = `Average score ${avgWeightedScore.toFixed(1)} per task (Low=1, Medium=2, High=3)`;
+    if (E.csmKpiHighEffortShare) E.csmKpiHighEffortShare.textContent = `${highEffortShare.toFixed(1)}%`;
+    if (E.csmKpiHighEffortShareSub) E.csmKpiHighEffortShareSub.textContent = `${highEffortCount} high-effort task${highEffortCount === 1 ? '' : 's'} in current filter`;
   },
   renderInsights(list) {
     const totalMinutes = list.reduce((sum, row) => sum + (Number(row.timeSpentMinutes) || 0), 0);
