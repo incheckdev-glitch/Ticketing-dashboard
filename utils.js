@@ -216,7 +216,8 @@ const ColumnManager = {
   ],
   state: {},
   isColumnAllowed(colKey) {
-    if (Session.role() !== ROLES.VIEWER) return true;
+    const role = Session.role();
+    if (role === ROLES.ADMIN) return true;
     return !this.restrictedForViewer.has(colKey);
   },
   getAvailableColumns() {
