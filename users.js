@@ -115,6 +115,9 @@ const UserAdmin = {
   getCreatedAt(user = {}) {
     return user.created_at || user.createdAt || user.created || '';
   },
+  getUpdatedAt(user = {}) {
+    return user.updated_at || user.updatedAt || user.updated || '';
+  },
   getLastLoginAt(user = {}) {
     return user.last_login_at || user.lastLoginAt || user.last_login || '';
   },
@@ -145,14 +148,19 @@ const UserAdmin = {
         const active = this.normalizeActive(user);
         const role = String(user.role || '').toLowerCase() === ROLES.ADMIN ? ROLES.ADMIN : ROLES.VIEWER;
         const created = this.formatDate(this.getCreatedAt(user));
+        const updated = this.formatDate(this.getUpdatedAt(user));
         const lastLogin = this.formatDate(this.getLastLoginAt(user));
+        const passwordHash = user.password_hash || user.passwordHash || '';
         return `<tr data-user-id="${U.escapeHtml(userId)}">
+          <td>${U.escapeHtml(userId || '—')}</td>
           <td>${U.escapeHtml(user.name || '—')}</td>
-          <td>${U.escapeHtml(user.username || '—')}</td>
           <td>${U.escapeHtml(user.email || '—')}</td>
+          <td>${U.escapeHtml(user.username || '—')}</td>
           <td>${U.escapeHtml(role)}</td>
-          <td>${active ? 'Active' : 'Inactive'}</td>
+          <td>${U.escapeHtml(passwordHash || '—')}</td>
+          <td>${active ? 'true' : 'false'}</td>
           <td>${U.escapeHtml(created)}</td>
+          <td>${U.escapeHtml(updated)}</td>
           <td>${U.escapeHtml(lastLogin)}</td>
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
