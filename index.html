@@ -630,54 +630,37 @@
               </div>
             </div>
 
-            <div class="csm-panel-actions">
-              <button id="csmCreateBtn" class="btn sm" type="button">Add activity</button>
-              <button id="csmReloadBtn" class="btn ghost sm" type="button">Reload</button>
-              <button id="csmResetFiltersBtn" class="btn ghost sm" type="button">Reset filters</button>
-            </div>
-
             <div class="divider" role="separator"></div>
-            <h4>Filters</h4>
             <div class="csm-filters-grid">
               <div class="filter-row">
-                <label class="muted" for="csmNameFilter">CSM Name</label>
-                <select id="csmNameFilter" class="select"></select>
+                <select id="csmNameFilter" class="select" aria-label="CSM Name" title="CSM Name"></select>
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmClientFilter">Client</label>
-                <select id="csmClientFilter" class="select"></select>
+                <select id="csmClientFilter" class="select" aria-label="Client" title="Client"></select>
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmSupportTypeFilter">Type of Support</label>
-                <select id="csmSupportTypeFilter" class="select"></select>
+                <select id="csmSupportTypeFilter" class="select" aria-label="Type of Support" title="Type of Support"></select>
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmEffortFilter">Effort Requirement</label>
-                <select id="csmEffortFilter" class="select"></select>
+                <select id="csmEffortFilter" class="select" aria-label="Effort Requirement" title="Effort Requirement"></select>
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmChannelFilter">Support Channel</label>
-                <select id="csmChannelFilter" class="select"></select>
+                <select id="csmChannelFilter" class="select" aria-label="Support Channel" title="Support Channel"></select>
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmSearchInput">Search Notes / Client</label>
-                <input id="csmSearchInput" class="input" type="search" placeholder="keyword" />
+                <input id="csmSearchInput" class="input" type="search" placeholder="Search notes / client" aria-label="Search Notes / Client" />
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmStartDateFilter">From</label>
-                <input id="csmStartDateFilter" class="input" type="date" />
+                <input id="csmStartDateFilter" class="input" type="date" aria-label="From" title="From" />
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmEndDateFilter">To</label>
-                <input id="csmEndDateFilter" class="input" type="date" />
+                <input id="csmEndDateFilter" class="input" type="date" aria-label="To" title="To" />
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmMinMinutesFilter">Min Minutes</label>
-                <input id="csmMinMinutesFilter" class="input" type="number" min="0" step="5" placeholder="0" />
+                <input id="csmMinMinutesFilter" class="input" type="number" min="0" step="5" placeholder="Min minutes" aria-label="Min Minutes" />
               </div>
               <div class="filter-row">
-                <label class="muted" for="csmMaxMinutesFilter">Max Minutes</label>
-                <input id="csmMaxMinutesFilter" class="input" type="number" min="0" step="5" placeholder="No max" />
+                <input id="csmMaxMinutesFilter" class="input" type="number" min="0" step="5" placeholder="Max minutes" aria-label="Max Minutes" />
               </div>
             </div>
           </aside>
