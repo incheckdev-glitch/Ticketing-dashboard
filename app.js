@@ -5018,14 +5018,58 @@ const CSMActivity = {
 
     if (E.csmMinutesByClientChart?.getContext) {
       const byClient = [...totalByKey('client').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const wrapLabel = (label, maxLineLength = 22) => {
+        const text = String(label || 'Unspecified').trim() || 'Unspecified';
+        if (text.length <= maxLineLength) return text;
+        const words = text.split(/\s+/);
+        const lines = [];
+        let line = '';
+        words.forEach(word => {
+          const candidate = line ? `${line} ${word}` : word;
+          if (candidate.length <= maxLineLength) line = candidate;
+          else {
+            if (line) lines.push(line);
+            line = word;
+          }
+        });
+        if (line) lines.push(line);
+        if (lines.length <= 2) return lines;
+        return [lines[0], `${lines.slice(1).join(' ').slice(0, maxLineLength - 1)}…`];
+      };
+      E.csmMinutesByClientChart.height = Math.max(220, byClient.length * 30);
       this.destroyChart(this.charts.minutesByClient);
       this.charts.minutesByClient = new Chart(E.csmMinutesByClientChart.getContext('2d'), {
         type: 'bar',
         data: {
-          labels: byClient.map(row => row[0]),
+          labels: byClient.map(row => wrapLabel(row[0])),
           datasets: [{ label: 'Minutes', data: byClient.map(row => Math.round(row[1])), backgroundColor: '#f59e0b' }]
         },
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: true } }, scales: { x: { beginAtZero: true, title: { display: true, text: 'Minutes' } } } }
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { left: 4, right: 10 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => byClient[items?.[0]?.dataIndex || 0]?.[0] || ''
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Minutes' },
+              ticks: { maxTicksLimit: 6, callback: value => Number(value).toLocaleString() },
+              grid: { color: 'rgba(148,163,184,0.15)' }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { font: { size: 11 } }
+            }
+          }
+        }
       });
     }
 
