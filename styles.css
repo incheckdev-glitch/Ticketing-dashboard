@@ -726,6 +726,7 @@ body.auth-locked .login-hint{
 .csm-main{display:grid;gap:14px}
 .csm-header-card h2{font-size:34px;line-height:1.1;margin:0 0 4px}
 .csm-kpi{cursor:default;border-top:3px solid #22d3ee}
+.csm-kpi .label{font-weight:700}
 .csm-kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .csm-split-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
 .csm-insight-list{display:grid;gap:9px;margin-top:10px}
@@ -750,8 +751,8 @@ body.auth-locked .login-hint{
 @media(max-width:640px){.csm-kpi-grid-six{grid-template-columns:1fr}}
 
 .csm-widget-card{display:grid;gap:10px}
-.csm-widget-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.csm-widget-head strong{font-size:21px;line-height:1.2}
+.csm-widget-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.csm-widget-head strong{font-size:21px;line-height:1.2;display:block;min-height:2.5em;font-weight:700}
 .csm-widget-head .chip{font-size:11px}
 
 /* Table & skeleton */
