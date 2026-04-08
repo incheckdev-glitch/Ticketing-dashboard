@@ -43,7 +43,7 @@ export default async function handler(req, res) {
   const raw = await upstream.text();
   let data;
   try {
-    data = parseLenientJson(raw);
+    data = raw ? JSON.parse(raw) : {};
   } catch {
     const contentType = upstream.headers.get('content-type') || 'unknown';
     return res.status(502).json({
@@ -54,34 +54,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(upstream.status).json(data);
-}
-
-function parseLenientJson(raw) {
-  const text = String(raw || '').trim();
-  if (!text) return {};
-
-  try {
-    return JSON.parse(text);
-  } catch {}
-
-  const first = text.indexOf('{');
-  const last = text.lastIndexOf('}');
-  if (first >= 0 && last > first) {
-    try {
-      return JSON.parse(text.slice(first, last + 1));
-    } catch {}
-  }
-
-  if (text.includes('=') && !text.includes('<')) {
-    const params = new URLSearchParams(text);
-    if (Array.from(params.keys()).length) {
-      const mapped = {};
-      params.forEach((value, key) => {
-        mapped[key] = value;
-      });
-      return mapped;
-    }
-  }
-
-  throw new Error('Invalid JSON response body.');
 }
