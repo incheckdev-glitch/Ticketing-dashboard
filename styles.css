@@ -733,6 +733,13 @@ body.auth-locked .login-hint{
 .csm-insight-item p{font-size:12px;margin-top:3px}
 .csm-insight-item span{font-size:30px;font-weight:700;color:#2563eb;line-height:1}
 .csm-filters-grid{display:grid;gap:10px;grid-template-columns:1fr}
+.csm-panel .filter-row{min-width:0}
+.csm-panel .filter-row .input,
+.csm-panel .filter-row .select{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
 @media(max-width:1400px){.csm-shell{grid-template-columns:1fr}.csm-panel{position:static}.csm-split-grid{grid-template-columns:1fr}.csm-header-card h2{font-size:30px}}
 .csm-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:980px){.csm-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
