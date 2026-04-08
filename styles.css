@@ -556,6 +556,12 @@ body.auth-locked .login-hint{
   display:grid;grid-template-columns:280px minmax(0,1fr);
   gap:18px;padding:18px;max-width:1440px;margin:0 auto;
 }
+.wrap.csm-filters-only{
+  grid-template-columns:minmax(0,1fr);
+}
+.wrap.csm-filters-only .sidebar{
+  display:none;
+}
 .wrap.is-locked{
   display:none;
 }

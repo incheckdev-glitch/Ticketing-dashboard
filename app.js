@@ -1937,6 +1937,7 @@ function setActiveView(view) {
   try {
     localStorage.setItem(LS_KEYS.view, view);
   } catch {}
+  if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (view === 'calendar') {
     ensureCalendar();
     renderCalendarEvents();
