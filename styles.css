@@ -685,10 +685,11 @@ body.auth-locked .login-hint{
     padding-top:8px;
   }
   .content-layout{
-    grid-template-columns:1fr;
+    grid-template-columns:220px minmax(0,1fr);
   }
   .view-menu{
-    position:static;
+    position:sticky;
+    top:82px;
     padding:10px;
   }
   .view-tabs{
