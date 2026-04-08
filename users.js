@@ -1,7 +1,8 @@
 const UserAdmin = {
   state: {
     rows: [],
-    loading: false
+    loading: false,
+    error: ''
   },
   wire() {
     if (E.usersRefreshBtn) {
@@ -26,7 +27,10 @@ const UserAdmin = {
           return;
         }
         try {
-          await Api.postAuthenticated('users', 'create', { user: payload });
+          await Api.postAuthenticated('users', 'create', {
+            user: payload,
+            ...payload
+          });
           if (E.userCreateForm) E.userCreateForm.reset();
           if (E.userCreateRole) E.userCreateRole.value = ROLES.VIEWER;
           UI.toast('User created successfully.');
@@ -41,13 +45,16 @@ const UserAdmin = {
     if (!Permissions.canManageUsers()) return;
     if (this.state.loading && !force) return;
     this.state.loading = true;
+    this.state.error = '';
     this.render();
     try {
       const response = await Api.postAuthenticated('users', 'list', {});
       this.state.rows = this.extractRows(response);
+      this.state.error = '';
       this.render();
     } catch (error) {
       this.state.rows = [];
+      this.state.error = String(error?.message || '').trim() || 'Unable to load users right now.';
       this.render(error);
       this.handleError(error, 'Unable to load users.');
     } finally {
@@ -102,6 +109,9 @@ const UserAdmin = {
     if (status === 'inactive' || status === 'disabled' || status === 'deactivated') return false;
     return true;
   },
+  getUserId(user = {}) {
+    return String(user.id || user.user_id || user.userId || '').trim();
+  },
   getCreatedAt(user = {}) {
     return user.created_at || user.createdAt || user.created || '';
   },
@@ -116,7 +126,8 @@ const UserAdmin = {
       return;
     }
     if (error) {
-      E.usersState.textContent = 'Unable to load users right now.';
+      E.usersState.textContent = this.state.error || 'Unable to load users right now.';
+      E.usersTbody.innerHTML = '';
       return;
     }
     if (!this.state.rows.length) {
@@ -128,7 +139,7 @@ const UserAdmin = {
     E.usersState.textContent = `${this.state.rows.length} user(s)`;
     E.usersTbody.innerHTML = this.state.rows
       .map(user => {
-        const userId = String(user.user_id || '').trim();
+        const userId = this.getUserId(user);
         const currentUserId = Session.user().user_id;
         const isSelf = !!userId && userId === currentUserId;
         const active = this.normalizeActive(user);
@@ -140,7 +151,7 @@ const UserAdmin = {
           <td>${U.escapeHtml(user.username || '—')}</td>
           <td>${U.escapeHtml(user.email || '—')}</td>
           <td>${U.escapeHtml(role)}</td>
-          <td>${active ? 'active' : 'inactive'}</td>
+          <td>${active ? 'Active' : 'Inactive'}</td>
           <td>${U.escapeHtml(created)}</td>
           <td>${U.escapeHtml(lastLogin)}</td>
           <td>
@@ -160,7 +171,7 @@ const UserAdmin = {
         const action = event.currentTarget.getAttribute('data-user-action');
         const rowEl = event.currentTarget.closest('tr');
         const userId = String(rowEl?.getAttribute('data-user-id') || '').trim();
-        const user = this.state.rows.find(r => String(r.user_id || '').trim() === userId);
+        const user = this.state.rows.find(r => this.getUserId(r) === userId);
         if (!user || !userId) return;
         if (action === 'edit') await this.editUser(user);
         if (action === 'reset') await this.resetPassword(user);
@@ -170,7 +181,8 @@ const UserAdmin = {
   },
   async editUser(user) {
     const currentUserId = Session.user().user_id;
-    const isSelf = String(user.user_id || '') === String(currentUserId || '');
+    const userId = this.getUserId(user);
+    const isSelf = userId === String(currentUserId || '');
     const name = window.prompt('Name', String(user.name || ''));
     if (name == null) return;
     const email = window.prompt('Email', String(user.email || ''));
@@ -186,8 +198,17 @@ const UserAdmin = {
     }
     try {
       await Api.postAuthenticated('users', 'update', {
-        user_id: user.user_id,
+        user_id: userId,
+        id: userId,
         updates: {
+          name: String(name).trim(),
+          email: String(email).trim(),
+          username: String(username).trim(),
+          role: normalizedRole
+        },
+        user: {
+          id: userId,
+          user_id: userId,
           name: String(name).trim(),
           email: String(email).trim(),
           username: String(username).trim(),
@@ -202,16 +223,20 @@ const UserAdmin = {
   },
   async toggleUserStatus(user) {
     const currentUserId = Session.user().user_id;
-    const isSelf = String(user.user_id || '') === String(currentUserId || '');
+    const userId = this.getUserId(user);
+    const isSelf = userId === String(currentUserId || '');
     const active = this.normalizeActive(user);
     if (isSelf && active) {
       UI.toast('You cannot deactivate your own active session from this screen.');
       return;
     }
-    const confirmed = window.confirm(`${active ? 'Deactivate' : 'Activate'} user ${user.username || user.email || user.user_id}?`);
+    const confirmed = window.confirm(`${active ? 'Deactivate' : 'Activate'} user ${user.username || user.email || userId}?`);
     if (!confirmed) return;
     try {
-      await Api.postAuthenticated('users', active ? 'deactivate' : 'activate', { user_id: user.user_id });
+      await Api.postAuthenticated('users', active ? 'deactivate' : 'activate', {
+        user_id: userId,
+        id: userId
+      });
       UI.toast(`User ${active ? 'deactivated' : 'activated'}.`);
       await this.refresh();
     } catch (error) {
@@ -229,8 +254,11 @@ const UserAdmin = {
     if (!confirmed) return;
     try {
       await Api.postAuthenticated('users', 'reset_password', {
-        user_id: user.user_id,
-        newPassword
+        user_id: this.getUserId(user),
+        id: this.getUserId(user),
+        newPassword,
+        password: newPassword,
+        passcode: newPassword
       });
       UI.toast('Password reset successfully.');
     } catch (error) {

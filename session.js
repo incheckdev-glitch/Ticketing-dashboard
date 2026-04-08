@@ -22,7 +22,7 @@ const Session = {
     });
   },
   normalizeSessionPayload(session = {}, fallbackToken = '') {
-    const token = String(session?.token || fallbackToken || '').trim();
+    const token = String(session?.token || session?.authToken || fallbackToken || '').trim();
     const backendRole = String(session?.role || '')
       .trim()
       .toLowerCase();
@@ -36,7 +36,7 @@ const Session = {
     return {
       authToken: token,
       role,
-      user_id: String(session?.user_id || '').trim(),
+      user_id: String(session?.user_id || session?.id || '').trim(),
       name: String(session?.name || '').trim(),
       email: String(session?.email || '').trim(),
       username: String(session?.username || '').trim()
@@ -96,7 +96,7 @@ const Session = {
       identifier: enteredIdentifier,
       passcode: enteredPasscode
     });
-    const normalized = this.normalizeSessionPayload(response?.session || {});
+    const normalized = this.normalizeSessionPayload(this.extractSession(response));
     if (!normalized) {
       throw new Error('Login succeeded but backend returned an invalid session payload.');
     }
@@ -135,10 +135,25 @@ const Session = {
     const authToken = this.state.authToken || '';
     if (!authToken) return false;
     const response = await Api.post('auth', 'session', { authToken });
-    const normalized = this.normalizeSessionPayload(response?.session || {}, authToken);
+    const normalized = this.normalizeSessionPayload(this.extractSession(response), authToken);
     if (!normalized) return false;
     this.applySessionPayload(normalized, { clearRoleCacheOnChange: false });
     return true;
+  },
+  extractSession(response = {}) {
+    const candidates = [
+      response?.session,
+      response?.data?.session,
+      response?.result?.session,
+      response?.payload?.session,
+      response
+    ];
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      if (candidate.session && typeof candidate.session === 'object') return candidate.session;
+      if (candidate.token || candidate.authToken) return candidate;
+    }
+    return {};
   },
   user() {
     return {
