@@ -1946,6 +1946,16 @@ function setActiveView(view) {
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
   if (view === 'csm') CSMActivity.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
+  updatePrimaryActionButton(view);
+}
+
+function updatePrimaryActionButton(activeView) {
+  if (!E.createTicketBtn) return;
+  const isCsm = activeView === 'csm';
+  E.createTicketBtn.innerHTML = isCsm
+    ? '<span class="icon" aria-hidden="true">➕</span> Add activity'
+    : '<span class="icon" aria-hidden="true">➕</span> Create Ticket';
+  E.createTicketBtn.setAttribute('aria-label', isCsm ? 'Add activity' : 'Create new ticket');
 }
 
 /* ---------- Calendar wiring ---------- */
@@ -4008,8 +4018,9 @@ function wireCore() {
     E.createTicketBtn.addEventListener('click', () => {
       if (!requirePermission(() => Permissions.canCreateTicket(), 'Login is required to create a ticket.'))
         return;
+      const isCsmView = E.csmView?.classList.contains('active');
       window.open(
-        'https://forms.gle/PPnEP1AQneoBT79s5',
+        isCsmView ? 'https://forms.gle/jV7XLrquc8beyi228' : 'https://forms.gle/PPnEP1AQneoBT79s5',
         '_blank',
         'noopener,noreferrer'
       );
@@ -5435,38 +5446,6 @@ function wireCSMActivity() {
   bindState(E.csmMaxMinutesFilter, 'maxMinutes');
   bindState(E.csmStartDateFilter, 'startDate');
   bindState(E.csmEndDateFilter, 'endDate');
-
-  if (E.csmResetFiltersBtn) {
-    E.csmResetFiltersBtn.addEventListener('click', () => {
-      CSMActivity.state = {
-        search: '',
-        csmName: 'All',
-        client: 'All',
-        supportType: 'All',
-        effort: 'All',
-        channel: 'All',
-        minMinutes: '',
-        maxMinutes: '',
-        startDate: '',
-        endDate: ''
-      };
-      if (E.csmSearchInput) E.csmSearchInput.value = '';
-      if (E.csmMinMinutesFilter) E.csmMinMinutesFilter.value = '';
-      if (E.csmMaxMinutesFilter) E.csmMaxMinutesFilter.value = '';
-      if (E.csmStartDateFilter) E.csmStartDateFilter.value = '';
-      if (E.csmEndDateFilter) E.csmEndDateFilter.value = '';
-      CSMActivity.hydrateOptions();
-      CSMActivity.refresh();
-    });
-  }
-
-  if (E.csmCreateBtn) {
-    E.csmCreateBtn.style.display = CSMActivity.canCreate() ? '' : 'none';
-    E.csmCreateBtn.addEventListener('click', () => CSMActivity.openForm(null));
-  }
-  if (E.csmReloadBtn) {
-    E.csmReloadBtn.addEventListener('click', () => CSMActivity.loadAndRefresh({ force: true }));
-  }
 
   if (E.csmTableBody) {
     E.csmTableBody.addEventListener('click', event => {

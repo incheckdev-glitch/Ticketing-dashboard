@@ -146,8 +146,6 @@ function cacheEls() {
     'currentRoleChip',
     'usersTab',
     'usersView',
-    'csmCreateBtn',
-    'csmReloadBtn',
     'csmSearchInput',
     'csmNameFilter',
     'csmClientFilter',
@@ -158,7 +156,6 @@ function cacheEls() {
     'csmMaxMinutesFilter',
     'csmStartDateFilter',
     'csmEndDateFilter',
-    'csmResetFiltersBtn',
     'csmKpiActivities',
     'csmKpiActivitiesSub',
     'csmKpiMinutes',
@@ -313,7 +310,6 @@ const UI = {
     if (E.releasePlannerCard) E.releasePlannerCard.style.display = canChangePlanner ? '' : 'none';
     if (E.editIssueBtn) E.editIssueBtn.style.display = Permissions.canEditTicket() ? '' : 'none';
     if (E.bulkEditBtn) E.bulkEditBtn.style.display = Permissions.canEditTicket() ? '' : 'none';
-    if (E.csmCreateBtn) E.csmCreateBtn.style.display = Permissions.canCreateTicket() ? '' : 'none';
     if (E.devTeamStatusFilterRow)
       E.devTeamStatusFilterRow.style.display = canUseInternalIssueFilters ? '' : 'none';
     if (E.issueRelatedFilterRow)
