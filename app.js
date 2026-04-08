@@ -4906,7 +4906,7 @@ const CSMActivity = {
     return Permissions.canCreateTicket();
   },
   canEditDelete() {
-    return Permissions.isAdmin();
+    return Permissions.canManageCsmActivity();
   },
   async loadAndRefresh(options = {}) {
     const force = !!options.force;
