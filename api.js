@@ -60,6 +60,28 @@ const Api = {
       ...payload,
       authToken: authToken || ''
     });
+  },
+  async listProposalCatalogItems() {
+    return this.postAuthenticated('proposal_catalog', 'list', {});
+  },
+  async getProposalCatalogItem(catalogItemId) {
+    return this.postAuthenticated('proposal_catalog', 'get', {
+      catalog_item_id: catalogItemId
+    });
+  },
+  async createProposalCatalogItem(item) {
+    return this.postAuthenticated('proposal_catalog', 'create', { item });
+  },
+  async updateProposalCatalogItem(catalogItemId, updates) {
+    return this.postAuthenticated('proposal_catalog', 'update', {
+      catalog_item_id: catalogItemId,
+      updates
+    });
+  },
+  async deleteProposalCatalogItem(catalogItemId) {
+    return this.postAuthenticated('proposal_catalog', 'delete', {
+      catalog_item_id: catalogItemId
+    });
   }
 };
 
