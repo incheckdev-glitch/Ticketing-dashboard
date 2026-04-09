@@ -48,7 +48,8 @@ const Proposals = {
     formMode: 'create',
     formReadOnly: false,
     currentProposalId: '',
-    currentItems: []
+    currentItems: [],
+    catalogLoading: false
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -142,6 +143,7 @@ const Proposals = {
     const normalized = {
       item_id: String(pick(source.item_id, source.itemId, source.id)).trim(),
       proposal_id: String(pick(source.proposal_id, source.proposalId)).trim(),
+      catalog_item_id: String(pick(source.catalog_item_id, source.catalogItemId)).trim(),
       section,
       line_no: this.toNumberSafe(pick(source.line_no, source.lineNo, source.line)) || 0,
       location_name: String(pick(source.location_name, source.locationName)).trim(),
@@ -473,6 +475,60 @@ const Proposals = {
       line_total: lineTotal
     };
   },
+  getCatalogRowsForSection(section) {
+    const rows = Array.isArray(window.ProposalCatalog?.state?.rows)
+      ? window.ProposalCatalog.state.rows
+      : [];
+    return rows
+      .filter(row => row?.is_active !== false && String(row?.section || '').trim().toLowerCase() === section)
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+        const bSort = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a?.item_name || '').localeCompare(String(b?.item_name || ''));
+      });
+  },
+  renderCatalogOptionList(section) {
+    const listEl = document.getElementById(`proposalCatalogOptions-${section}`);
+    if (!listEl) return;
+    const rows = this.getCatalogRowsForSection(section);
+    const seen = new Set();
+    listEl.innerHTML = rows
+      .filter(row => {
+        const key = String(row?.item_name || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(row => {
+        const itemName = String(row?.item_name || '').trim();
+        const category = String(row?.category || '').trim();
+        const location = String(row?.default_location_name || '').trim();
+        const meta = [category, location].filter(Boolean).join(' · ');
+        return `<option value="${U.escapeAttr(itemName)}">${U.escapeHtml(meta)}</option>`;
+      })
+      .join('');
+  },
+  renderCatalogOptionLists() {
+    this.renderCatalogOptionList('annual_saas');
+    this.renderCatalogOptionList('one_time_fee');
+  },
+  async ensureCatalogLoaded() {
+    this.renderCatalogOptionLists();
+    const hasRows = this.getCatalogRowsForSection('annual_saas').length || this.getCatalogRowsForSection('one_time_fee').length;
+    if (hasRows) return;
+    if (this.state.catalogLoading || typeof window.ProposalCatalog?.loadAndRefresh !== 'function') return;
+
+    this.state.catalogLoading = true;
+    try {
+      await window.ProposalCatalog.loadAndRefresh();
+      this.renderCatalogOptionLists();
+    } catch (_) {
+      // Non-blocking: proposal form still allows manual item entry when catalog load fails.
+    } finally {
+      this.state.catalogLoading = false;
+    }
+  },
   groupedItems(items = []) {
     const groups = {
       annual_saas: [],
@@ -523,7 +579,7 @@ const Proposals = {
         const computed = this.computeCommercialRow(row);
         return `<tr data-item-row="${section}">
           <td><input class="input" data-item-field="location_name" value="${U.escapeAttr(computed.location_name || '')}" /></td>
-          <td><input class="input" data-item-field="item_name" value="${U.escapeAttr(computed.item_name || '')}" /></td>
+          <td><input class="input" data-item-field="item_name" list="proposalCatalogOptions-${section}" value="${U.escapeAttr(computed.item_name || '')}" /></td>
           <td><input class="input" type="number" step="0.01" data-item-field="unit_price" value="${U.escapeAttr(computed.unit_price || '')}" /></td>
           <td><input class="input" type="number" step="0.01" data-item-field="discount_percent" value="${U.escapeAttr(computed.discount_percent || '')}" /></td>
           <td><input class="input" type="number" step="0.01" data-item-field="quantity" value="${U.escapeAttr(computed.quantity || '')}" /></td>
@@ -537,6 +593,7 @@ const Proposals = {
       .join('');
   },
   renderProposalItems(items = []) {
+    this.renderCatalogOptionLists();
     const groups = this.groupedItems(items);
     this.renderSectionRows('annual_saas', groups.annual_saas);
     this.renderSectionRows('one_time_fee', groups.one_time_fee);
@@ -666,6 +723,7 @@ const Proposals = {
     E.proposalForm.dataset.id = base.proposal_id || '';
     this.assignFormValues(base);
     this.renderProposalItems(this.state.currentItems);
+    this.ensureCatalogLoaded();
 
     if (E.proposalFormTitle) {
       if (readOnly) E.proposalFormTitle.textContent = 'View Proposal';
