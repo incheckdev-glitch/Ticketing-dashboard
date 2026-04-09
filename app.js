@@ -1906,7 +1906,7 @@ function trapFocus(container, e) {
 function setActiveView(view) {
  if (view === 'csm' && !Permissions.canViewCsmActivity()) view = 'issues';
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'users'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'users'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1919,6 +1919,8 @@ function setActiveView(view) {
         ? E.csmTab
         : name === 'leads'
         ? E.leadsTab
+        : name === 'deals'
+        ? E.dealsTab
         : E.usersTab;
     const panel =
       name === 'issues'
@@ -1931,6 +1933,8 @@ function setActiveView(view) {
         ? E.csmView
         : name === 'leads'
         ? E.leadsView
+        : name === 'deals'
+        ? E.dealsView
         : E.usersView;
     const active = name === view;
     if (tab) {
@@ -1943,7 +1947,7 @@ function setActiveView(view) {
     localStorage.setItem(LS_KEYS.view, view);
   } catch {}
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
-  if (E.mainFiltersPanel) E.mainFiltersPanel.style.display = view === 'leads' ? 'none' : '';
+  if (E.mainFiltersPanel) E.mainFiltersPanel.style.display = view === 'leads' || view === 'deals' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (view === 'calendar') {
     ensureCalendar();
@@ -1953,6 +1957,7 @@ function setActiveView(view) {
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
   if (view === 'csm') CSMActivity.loadAndRefresh();
   if (view === 'leads' && window.Leads?.loadAndRefresh) Leads.loadAndRefresh();
+  if (view === 'deals' && window.Deals?.loadAndRefresh) Deals.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   updatePrimaryActionButton(view);
 }
@@ -3952,7 +3957,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.usersTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.usersTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4025,6 +4030,8 @@ function wireCore() {
       if (E.csmView?.classList.contains('active')) CSMActivity.loadAndRefresh({ force: true });
       if (E.leadsView?.classList.contains('active') && window.Leads?.loadAndRefresh)
         Leads.loadAndRefresh({ force: true });
+      if (E.dealsView?.classList.contains('active') && window.Deals?.loadAndRefresh)
+        Deals.loadAndRefresh({ force: true });
     });
   if (E.exportCsv)
     E.exportCsv.addEventListener('click', () => {
@@ -4053,7 +4060,7 @@ function wireCore() {
 
   if (E.shortcutsHelp) {
     E.shortcutsHelp.addEventListener('click', () => {
-     UI.toast('Shortcuts: 1/2/3/4/5 switch tabs · / focus search · Ctrl+K AI query');
+     UI.toast('Shortcuts: 1/2/3/4/5/6 switch tabs · / focus search · Ctrl+K AI query');
     });
   }
 
@@ -5545,7 +5552,7 @@ function wireKeyboardShortcuts() {
 
     if (isInputLike) return;
 
-    // 1/2/3/4/5/6 → switch tabs
+    // 1/2/3/4/5/6/7 → switch tabs
     if (e.key === '1') {
       setActiveView('issues');
     } else if (e.key === '2') {
@@ -5556,7 +5563,9 @@ function wireKeyboardShortcuts() {
       setActiveView('csm');
     } else if (e.key === '5') {
       setActiveView('leads');
-    } else if (e.key === '6' && Permissions.canManageUsers()) {
+    } else if (e.key === '6') {
+      setActiveView('deals');
+    } else if (e.key === '7' && Permissions.canManageUsers()) {
       setActiveView('users');
     }
   });
@@ -5599,6 +5608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireAIQuery();
   wireCSMActivity();
   if (window.Leads?.wire) Leads.wire();
+  if (window.Deals?.wire) Deals.wire();
   wireKeyboardShortcuts();
 
   let isAuthenticated = Session.isAuthenticated();
@@ -5621,7 +5631,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!Session.isAuthenticated()) {
     const view = localStorage.getItem(LS_KEYS.view) || 'issues';
     setActiveView(
-      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'leads' || view === 'users' ? view : 'issues'
+      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'leads' || view === 'deals' || view === 'users' ? view : 'issues'
     );
   }
 
