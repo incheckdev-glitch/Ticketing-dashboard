@@ -222,6 +222,241 @@ const Deals = {
     assign(E.dealFormPriority, priorityValues, selected.priority || '');
     assign(E.dealFormCurrency, currencyValues, selected.currency || '');
   },
+  normalizeText(value) {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase();
+  },
+  toNumberSafe(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const parsed = Number(
+      String(value)
+        .replace(/,/g, '')
+        .trim()
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+  matchesWonStatus(status) {
+    const normalized = this.normalizeText(status);
+    return normalized === 'won' || normalized.includes('closed won');
+  },
+  matchesLostStatus(status) {
+    const normalized = this.normalizeText(status);
+    return normalized === 'lost' || normalized.includes('closed lost');
+  },
+  matchesOpenStatus(status) {
+    const normalized = this.normalizeText(status);
+    if (!normalized || this.matchesWonStatus(normalized) || this.matchesLostStatus(normalized)) return false;
+    return ['open', 'active', 'in progress', 'negotiation'].some(token => normalized.includes(token));
+  },
+  normalizeStage(stage) {
+    const normalized = this.normalizeText(stage);
+    if (!normalized) return 'Unknown';
+    if (normalized.includes('prospect')) return 'Prospect';
+    if (normalized.includes('qualif')) return 'Qualified';
+    if (normalized.includes('proposal')) return 'Proposal Sent';
+    if (normalized.includes('negotiat')) return 'Negotiation';
+    if (normalized.includes('verbal') || normalized.includes('commit')) return 'Verbal Commit';
+    if (this.matchesWonStatus(normalized) || normalized === 'won') return 'Won';
+    if (this.matchesLostStatus(normalized) || normalized === 'lost') return 'Lost';
+    return String(stage || '').trim() || 'Unknown';
+  },
+  formatValue(value, currency = '', hasMixedCurrencies = false) {
+    const numericValue = Number.isFinite(value) ? value : 0;
+    if (currency && !hasMixedCurrencies) {
+      let formatted = numericValue.toLocaleString(undefined, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2
+      });
+      if (formatted === 'NaN') formatted = `${currency} ${numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      return formatted;
+    }
+    return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  },
+  incrementMap(map, key) {
+    const label = String(key || '').trim() || 'Unspecified';
+    map[label] = (map[label] || 0) + 1;
+  },
+  buildTopBreakdown(map = {}, max = 7) {
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, max);
+  },
+  computeDealAnalytics(deals = []) {
+    const rows = Array.isArray(deals) ? deals : [];
+    const stageBreakdown = {
+      Prospect: 0,
+      Qualified: 0,
+      'Proposal Sent': 0,
+      Negotiation: 0,
+      'Verbal Commit': 0,
+      Won: 0,
+      Lost: 0
+    };
+    const statusBreakdown = {};
+    const assigneeMap = {};
+    const serviceMap = {};
+    const sourceMap = {};
+    const uniqueCompanies = new Set();
+    const uniqueAssignees = new Set();
+    const currencies = new Set();
+    const stageProbability = {
+      Prospect: 0.1,
+      Qualified: 0.3,
+      'Proposal Sent': 0.5,
+      Negotiation: 0.7,
+      'Verbal Commit': 0.85,
+      Won: 1,
+      Lost: 0
+    };
+    let openDeals = 0;
+    let wonDeals = 0;
+    let lostDeals = 0;
+    let proposalNeededCount = 0;
+    let agreementNeededCount = 0;
+    let highPriorityCount = 0;
+    let pipelineValue = 0;
+    let weightedPipelineValue = 0;
+    let validValueCount = 0;
+    let wonValueTotal = 0;
+    let wonValueCount = 0;
+    let convertedFromLeadsCount = 0;
+
+    rows.forEach(row => {
+      const status = this.normalizeText(row?.status);
+      const stage = this.normalizeStage(row?.stage);
+      const value = this.toNumberSafe(row?.estimated_value);
+      const priority = this.normalizeText(row?.priority);
+      const statusLabel = String(row?.status || '').trim() || 'Unspecified';
+      const companyName = String(row?.company_name || '').trim().toLowerCase();
+      const assignee = String(row?.assigned_to || '').trim().toLowerCase();
+
+      if (this.matchesOpenStatus(status)) openDeals += 1;
+      if (this.matchesWonStatus(status)) wonDeals += 1;
+      if (this.matchesLostStatus(status)) lostDeals += 1;
+      if (this.normalizeBool(row?.proposal_needed) === 'yes') proposalNeededCount += 1;
+      if (this.normalizeBool(row?.agreement_needed) === 'yes') agreementNeededCount += 1;
+      if (priority === 'high' || priority === 'urgent') highPriorityCount += 1;
+      if (String(row?.lead_id || '').trim() || String(row?.converted_at || '').trim()) convertedFromLeadsCount += 1;
+
+      pipelineValue += value;
+      if (value > 0) validValueCount += 1;
+      if (this.matchesWonStatus(status) && value > 0) {
+        wonValueTotal += value;
+        wonValueCount += 1;
+      }
+      weightedPipelineValue += value * (stageProbability[stage] ?? 0);
+
+      if (companyName) uniqueCompanies.add(companyName);
+      if (assignee) uniqueAssignees.add(assignee);
+      this.incrementMap(statusBreakdown, statusLabel);
+      if (row?.assigned_to) this.incrementMap(assigneeMap, row.assigned_to);
+      if (row?.service_interest) this.incrementMap(serviceMap, row.service_interest);
+      if (row?.lead_source) this.incrementMap(sourceMap, row.lead_source);
+      if (stageBreakdown[stage] === undefined) stageBreakdown[stage] = 0;
+      stageBreakdown[stage] += 1;
+
+      const currency = String(row?.currency || '')
+        .trim()
+        .toUpperCase();
+      if (currency) currencies.add(currency);
+    });
+
+    const denominator = wonDeals + lostDeals;
+    return {
+      totalDeals: rows.length,
+      openDeals,
+      wonDeals,
+      lostDeals,
+      proposalNeededCount,
+      agreementNeededCount,
+      highPriorityCount,
+      pipelineValue,
+      weightedPipelineValue,
+      winRate: denominator > 0 ? (wonDeals / denominator) * 100 : 0,
+      averageDealSize: validValueCount > 0 ? pipelineValue / validValueCount : 0,
+      averageWonDealSize: wonValueCount > 0 ? wonValueTotal / wonValueCount : 0,
+      convertedFromLeadsCount,
+      uniqueCompanies: uniqueCompanies.size,
+      uniqueAssignees: uniqueAssignees.size,
+      stageBreakdown,
+      statusBreakdown,
+      assigneeBreakdown: this.buildTopBreakdown(assigneeMap, 7),
+      serviceBreakdown: this.buildTopBreakdown(serviceMap, 7),
+      sourceBreakdown: this.buildTopBreakdown(sourceMap, 7),
+      pipelineCurrency: currencies.size === 1 ? [...currencies][0] : '',
+      hasMixedCurrencies: currencies.size > 1
+    };
+  },
+  renderDistribution(el, entries = [], total = 0) {
+    if (!el) return;
+    if (!entries.length) {
+      el.innerHTML = '<div class="muted">No data for current filters.</div>';
+      return;
+    }
+    el.innerHTML = entries
+      .map(([label, count]) => {
+        const percent = total > 0 ? (count / total) * 100 : 0;
+        return `<div class="deals-status-row">
+          <div class="deals-status-label">${U.escapeHtml(label)}</div>
+          <div class="leads-status-track"><span class="deals-status-fill" style="width:${Math.min(100, percent).toFixed(1)}%"></span></div>
+          <div class="deals-status-meta">${count} · ${percent.toFixed(1)}%</div>
+        </div>`;
+      })
+      .join('');
+  },
+  renderDealAnalytics(analytics) {
+    const safe = analytics || this.computeDealAnalytics([]);
+    const setText = (el, value) => {
+      if (el) el.textContent = value;
+    };
+
+    setText(E.dealsKpiTotal, String(safe.totalDeals || 0));
+    setText(E.dealsKpiOpen, String(safe.openDeals || 0));
+    setText(E.dealsKpiWon, String(safe.wonDeals || 0));
+    setText(E.dealsKpiLost, String(safe.lostDeals || 0));
+    setText(E.dealsKpiProposalNeeded, String(safe.proposalNeededCount || 0));
+    setText(E.dealsKpiAgreementNeeded, String(safe.agreementNeededCount || 0));
+    setText(E.dealsKpiHighPriority, String(safe.highPriorityCount || 0));
+    setText(E.dealsKpiWinRate, `${(safe.winRate || 0).toFixed(1)}%`);
+    setText(E.dealsKpiConvertedFromLeads, String(safe.convertedFromLeadsCount || 0));
+    setText(E.dealsKpiUniqueCompanies, String(safe.uniqueCompanies || 0));
+    setText(E.dealsKpiUniqueAssignees, String(safe.uniqueAssignees || 0));
+
+    setText(E.dealsKpiPipelineValue, this.formatValue(safe.pipelineValue, safe.pipelineCurrency, safe.hasMixedCurrencies));
+    setText(
+      E.dealsKpiWeightedPipelineValue,
+      this.formatValue(safe.weightedPipelineValue, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+    setText(E.dealsKpiAverageDealSize, this.formatValue(safe.averageDealSize, safe.pipelineCurrency, safe.hasMixedCurrencies));
+    setText(
+      E.dealsKpiAverageWonDealSize,
+      this.formatValue(safe.averageWonDealSize, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+    setText(
+      E.dealsKpiPipelineSub,
+      safe.pipelineCurrency && !safe.hasMixedCurrencies
+        ? `Visible estimated value (${safe.pipelineCurrency})`
+        : `Visible estimated value${safe.hasMixedCurrencies ? ' (mixed currencies)' : ''}`
+    );
+    setText(
+      E.dealsKpiWeightedPipelineSub,
+      safe.pipelineCurrency && !safe.hasMixedCurrencies
+        ? `Stage weighted (${safe.pipelineCurrency})`
+        : `Stage weighted${safe.hasMixedCurrencies ? ' (mixed currencies)' : ''}`
+    );
+
+    const stageOrder = ['Prospect', 'Qualified', 'Proposal Sent', 'Negotiation', 'Verbal Commit', 'Won', 'Lost'];
+    const stageEntries = stageOrder.map(label => [label, safe.stageBreakdown?.[label] || 0]);
+    const statusEntries = Object.entries(safe.statusBreakdown || {}).sort((a, b) => b[1] - a[1]);
+    this.renderDistribution(E.dealsStageDistribution, stageEntries, safe.totalDeals || 0);
+    this.renderDistribution(E.dealsStatusDistribution, statusEntries, safe.totalDeals || 0);
+    this.renderDistribution(E.dealsAssigneeBreakdown, safe.assigneeBreakdown || [], safe.totalDeals || 0);
+    this.renderDistribution(E.dealsServiceBreakdown, safe.serviceBreakdown || [], safe.totalDeals || 0);
+    this.renderDistribution(E.dealsSourceBreakdown, safe.sourceBreakdown || [], safe.totalDeals || 0);
+  },
   applyFilters() {
     const searchTerms = String(this.state.search || '')
       .trim()
@@ -247,12 +482,14 @@ const Deals = {
 
     if (this.state.loading) {
       E.dealsState.textContent = 'Loading deals…';
+      this.renderDealAnalytics(this.computeDealAnalytics([]));
       E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading deals…</td></tr>';
       return;
     }
 
     if (this.state.loadError) {
       E.dealsState.textContent = this.state.loadError;
+      this.renderDealAnalytics(this.computeDealAnalytics([]));
       E.dealsTbody.innerHTML = `<tr><td colspan="21" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(
         this.state.loadError
       )}</td></tr>`;
@@ -260,6 +497,7 @@ const Deals = {
     }
 
     const rows = this.state.filteredRows;
+    this.renderDealAnalytics(this.computeDealAnalytics(rows));
     E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'}`;
 
     if (!rows.length) {

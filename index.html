@@ -969,6 +969,47 @@
               <button id="dealsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
             </div>
           </div>
+          <div id="dealsAnalytics" class="deals-analytics" aria-label="Deals analytics widgets">
+            <div id="dealsAnalyticsGrid" class="grid deals-analytics-grid">
+              <article class="card kpi deals-kpi-card"><div class="label">Total Deals</div><div id="dealsKpiTotal" class="value">0</div><div class="sub">Visible deals</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Open Deals</div><div id="dealsKpiOpen" class="value">0</div><div class="sub">Open / Active / In Progress</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Won Deals</div><div id="dealsKpiWon" class="value">0</div><div class="sub">Status matched as won</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Lost Deals</div><div id="dealsKpiLost" class="value">0</div><div class="sub">Status matched as lost</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Proposal Needed</div><div id="dealsKpiProposalNeeded" class="value">0</div><div class="sub">proposal_needed = Yes</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Agreement Needed</div><div id="dealsKpiAgreementNeeded" class="value">0</div><div class="sub">agreement_needed = Yes</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">High Priority Deals</div><div id="dealsKpiHighPriority" class="value">0</div><div class="sub">High or Urgent</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Total Pipeline Value</div><div id="dealsKpiPipelineValue" class="value">0</div><div id="dealsKpiPipelineSub" class="sub">Visible estimated value</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Weighted Pipeline</div><div id="dealsKpiWeightedPipelineValue" class="value">0</div><div id="dealsKpiWeightedPipelineSub" class="sub">Stage probability weighted</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Win Rate</div><div id="dealsKpiWinRate" class="value">0%</div><div class="sub">Won / (Won + Lost)</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Average Deal Size</div><div id="dealsKpiAverageDealSize" class="value">0</div><div class="sub">Across valid values</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Average Won Deal Size</div><div id="dealsKpiAverageWonDealSize" class="value">0</div><div class="sub">Won deals only</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Converted from Leads</div><div id="dealsKpiConvertedFromLeads" class="value">0</div><div class="sub">lead_id or converted_at</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Unique Companies</div><div id="dealsKpiUniqueCompanies" class="value">0</div><div class="sub">Distinct companies</div></article>
+              <article class="card kpi deals-kpi-card"><div class="label">Unique Assignees</div><div id="dealsKpiUniqueAssignees" class="value">0</div><div class="sub">Distinct owners</div></article>
+            </div>
+            <div class="deals-breakdown-grid">
+              <article class="card deals-breakdown-card" aria-label="Deals stage distribution">
+                <div class="deals-breakdown-title">Stage distribution</div>
+                <div id="dealsStageDistribution" class="deals-status-bars"></div>
+              </article>
+              <article class="card deals-breakdown-card" aria-label="Deals status distribution">
+                <div class="deals-breakdown-title">Status distribution</div>
+                <div id="dealsStatusDistribution" class="deals-status-bars"></div>
+              </article>
+              <article class="card deals-breakdown-card" aria-label="Deals assignee breakdown">
+                <div class="deals-breakdown-title">Assignee breakdown</div>
+                <div id="dealsAssigneeBreakdown" class="deals-status-bars"></div>
+              </article>
+              <article class="card deals-breakdown-card" aria-label="Deals service interest breakdown">
+                <div class="deals-breakdown-title">Top services</div>
+                <div id="dealsServiceBreakdown" class="deals-status-bars"></div>
+              </article>
+              <article class="card deals-breakdown-card" aria-label="Deals lead source breakdown">
+                <div class="deals-breakdown-title">Lead sources</div>
+                <div id="dealsSourceBreakdown" class="deals-status-bars"></div>
+              </article>
+            </div>
+          </div>
           <div id="dealsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
           <div class="table-wrap" role="region" aria-label="Deals table">
             <table id="dealsTable">
