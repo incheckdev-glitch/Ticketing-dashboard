@@ -98,7 +98,10 @@ const Deals = {
     return [];
   },
   async listDeals() {
-    return Api.postAuthenticated('deals', 'list', {});
+    return Api.postAuthenticated('deals', 'list', {
+      sheetName: CONFIG.DEALS_SHEET_NAME,
+      tabName: CONFIG.DEALS_SHEET_NAME
+    });
   },
   formatDate(value) {
     if (!value) return '—';
