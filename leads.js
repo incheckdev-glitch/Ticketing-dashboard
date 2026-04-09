@@ -259,6 +259,131 @@ const Leads = {
     if (value === 'no') return 'No';
     return '—';
   },
+  normalizeText(value) {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase();
+  },
+  parseEstimatedValue(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const normalized = String(value)
+      .replace(/,/g, '')
+      .trim();
+    if (!normalized) return 0;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+  computeLeadAnalytics(leads = []) {
+    const rows = Array.isArray(leads) ? leads : [];
+    const statusKeys = ['new', 'qualified', 'proposal sent', 'negotiation', 'won', 'lost', 'on hold'];
+    const statusBreakdown = Object.fromEntries(statusKeys.map(key => [key, 0]));
+    const currencyTotals = new Set();
+    let pipelineValue = 0;
+    let proposalNeededCount = 0;
+    let agreementNeededCount = 0;
+    let highPriorityCount = 0;
+
+    rows.forEach(row => {
+      const status = this.normalizeText(row?.status);
+      if (statusBreakdown[status] !== undefined) statusBreakdown[status] += 1;
+
+      const priority = this.normalizeText(row?.priority);
+      if (priority === 'high' || priority === 'urgent') highPriorityCount += 1;
+
+      if (this.normalizeBool(row?.proposal_needed) === 'yes') proposalNeededCount += 1;
+      if (this.normalizeBool(row?.agreement_needed) === 'yes') agreementNeededCount += 1;
+
+      pipelineValue += this.parseEstimatedValue(row?.estimated_value);
+      const currency = String(row?.currency || '')
+        .trim()
+        .toUpperCase();
+      if (currency) currencyTotals.add(currency);
+    });
+
+    const total = rows.length;
+    const wonCount = statusBreakdown.won || 0;
+    const conversionRate = total > 0 ? (wonCount / total) * 100 : 0;
+    const currencies = [...currencyTotals];
+    const pipelineCurrency = currencies.length === 1 ? currencies[0] : '';
+
+    return {
+      total,
+      newCount: statusBreakdown.new || 0,
+      qualifiedCount: statusBreakdown.qualified || 0,
+      proposalSentCount: statusBreakdown['proposal sent'] || 0,
+      wonCount,
+      lostCount: statusBreakdown.lost || 0,
+      highPriorityCount,
+      proposalNeededCount,
+      agreementNeededCount,
+      conversionRate,
+      pipelineValue,
+      pipelineCurrency,
+      hasMixedCurrencies: currencies.length > 1,
+      statusBreakdown
+    };
+  },
+  renderLeadAnalytics(analytics) {
+    const safe = analytics || this.computeLeadAnalytics([]);
+    const setText = (el, value) => {
+      if (el) el.textContent = value;
+    };
+
+    setText(E.leadsKpiTotal, String(safe.total || 0));
+    setText(E.leadsKpiNew, String(safe.newCount || 0));
+    setText(E.leadsKpiQualified, String(safe.qualifiedCount || 0));
+    setText(E.leadsKpiProposalSent, String(safe.proposalSentCount || 0));
+    setText(E.leadsKpiWon, String(safe.wonCount || 0));
+    setText(E.leadsKpiLost, String(safe.lostCount || 0));
+    setText(E.leadsKpiHighPriority, String(safe.highPriorityCount || 0));
+    setText(E.leadsKpiProposalNeeded, String(safe.proposalNeededCount || 0));
+    setText(E.leadsKpiAgreementNeeded, String(safe.agreementNeededCount || 0));
+    setText(E.leadsKpiConversionRate, `${(safe.conversionRate || 0).toFixed(1)}%`);
+
+    const valueNumber = Number.isFinite(safe.pipelineValue) ? safe.pipelineValue : 0;
+    const hasSingleCurrency = !!safe.pipelineCurrency && !safe.hasMixedCurrencies;
+    if (hasSingleCurrency) {
+      let formatted = valueNumber.toLocaleString(undefined, {
+        style: 'currency',
+        currency: safe.pipelineCurrency,
+        maximumFractionDigits: 2
+      });
+      if (formatted === 'NaN') formatted = `${safe.pipelineCurrency} ${valueNumber.toLocaleString()}`;
+      setText(E.leadsKpiPipelineValue, formatted);
+      setText(E.leadsKpiPipelineSub, `Total estimated value (${safe.pipelineCurrency})`);
+    } else {
+      setText(E.leadsKpiPipelineValue, valueNumber.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+      setText(
+        E.leadsKpiPipelineSub,
+        safe.hasMixedCurrencies ? 'Total estimated value (mixed currencies)' : 'Total estimated value'
+      );
+    }
+
+    if (E.leadsStatusDistribution) {
+      const statuses = [
+        ['New', 'new'],
+        ['Qualified', 'qualified'],
+        ['Proposal Sent', 'proposal sent'],
+        ['Negotiation', 'negotiation'],
+        ['Won', 'won'],
+        ['Lost', 'lost'],
+        ['On Hold', 'on hold']
+      ];
+      const total = safe.total || 0;
+      E.leadsStatusDistribution.innerHTML = statuses
+        .map(([label, key]) => {
+          const count = safe.statusBreakdown?.[key] || 0;
+          const percent = total > 0 ? (count / total) * 100 : 0;
+          return `<div class="leads-status-row">
+            <div class="leads-status-label">${U.escapeHtml(label)}</div>
+            <div class="leads-status-track"><span class="leads-status-fill" style="width:${Math.min(100, percent).toFixed(1)}%"></span></div>
+            <div class="leads-status-meta">${count} · ${percent.toFixed(1)}%</div>
+          </div>`;
+        })
+        .join('');
+    }
+  },
   canEditDelete() {
     return Permissions.canEditDeleteLead();
   },
@@ -266,16 +391,19 @@ const Leads = {
     if (!E.leadsTbody || !E.leadsState) return;
     if (this.state.loading) {
       E.leadsState.textContent = 'Loading leads…';
+      this.renderLeadAnalytics(this.computeLeadAnalytics([]));
       E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading leads…</td></tr>';
       return;
     }
     if (this.state.loadError) {
       E.leadsState.textContent = this.state.loadError;
+      this.renderLeadAnalytics(this.computeLeadAnalytics([]));
       E.leadsTbody.innerHTML = `<tr><td colspan="21" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
       return;
     }
 
     const rows = this.state.filteredRows;
+    this.renderLeadAnalytics(this.computeLeadAnalytics(rows));
     E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'}`;
 
     if (!rows.length) {
@@ -533,7 +661,7 @@ const Leads = {
         this.state.createdTo = '';
         this.applyFilters();
         this.renderFilters();
-        this.renderTable();
+        this.render();
       });
     }
 
