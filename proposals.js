@@ -1,4 +1,6 @@
 const Proposals = {
+  defaultTermsAndConditions:
+    'This proposal is valid for 30 days from the proposal date. Services are subject to the final signed agreement and applicable service terms.',
   proposalFields: [
     'proposal_id',
     'ref_number',
@@ -88,21 +90,9 @@ const Proposals = {
     normalized.generated_by = String(normalized.generated_by || '').trim();
     return normalized;
   },
-  proposalDraftFromDeal(rawDeal = {}) {
-    const deal = rawDeal && typeof rawDeal === 'object' ? rawDeal : {};
-    const companyName = String(deal.company_name || deal.companyName || '').trim();
-    const fullName = String(deal.full_name || deal.fullName || '').trim();
-    const serviceInterest = String(deal.service_interest || deal.serviceInterest || '').trim();
-    const titleParts = [companyName || fullName, serviceInterest].filter(Boolean);
+  proposalDraftFromDeal(_rawDeal = {}) {
     return {
-      ...this.emptyProposal(),
-      deal_id: String(deal.deal_id || deal.dealId || '').trim(),
-      proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
-      customer_name: companyName || fullName,
-      customer_contact_name: fullName,
-      customer_contact_mobile: String(deal.phone || '').trim(),
-      customer_contact_email: String(deal.email || '').trim(),
-      currency: String(deal.currency || '').trim() || 'USD'
+      ...this.emptyProposal()
     };
   },
   async resolveDealForProposal(dealId) {
@@ -401,7 +391,7 @@ const Proposals = {
       provider_signatory_name: '',
       provider_signatory_title: '',
       provider_sign_date: '',
-      terms_conditions: ''
+      terms_conditions: this.defaultTermsAndConditions
     };
   },
   resetForm() {
