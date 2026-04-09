@@ -1949,6 +1949,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel) E.mainFiltersPanel.style.display = view === 'leads' || view === 'deals' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
+  if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
     ensureCalendar();
     renderCalendarEvents();

@@ -35,7 +35,17 @@ const Deals = {
     loading: false,
     loadError: '',
     initialized: false,
-    search: ''
+    search: '',
+    stage: 'All',
+    status: 'All',
+    priority: 'All',
+    serviceInterest: 'All',
+    leadSource: 'All',
+    assignedTo: 'All',
+    proposalNeeded: 'All',
+    agreementNeeded: 'All',
+    convertedFrom: '',
+    convertedTo: ''
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -226,6 +236,12 @@ const Deals = {
     return String(value ?? '')
       .trim()
       .toLowerCase();
+  },
+  parseDateOnly(value) {
+    const normalized = String(value || '').trim().slice(0, 10);
+    if (!normalized) return null;
+    const dt = new Date(`${normalized}T00:00:00`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -458,24 +474,69 @@ const Deals = {
     this.renderDistribution(E.dealsSourceBreakdown, safe.sourceBreakdown || [], safe.totalDeals || 0);
   },
   applyFilters() {
+    const convertedFrom = this.parseDateOnly(this.state.convertedFrom);
+    const convertedTo = this.parseDateOnly(this.state.convertedTo);
     const searchTerms = String(this.state.search || '')
       .trim()
       .toLowerCase()
       .split(/\s+/)
       .filter(Boolean);
 
-    if (!searchTerms.length) {
-      this.state.filteredRows = [...this.state.rows];
-      return;
-    }
-
     this.state.filteredRows = this.state.rows.filter(row => {
+      if (this.state.stage !== 'All' && row.stage !== this.state.stage) return false;
+      if (this.state.status !== 'All' && row.status !== this.state.status) return false;
+      if (this.state.priority !== 'All' && row.priority !== this.state.priority) return false;
+      if (this.state.serviceInterest !== 'All' && row.service_interest !== this.state.serviceInterest)
+        return false;
+      if (this.state.leadSource !== 'All' && row.lead_source !== this.state.leadSource) return false;
+      if (this.state.assignedTo !== 'All' && row.assigned_to !== this.state.assignedTo) return false;
+      if (this.state.proposalNeeded !== 'All' && row.proposal_needed !== this.state.proposalNeeded)
+        return false;
+      if (this.state.agreementNeeded !== 'All' && row.agreement_needed !== this.state.agreementNeeded)
+        return false;
+      if (convertedFrom || convertedTo) {
+        const rowDate = this.parseDateOnly(row.converted_at);
+        if (!rowDate) return false;
+        if (convertedFrom && rowDate < convertedFrom) return false;
+        if (convertedTo && rowDate > convertedTo) return false;
+      }
+      if (!searchTerms.length) return true;
       const hay = this.columns
         .map(column => String(row[column] ?? ''))
         .join(' ')
         .toLowerCase();
       return searchTerms.every(term => hay.includes(term));
     });
+  },
+  renderFilters() {
+    const assign = (el, values = [], selected = 'All') => {
+      if (!el) return;
+      const options = ['All', ...this.uniqueSorted(values)];
+      el.innerHTML = options.map(option => `<option>${U.escapeHtml(option)}</option>`).join('');
+      if (options.includes(selected)) el.value = selected;
+    };
+
+    assign(E.dealsStageFilter, this.state.rows.map(row => row.stage), this.state.stage);
+    assign(E.dealsStatusFilter, this.state.rows.map(row => row.status), this.state.status);
+    assign(E.dealsPriorityFilter, this.state.rows.map(row => row.priority), this.state.priority);
+    assign(
+      E.dealsServiceInterestFilter,
+      this.state.rows.map(row => row.service_interest),
+      this.state.serviceInterest
+    );
+    assign(E.dealsLeadSourceFilter, this.state.rows.map(row => row.lead_source), this.state.leadSource);
+    assign(E.dealsAssignedToFilter, this.state.rows.map(row => row.assigned_to), this.state.assignedTo);
+
+    if (E.dealsProposalNeededFilter) E.dealsProposalNeededFilter.value = this.state.proposalNeeded;
+    if (E.dealsAgreementNeededFilter) E.dealsAgreementNeededFilter.value = this.state.agreementNeeded;
+    if (E.dealsStartDateFilter) E.dealsStartDateFilter.value = this.state.convertedFrom;
+    if (E.dealsEndDateFilter) E.dealsEndDateFilter.value = this.state.convertedTo;
+    if (E.dealsSidebarSearchInput) E.dealsSidebarSearchInput.value = this.state.search;
+    if (E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
+  },
+  handleFilterChange() {
+    this.applyFilters();
+    this.render();
   },
   render() {
     if (!E.dealsState || !E.dealsTbody) return;
@@ -541,6 +602,7 @@ const Deals = {
       const response = await this.listDeals();
       this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
       this.syncDealFormDropdowns();
+      this.renderFilters();
       this.applyFilters();
       this.render();
     } catch (error) {
@@ -717,14 +779,51 @@ const Deals = {
   wire() {
     if (this.state.initialized) return;
 
-    if (E.dealsSearchInput) {
+    const bindState = (el, key) => {
+      if (!el) return;
       const sync = () => {
-        this.state.search = String(E.dealsSearchInput.value || '').trim();
-        this.applyFilters();
-        this.render();
+        this.state[key] = String(el.value || '').trim();
+        if (key === 'search') {
+          if (E.dealsSidebarSearchInput && el !== E.dealsSidebarSearchInput)
+            E.dealsSidebarSearchInput.value = this.state.search;
+          if (E.dealsSearchInput && el !== E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
+        }
+        this.handleFilterChange();
       };
-      E.dealsSearchInput.addEventListener('input', sync);
-      E.dealsSearchInput.addEventListener('change', sync);
+      el.addEventListener('input', sync);
+      el.addEventListener('change', sync);
+    };
+
+    bindState(E.dealsSearchInput, 'search');
+    bindState(E.dealsSidebarSearchInput, 'search');
+    bindState(E.dealsStageFilter, 'stage');
+    bindState(E.dealsStatusFilter, 'status');
+    bindState(E.dealsPriorityFilter, 'priority');
+    bindState(E.dealsServiceInterestFilter, 'serviceInterest');
+    bindState(E.dealsLeadSourceFilter, 'leadSource');
+    bindState(E.dealsAssignedToFilter, 'assignedTo');
+    bindState(E.dealsProposalNeededFilter, 'proposalNeeded');
+    bindState(E.dealsAgreementNeededFilter, 'agreementNeeded');
+    bindState(E.dealsStartDateFilter, 'convertedFrom');
+    bindState(E.dealsEndDateFilter, 'convertedTo');
+
+    if (E.dealsResetBtn) {
+      E.dealsResetBtn.addEventListener('click', () => {
+        this.state.search = '';
+        this.state.stage = 'All';
+        this.state.status = 'All';
+        this.state.priority = 'All';
+        this.state.serviceInterest = 'All';
+        this.state.leadSource = 'All';
+        this.state.assignedTo = 'All';
+        this.state.proposalNeeded = 'All';
+        this.state.agreementNeeded = 'All';
+        this.state.convertedFrom = '';
+        this.state.convertedTo = '';
+        this.applyFilters();
+        this.renderFilters();
+        this.render();
+      });
     }
 
     if (E.dealsRefreshBtn) {
