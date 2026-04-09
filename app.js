@@ -1943,6 +1943,8 @@ function setActiveView(view) {
     localStorage.setItem(LS_KEYS.view, view);
   } catch {}
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
+  if (E.mainFiltersPanel) E.mainFiltersPanel.style.display = view === 'leads' ? 'none' : '';
+  if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (view === 'calendar') {
     ensureCalendar();
     renderCalendarEvents();
