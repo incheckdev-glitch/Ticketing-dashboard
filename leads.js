@@ -17,6 +17,8 @@ const Leads = {
     assignedTo: 'All',
     proposalNeeded: 'All',
     agreementNeeded: 'All',
+    createdFrom: '',
+    createdTo: '',
     initialized: false
   },
   normalizeBool(value) {
@@ -126,6 +128,14 @@ const Leads = {
     });
   },
   applyFilters() {
+    const parseDateOnly = value => {
+      const normalized = String(value || '').trim().slice(0, 10);
+      if (!normalized) return null;
+      const dt = new Date(`${normalized}T00:00:00`);
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    };
+    const createdFrom = parseDateOnly(this.state.createdFrom);
+    const createdTo = parseDateOnly(this.state.createdTo);
     const searchTerms = String(this.state.search || '')
       .trim()
       .toLowerCase()
@@ -141,6 +151,12 @@ const Leads = {
         return false;
       if (this.state.agreementNeeded !== 'All' && row.agreement_needed !== this.state.agreementNeeded)
         return false;
+      if (createdFrom || createdTo) {
+        const rowDate = parseDateOnly(row.created_at);
+        if (!rowDate) return false;
+        if (createdFrom && rowDate < createdFrom) return false;
+        if (createdTo && rowDate > createdTo) return false;
+      }
 
       if (!searchTerms.length) return true;
       const hay = [
@@ -186,6 +202,8 @@ const Leads = {
 
     if (E.leadsProposalNeededFilter) E.leadsProposalNeededFilter.value = this.state.proposalNeeded;
     if (E.leadsAgreementNeededFilter) E.leadsAgreementNeededFilter.value = this.state.agreementNeeded;
+    if (E.leadsStartDateFilter) E.leadsStartDateFilter.value = this.state.createdFrom;
+    if (E.leadsEndDateFilter) E.leadsEndDateFilter.value = this.state.createdTo;
   },
   uniqueSorted(values = []) {
     return [...new Set(values.filter(Boolean).map(value => String(value).trim()))].sort((a, b) =>
@@ -500,6 +518,24 @@ const Leads = {
     bindState(E.leadsAssignedToFilter, 'assignedTo');
     bindState(E.leadsProposalNeededFilter, 'proposalNeeded');
     bindState(E.leadsAgreementNeededFilter, 'agreementNeeded');
+    bindState(E.leadsStartDateFilter, 'createdFrom');
+    bindState(E.leadsEndDateFilter, 'createdTo');
+
+    if (E.leadsResetBtn) {
+      E.leadsResetBtn.addEventListener('click', () => {
+        this.state.search = '';
+        this.state.status = 'All';
+        this.state.serviceInterest = 'All';
+        this.state.assignedTo = 'All';
+        this.state.proposalNeeded = 'All';
+        this.state.agreementNeeded = 'All';
+        this.state.createdFrom = '';
+        this.state.createdTo = '';
+        this.applyFilters();
+        this.renderFilters();
+        this.renderTable();
+      });
+    }
 
     if (E.leadsRefreshBtn) {
       E.leadsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
