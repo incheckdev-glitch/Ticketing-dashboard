@@ -62,25 +62,33 @@ const Api = {
     });
   },
   async listProposalCatalogItems() {
-    return this.postAuthenticated('proposal_catalog', 'list', {});
+    return this.postAuthenticated('proposal_catalog', 'list', {
+      sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
+    });
   },
   async getProposalCatalogItem(catalogItemId) {
     return this.postAuthenticated('proposal_catalog', 'get', {
-      catalog_item_id: catalogItemId
+      catalog_item_id: catalogItemId,
+      sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
   async createProposalCatalogItem(item) {
-    return this.postAuthenticated('proposal_catalog', 'create', { item });
+    return this.postAuthenticated('proposal_catalog', 'create', {
+      item,
+      sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
+    });
   },
   async updateProposalCatalogItem(catalogItemId, updates) {
     return this.postAuthenticated('proposal_catalog', 'update', {
       catalog_item_id: catalogItemId,
-      updates
+      updates,
+      sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
   async deleteProposalCatalogItem(catalogItemId) {
     return this.postAuthenticated('proposal_catalog', 'delete', {
-      catalog_item_id: catalogItemId
+      catalog_item_id: catalogItemId,
+      sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   }
 };

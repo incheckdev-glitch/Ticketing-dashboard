@@ -33,6 +33,7 @@ window.CONFIG = {
   CALENDAR_API_URL: runtimeConfig.CALENDAR_API_URL || API_BASE_URL,
   CALENDAR_SHEET_NAME: 'CalendarEvents',
   DEALS_SHEET_NAME: 'Deals',
+  PROPOSAL_CATALOG_SHEET_NAME: runtimeConfig.PROPOSAL_CATALOG_SHEET_NAME || 'ProposalCatalog',
 
   ISSUE_API_URL: runtimeConfig.ISSUE_API_URL || API_BASE_URL,
 
