@@ -1,0 +1,492 @@
+const Leads = {
+  state: {
+    rows: [],
+    filteredRows: [],
+    loading: false,
+    loadError: '',
+    search: '',
+    status: 'All',
+    serviceInterest: 'All',
+    assignedTo: 'All',
+    proposalNeeded: 'All',
+    agreementNeeded: 'All',
+    initialized: false
+  },
+  normalizeBool(value) {
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return 'yes';
+    if (['false', '0', 'no', 'n'].includes(normalized)) return 'no';
+    return '';
+  },
+  normalizeLead(raw = {}) {
+    const leadId = String(raw.lead_id || raw.leadId || raw.id || '').trim();
+    return {
+      lead_id: leadId,
+      created_at: raw.created_at || raw.createdAt || '',
+      full_name: String(raw.full_name || raw.fullName || '').trim(),
+      company_name: String(raw.company_name || raw.companyName || '').trim(),
+      phone: String(raw.phone || '').trim(),
+      email: String(raw.email || '').trim(),
+      country: String(raw.country || '').trim(),
+      lead_source: String(raw.lead_source || raw.leadSource || '').trim(),
+      service_interest: String(raw.service_interest || raw.serviceInterest || '').trim(),
+      status: String(raw.status || '').trim(),
+      priority: String(raw.priority || '').trim(),
+      estimated_value: raw.estimated_value ?? raw.estimatedValue ?? '',
+      currency: String(raw.currency || '').trim(),
+      assigned_to: String(raw.assigned_to || raw.assignedTo || '').trim(),
+      next_followup_date: raw.next_followup_date || raw.nextFollowupDate || '',
+      last_contact_date: raw.last_contact_date || raw.lastContactDate || '',
+      proposal_needed: this.normalizeBool(raw.proposal_needed),
+      agreement_needed: this.normalizeBool(raw.agreement_needed),
+      notes: String(raw.notes || '').trim(),
+      updated_at: raw.updated_at || raw.updatedAt || ''
+    };
+  },
+  backendLead(lead) {
+    return {
+      full_name: lead.full_name,
+      company_name: lead.company_name,
+      phone: lead.phone,
+      email: lead.email,
+      country: lead.country,
+      lead_source: lead.lead_source,
+      service_interest: lead.service_interest,
+      status: lead.status,
+      priority: lead.priority,
+      estimated_value: lead.estimated_value === '' ? '' : Number(lead.estimated_value),
+      currency: lead.currency,
+      assigned_to: lead.assigned_to,
+      next_followup_date: lead.next_followup_date,
+      last_contact_date: lead.last_contact_date,
+      proposal_needed: lead.proposal_needed === 'yes',
+      agreement_needed: lead.agreement_needed === 'yes',
+      notes: lead.notes
+    };
+  },
+  extractRows(response) {
+    const candidates = [
+      response,
+      response?.leads,
+      response?.items,
+      response?.rows,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.data?.leads,
+      response?.result?.leads,
+      response?.payload?.leads
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+    return [];
+  },
+  collectServerFilters() {
+    const filters = {};
+    if (this.state.status !== 'All') filters.status = this.state.status;
+    if (this.state.serviceInterest !== 'All') filters.service_interest = this.state.serviceInterest;
+    if (this.state.assignedTo !== 'All') filters.assigned_to = this.state.assignedTo;
+    if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
+    if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
+    if (this.state.search) filters.search = this.state.search;
+    return filters;
+  },
+  async listLeads() {
+    return Api.postAuthenticated('leads', 'list', {
+      filters: this.collectServerFilters()
+    });
+  },
+  async getLead(id) {
+    return Api.postAuthenticated('leads', 'get', { id });
+  },
+  async createLead(lead) {
+    return Api.postAuthenticated('leads', 'create', {
+      lead: this.backendLead(lead)
+    });
+  },
+  async updateLead(leadId, updates) {
+    return Api.postAuthenticated('leads', 'update', {
+      lead_id: leadId,
+      updates: this.backendLead(updates)
+    });
+  },
+  async deleteLead(leadId) {
+    return Api.postAuthenticated('leads', 'delete', {
+      lead_id: leadId
+    });
+  },
+  applyFilters() {
+    const searchTerms = String(this.state.search || '')
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    this.state.filteredRows = this.state.rows.filter(row => {
+      if (this.state.status !== 'All' && row.status !== this.state.status) return false;
+      if (this.state.serviceInterest !== 'All' && row.service_interest !== this.state.serviceInterest)
+        return false;
+      if (this.state.assignedTo !== 'All' && row.assigned_to !== this.state.assignedTo) return false;
+      if (this.state.proposalNeeded !== 'All' && row.proposal_needed !== this.state.proposalNeeded)
+        return false;
+      if (this.state.agreementNeeded !== 'All' && row.agreement_needed !== this.state.agreementNeeded)
+        return false;
+
+      if (!searchTerms.length) return true;
+      const hay = [
+        row.lead_id,
+        row.full_name,
+        row.company_name,
+        row.phone,
+        row.email,
+        row.country,
+        row.lead_source,
+        row.service_interest,
+        row.status,
+        row.priority,
+        row.assigned_to,
+        row.notes
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return searchTerms.every(term => hay.includes(term));
+    });
+  },
+  renderFilters() {
+    const assign = (el, values, selected) => {
+      if (!el) return;
+      const options = ['All', ...values];
+      el.innerHTML = options.map(option => `<option>${U.escapeHtml(option)}</option>`).join('');
+      if (options.includes(selected)) el.value = selected;
+    };
+
+    const uniq = values =>
+      [...new Set(values.filter(Boolean).map(value => String(value).trim()))].sort((a, b) =>
+        a.localeCompare(b)
+      );
+
+    assign(E.leadsStatusFilter, uniq(this.state.rows.map(row => row.status)), this.state.status);
+    assign(
+      E.leadsServiceInterestFilter,
+      uniq(this.state.rows.map(row => row.service_interest)),
+      this.state.serviceInterest
+    );
+    assign(E.leadsAssignedToFilter, uniq(this.state.rows.map(row => row.assigned_to)), this.state.assignedTo);
+
+    if (E.leadsProposalNeededFilter) E.leadsProposalNeededFilter.value = this.state.proposalNeeded;
+    if (E.leadsAgreementNeededFilter) E.leadsAgreementNeededFilter.value = this.state.agreementNeeded;
+  },
+  formatDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return U.escapeHtml(String(value));
+    return U.escapeHtml(date.toLocaleString());
+  },
+  boolLabel(value) {
+    if (value === 'yes') return 'Yes';
+    if (value === 'no') return 'No';
+    return '—';
+  },
+  canEditDelete() {
+    return Permissions.canEditDeleteLead();
+  },
+  render() {
+    if (!E.leadsTbody || !E.leadsState) return;
+    if (this.state.loading) {
+      E.leadsState.textContent = 'Loading leads…';
+      E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading leads…</td></tr>';
+      return;
+    }
+    if (this.state.loadError) {
+      E.leadsState.textContent = this.state.loadError;
+      E.leadsTbody.innerHTML = `<tr><td colspan="21" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
+      return;
+    }
+
+    const rows = this.state.filteredRows;
+    E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'}`;
+
+    if (!rows.length) {
+      E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No leads found for current filters.</td></tr>';
+      return;
+    }
+
+    E.leadsTbody.innerHTML = rows
+      .map(row => {
+        const actions = this.canEditDelete()
+          ? `<button class="btn ghost sm" type="button" data-lead-edit="${U.escapeAttr(row.lead_id)}">Edit</button> <button class="btn ghost sm" type="button" data-lead-delete="${U.escapeAttr(row.lead_id)}">Delete</button>`
+          : '<span class="muted">—</span>';
+        return `<tr>
+          <td>${U.escapeHtml(row.lead_id || '—')}</td>
+          <td>${this.formatDate(row.created_at)}</td>
+          <td>${U.escapeHtml(row.full_name || '—')}</td>
+          <td>${U.escapeHtml(row.company_name || '—')}</td>
+          <td>${U.escapeHtml(row.phone || '—')}</td>
+          <td>${U.escapeHtml(row.email || '—')}</td>
+          <td>${U.escapeHtml(row.country || '—')}</td>
+          <td>${U.escapeHtml(row.lead_source || '—')}</td>
+          <td>${U.escapeHtml(row.service_interest || '—')}</td>
+          <td>${U.escapeHtml(row.status || '—')}</td>
+          <td>${U.escapeHtml(row.priority || '—')}</td>
+          <td>${U.escapeHtml(row.estimated_value === '' ? '—' : String(row.estimated_value))}</td>
+          <td>${U.escapeHtml(row.currency || '—')}</td>
+          <td>${U.escapeHtml(row.assigned_to || '—')}</td>
+          <td>${U.escapeHtml(row.next_followup_date || '—')}</td>
+          <td>${U.escapeHtml(row.last_contact_date || '—')}</td>
+          <td>${U.escapeHtml(this.boolLabel(row.proposal_needed))}</td>
+          <td>${U.escapeHtml(this.boolLabel(row.agreement_needed))}</td>
+          <td>${U.escapeHtml(row.notes || '—')}</td>
+          <td>${this.formatDate(row.updated_at)}</td>
+          <td>${actions}</td>
+        </tr>`;
+      })
+      .join('');
+  },
+  async loadAndRefresh({ force = false } = {}) {
+    if (!Session.isAuthenticated()) return;
+    if (this.state.loading && !force) return;
+    this.state.loading = true;
+    this.state.loadError = '';
+    this.render();
+
+    try {
+      const response = await this.listLeads();
+      this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
+      this.renderFilters();
+      this.applyFilters();
+      this.render();
+      this.state.initialized = true;
+    } catch (error) {
+      if (isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      this.state.rows = [];
+      this.state.filteredRows = [];
+      this.state.loadError = String(error?.message || '').trim() || 'Unable to load leads right now.';
+      this.render();
+      UI.toast(this.state.loadError);
+    } finally {
+      this.state.loading = false;
+      this.render();
+    }
+  },
+  setFormBusy(v) {
+    if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = !!v;
+    if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.disabled = !!v;
+  },
+  resetForm() {
+    if (!E.leadForm) return;
+    E.leadForm.reset();
+    if (E.leadFormLeadId) E.leadFormLeadId.value = '';
+    if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = '';
+    if (E.leadFormUpdatedAt) E.leadFormUpdatedAt.value = '';
+    if (E.leadFormProposalNeeded) E.leadFormProposalNeeded.value = '';
+    if (E.leadFormAgreementNeeded) E.leadFormAgreementNeeded.value = '';
+  },
+  openForm(row = null) {
+    if (!E.leadFormModal || !E.leadForm) return;
+    const isEdit = !!row;
+    E.leadForm.dataset.mode = isEdit ? 'edit' : 'create';
+    E.leadForm.dataset.id = row?.lead_id || '';
+    if (E.leadFormTitle) E.leadFormTitle.textContent = isEdit ? 'Edit Lead' : 'Create Lead';
+    this.resetForm();
+
+    if (row) {
+      if (E.leadFormLeadId) E.leadFormLeadId.value = row.lead_id || '';
+      if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = row.created_at || '';
+      if (E.leadFormFullName) E.leadFormFullName.value = row.full_name || '';
+      if (E.leadFormCompanyName) E.leadFormCompanyName.value = row.company_name || '';
+      if (E.leadFormPhone) E.leadFormPhone.value = row.phone || '';
+      if (E.leadFormEmail) E.leadFormEmail.value = row.email || '';
+      if (E.leadFormCountry) E.leadFormCountry.value = row.country || '';
+      if (E.leadFormLeadSource) E.leadFormLeadSource.value = row.lead_source || '';
+      if (E.leadFormServiceInterest) E.leadFormServiceInterest.value = row.service_interest || '';
+      if (E.leadFormStatus) E.leadFormStatus.value = row.status || '';
+      if (E.leadFormPriority) E.leadFormPriority.value = row.priority || '';
+      if (E.leadFormEstimatedValue) E.leadFormEstimatedValue.value = row.estimated_value === '' ? '' : String(row.estimated_value);
+      if (E.leadFormCurrency) E.leadFormCurrency.value = row.currency || '';
+      if (E.leadFormAssignedTo) E.leadFormAssignedTo.value = row.assigned_to || '';
+      if (E.leadFormNextFollowupDate) E.leadFormNextFollowupDate.value = String(row.next_followup_date || '').slice(0, 10);
+      if (E.leadFormLastContactDate) E.leadFormLastContactDate.value = String(row.last_contact_date || '').slice(0, 10);
+      if (E.leadFormProposalNeeded) E.leadFormProposalNeeded.value = row.proposal_needed || '';
+      if (E.leadFormAgreementNeeded) E.leadFormAgreementNeeded.value = row.agreement_needed || '';
+      if (E.leadFormNotes) E.leadFormNotes.value = row.notes || '';
+      if (E.leadFormUpdatedAt) E.leadFormUpdatedAt.value = row.updated_at || '';
+    }
+
+    if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.style.display = isEdit && this.canEditDelete() ? '' : 'none';
+    if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = false;
+    E.leadFormModal.style.display = 'flex';
+    E.leadFormModal.setAttribute('aria-hidden', 'false');
+  },
+  closeForm() {
+    if (!E.leadFormModal) return;
+    E.leadFormModal.style.display = 'none';
+    E.leadFormModal.setAttribute('aria-hidden', 'true');
+  },
+  collectFormData() {
+    return {
+      full_name: String(E.leadFormFullName?.value || '').trim(),
+      company_name: String(E.leadFormCompanyName?.value || '').trim(),
+      phone: String(E.leadFormPhone?.value || '').trim(),
+      email: String(E.leadFormEmail?.value || '').trim(),
+      country: String(E.leadFormCountry?.value || '').trim(),
+      lead_source: String(E.leadFormLeadSource?.value || '').trim(),
+      service_interest: String(E.leadFormServiceInterest?.value || '').trim(),
+      status: String(E.leadFormStatus?.value || '').trim(),
+      priority: String(E.leadFormPriority?.value || '').trim(),
+      estimated_value: String(E.leadFormEstimatedValue?.value || '').trim(),
+      currency: String(E.leadFormCurrency?.value || '').trim(),
+      assigned_to: String(E.leadFormAssignedTo?.value || '').trim(),
+      next_followup_date: String(E.leadFormNextFollowupDate?.value || '').trim(),
+      last_contact_date: String(E.leadFormLastContactDate?.value || '').trim(),
+      proposal_needed: this.normalizeBool(E.leadFormProposalNeeded?.value || ''),
+      agreement_needed: this.normalizeBool(E.leadFormAgreementNeeded?.value || ''),
+      notes: String(E.leadFormNotes?.value || '').trim()
+    };
+  },
+  async submitForm() {
+    if (!Permissions.canCreateLead()) {
+      UI.toast('Login is required to manage leads.');
+      return;
+    }
+    const mode = E.leadForm?.dataset.mode === 'edit' ? 'edit' : 'create';
+    if (mode === 'edit' && !this.canEditDelete()) {
+      UI.toast('Only admin/dev can update leads.');
+      return;
+    }
+    const leadId = String(E.leadForm?.dataset.id || '').trim();
+    const lead = this.collectFormData();
+    if (!lead.full_name) {
+      UI.toast('Full name is required.');
+      return;
+    }
+
+    this.setFormBusy(true);
+    try {
+      if (mode === 'edit') {
+        const latest = await this.getLead(leadId);
+        const resolved = this.normalizeLead(latest?.lead || latest?.data?.lead || latest || { lead_id: leadId });
+        const id = resolved.lead_id || leadId;
+        await this.updateLead(id, lead);
+        UI.toast('Lead updated.');
+      } else {
+        await this.createLead(lead);
+        UI.toast('Lead created.');
+      }
+      this.closeForm();
+      await this.loadAndRefresh({ force: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      UI.toast('Unable to save lead: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setFormBusy(false);
+    }
+  },
+  async deleteLeadById(leadId) {
+    if (!this.canEditDelete()) {
+      UI.toast('Only admin/dev can delete leads.');
+      return;
+    }
+    const confirmed = window.confirm(`Delete lead ${leadId}?`);
+    if (!confirmed) return;
+
+    this.setFormBusy(true);
+    try {
+      await this.deleteLead(leadId);
+      UI.toast('Lead deleted.');
+      this.closeForm();
+      await this.loadAndRefresh({ force: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      UI.toast('Unable to delete lead: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setFormBusy(false);
+    }
+  },
+  handleFilterChange() {
+    this.applyFilters();
+    this.render();
+  },
+  wire() {
+    if (this.state.initialized) return;
+
+    const bindState = (el, key) => {
+      if (!el) return;
+      const sync = () => {
+        this.state[key] = String(el.value || '').trim();
+        this.handleFilterChange();
+      };
+      el.addEventListener('input', sync);
+      el.addEventListener('change', sync);
+    };
+
+    bindState(E.leadsSearchInput, 'search');
+    bindState(E.leadsStatusFilter, 'status');
+    bindState(E.leadsServiceInterestFilter, 'serviceInterest');
+    bindState(E.leadsAssignedToFilter, 'assignedTo');
+    bindState(E.leadsProposalNeededFilter, 'proposalNeeded');
+    bindState(E.leadsAgreementNeededFilter, 'agreementNeeded');
+
+    if (E.leadsRefreshBtn) {
+      E.leadsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
+    }
+    if (E.leadsCreateBtn) {
+      E.leadsCreateBtn.addEventListener('click', () => {
+        if (!Permissions.canCreateLead()) {
+          UI.toast('Login is required to create leads.');
+          return;
+        }
+        this.openForm();
+      });
+    }
+
+    if (E.leadsTbody) {
+      E.leadsTbody.addEventListener('click', event => {
+        const editId = event.target?.getAttribute('data-lead-edit');
+        if (editId) {
+          const row = this.state.rows.find(item => item.lead_id === editId);
+          if (row) this.openForm(row);
+          return;
+        }
+        const deleteId = event.target?.getAttribute('data-lead-delete');
+        if (deleteId) this.deleteLeadById(deleteId);
+      });
+    }
+
+    if (E.leadFormCloseBtn) E.leadFormCloseBtn.addEventListener('click', () => this.closeForm());
+    if (E.leadFormCancelBtn) E.leadFormCancelBtn.addEventListener('click', () => this.closeForm());
+    if (E.leadFormModal) {
+      E.leadFormModal.addEventListener('click', event => {
+        if (event.target === E.leadFormModal) this.closeForm();
+      });
+    }
+    if (E.leadForm) {
+      E.leadForm.addEventListener('submit', event => {
+        event.preventDefault();
+        this.submitForm();
+      });
+    }
+    if (E.leadFormDeleteBtn) {
+      E.leadFormDeleteBtn.addEventListener('click', () => {
+        const id = String(E.leadForm?.dataset.id || '').trim();
+        if (id) this.deleteLeadById(id);
+      });
+    }
+
+    this.state.initialized = true;
+  }
+};
+
+window.Leads = Leads;
