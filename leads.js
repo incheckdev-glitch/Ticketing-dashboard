@@ -1,4 +1,11 @@
 const Leads = {
+  formDropdownDefaults: {
+    lead_source: ['Website', 'Referral', 'LinkedIn', 'Email', 'Call', 'WhatsApp', 'Event', 'Other'],
+    service_interest: ['Web Development', 'Mobile App', 'UI/UX Design', 'SEO', 'Marketing', 'Support'],
+    status: ['New', 'Qualified', 'Contacted', 'Proposal Sent', 'Negotiation', 'Won', 'Lost', 'On Hold'],
+    priority: ['High', 'Medium', 'Low'],
+    currency: ['USD', 'EUR', 'GBP', 'INR', 'AED']
+  },
   state: {
     rows: [],
     filteredRows: [],
@@ -180,6 +187,49 @@ const Leads = {
     if (E.leadsProposalNeededFilter) E.leadsProposalNeededFilter.value = this.state.proposalNeeded;
     if (E.leadsAgreementNeededFilter) E.leadsAgreementNeededFilter.value = this.state.agreementNeeded;
   },
+  uniqueSorted(values = []) {
+    return [...new Set(values.filter(Boolean).map(value => String(value).trim()))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  },
+  syncLeadFormDropdowns(selected = {}) {
+    const assign = (el, options = [], selectedValue = '') => {
+      if (!el) return;
+      const values = this.uniqueSorted(options);
+      const finalOptions = ['', ...values];
+      el.innerHTML = finalOptions
+        .map(value => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(value || '—')}</option>`)
+        .join('');
+      if (finalOptions.includes(selectedValue)) {
+        el.value = selectedValue;
+        return;
+      }
+      if (selectedValue) {
+        el.innerHTML += `<option value="${U.escapeAttr(selectedValue)}">${U.escapeHtml(selectedValue)}</option>`;
+        el.value = selectedValue;
+      }
+    };
+
+    const sourceValues = this.formDropdownDefaults.lead_source.concat(
+      this.state.rows.map(row => row.lead_source)
+    );
+    const serviceValues = this.formDropdownDefaults.service_interest.concat(
+      this.state.rows.map(row => row.service_interest)
+    );
+    const statusValues = this.formDropdownDefaults.status.concat(this.state.rows.map(row => row.status));
+    const priorityValues = this.formDropdownDefaults.priority.concat(
+      this.state.rows.map(row => row.priority)
+    );
+    const currencyValues = this.formDropdownDefaults.currency.concat(
+      this.state.rows.map(row => row.currency)
+    );
+
+    assign(E.leadFormLeadSource, sourceValues, selected.lead_source || '');
+    assign(E.leadFormServiceInterest, serviceValues, selected.service_interest || '');
+    assign(E.leadFormStatus, statusValues, selected.status || '');
+    assign(E.leadFormPriority, priorityValues, selected.priority || '');
+    assign(E.leadFormCurrency, currencyValues, selected.currency || '');
+  },
   formatDate(value) {
     if (!value) return '—';
     const date = new Date(value);
@@ -287,6 +337,7 @@ const Leads = {
     if (E.leadFormUpdatedAt) E.leadFormUpdatedAt.value = '';
     if (E.leadFormProposalNeeded) E.leadFormProposalNeeded.value = '';
     if (E.leadFormAgreementNeeded) E.leadFormAgreementNeeded.value = '';
+    this.syncLeadFormDropdowns();
   },
   openForm(row = null) {
     if (!E.leadFormModal || !E.leadForm) return;
@@ -317,6 +368,17 @@ const Leads = {
       if (E.leadFormAgreementNeeded) E.leadFormAgreementNeeded.value = row.agreement_needed || '';
       if (E.leadFormNotes) E.leadFormNotes.value = row.notes || '';
       if (E.leadFormUpdatedAt) E.leadFormUpdatedAt.value = row.updated_at || '';
+      this.syncLeadFormDropdowns({
+        lead_source: row.lead_source || '',
+        service_interest: row.service_interest || '',
+        status: row.status || '',
+        priority: row.priority || '',
+        currency: row.currency || ''
+      });
+    } else {
+      if (E.leadFormLeadId) E.leadFormLeadId.value = 'Auto-generated';
+      if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = new Date().toLocaleString();
+      this.syncLeadFormDropdowns();
     }
 
     if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.style.display = isEdit && this.canEditDelete() ? '' : 'none';
