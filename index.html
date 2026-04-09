@@ -222,6 +222,71 @@
           <button id="leadsResetBtn" class="btn ghost" type="button">Reset Leads Filters</button>
         </div>
       </div>
+
+      <div id="dealsFiltersPanel" style="display:none;">
+        <h3>Deals Filters</h3>
+        <div class="filter-group" style="margin-bottom:10px;">
+          <div class="filter-row">
+            <label class="muted" for="dealsSidebarSearchInput">Search</label>
+            <input id="dealsSidebarSearchInput" class="input" type="search" placeholder="Deal ID, lead, company, owner, notes..." />
+          </div>
+        </div>
+
+        <div class="filter-group" style="margin-bottom:10px;">
+          <div class="filter-row">
+            <label class="muted" for="dealsStageFilter">Stage</label>
+            <select id="dealsStageFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsStatusFilter">Status</label>
+            <select id="dealsStatusFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsPriorityFilter">Priority</label>
+            <select id="dealsPriorityFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsServiceInterestFilter">Service Interest</label>
+            <select id="dealsServiceInterestFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsLeadSourceFilter">Lead Source</label>
+            <select id="dealsLeadSourceFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsAssignedToFilter">Assigned To</label>
+            <select id="dealsAssignedToFilter" class="select"><option>All</option></select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsProposalNeededFilter">Proposal Needed</label>
+            <select id="dealsProposalNeededFilter" class="select">
+              <option value="All">All</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsAgreementNeededFilter">Agreement Needed</label>
+            <select id="dealsAgreementNeededFilter" class="select">
+              <option value="All">All</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsStartDateFilter">Converted From</label>
+            <input id="dealsStartDateFilter" class="input" type="date" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealsEndDateFilter">Converted To</label>
+            <input id="dealsEndDateFilter" class="input" type="date" />
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <button id="dealsResetBtn" class="btn ghost" type="button">Reset Deals Filters</button>
+        </div>
+      </div>
     </aside>
 
     <main class="content">
