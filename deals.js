@@ -584,6 +584,13 @@ const Deals = {
             `<button class="btn ghost sm" type="button" data-deal-delete="${U.escapeAttr(row.deal_id)}">Delete</button>`
           );
         }
+        if (row.deal_id) {
+          actionButtons.push(
+            `<button class="btn ghost sm" type="button" data-deal-create-proposal="${U.escapeAttr(
+              row.deal_id
+            )}">Create Proposal</button>`
+          );
+        }
         const actions = actionButtons.length ? actionButtons.join(' ') : '<span class="muted">—</span>';
         return `<tr>${this.columns
           .map(column => `<td>${renderCell(row, column)}</td>`)
@@ -850,6 +857,10 @@ const Deals = {
         }
         const deleteId = event.target?.getAttribute('data-deal-delete');
         if (deleteId) this.deleteDealById(deleteId);
+        const createProposalDealId = event.target?.getAttribute('data-deal-create-proposal');
+        if (createProposalDealId && window.Proposals?.createFromDealFlow) {
+          Proposals.createFromDealFlow(createProposalDealId, { openAfterCreate: true });
+        }
       });
     }
 
