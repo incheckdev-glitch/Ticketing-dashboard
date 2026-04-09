@@ -87,6 +87,45 @@ const Proposals = {
     normalized.generated_by = String(normalized.generated_by || '').trim();
     return normalized;
   },
+  proposalDraftFromDeal(rawDeal = {}) {
+    const deal = rawDeal && typeof rawDeal === 'object' ? rawDeal : {};
+    const companyName = String(deal.company_name || deal.companyName || '').trim();
+    const fullName = String(deal.full_name || deal.fullName || '').trim();
+    const serviceInterest = String(deal.service_interest || deal.serviceInterest || '').trim();
+    const titleParts = [companyName || fullName, serviceInterest].filter(Boolean);
+    return {
+      ...this.emptyProposal(),
+      deal_id: String(deal.deal_id || deal.dealId || '').trim(),
+      proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
+      customer_name: companyName || fullName,
+      customer_contact_name: fullName,
+      customer_contact_mobile: String(deal.phone || '').trim(),
+      customer_contact_email: String(deal.email || '').trim(),
+      currency: String(deal.currency || '').trim() || 'USD'
+    };
+  },
+  async resolveDealForProposal(dealId) {
+    const trimmedDealId = String(dealId || '').trim();
+    if (!trimmedDealId) return null;
+
+    const localRows = Array.isArray(window.Deals?.state?.rows) ? window.Deals.state.rows : [];
+    const localMatch = localRows.find(row => String(row?.deal_id || '').trim() === trimmedDealId);
+    if (localMatch) return localMatch;
+
+    if (typeof window.Deals?.getDeal === 'function') {
+      try {
+        const response = await window.Deals.getDeal(trimmedDealId);
+        const candidate = response?.deal || response?.data?.deal || response?.result?.deal || response;
+        if (candidate && typeof window.Deals.normalizeDeal === 'function') {
+          return window.Deals.normalizeDeal(candidate);
+        }
+        return candidate && typeof candidate === 'object' ? candidate : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  },
   normalizeItem(raw = {}, sectionFallback = '') {
     const source = raw && typeof raw === 'object' ? raw : {};
     const pick = (...values) => {
@@ -801,21 +840,15 @@ const Proposals = {
       UI.toast('Deal ID is required.');
       return;
     }
-    try {
-      const response = await this.createFromDeal(trimmedDealId);
-      const proposalId = this.getCreatedProposalId(response);
-      UI.toast(proposalId ? `Proposal ${proposalId} created from ${trimmedDealId}.` : 'Proposal created from deal.');
-      await this.loadAndRefresh({ force: true });
-      if (openAfterCreate && proposalId) {
-        await this.openProposalFormById(proposalId);
-      }
-    } catch (error) {
-      if (typeof isAuthError === 'function' && isAuthError(error)) {
-        handleExpiredSession('Session expired. Please log in again.');
-        return;
-      }
-      UI.toast('Unable to create proposal from deal: ' + (error?.message || 'Unknown error'));
-    }
+    if (!openAfterCreate) return;
+
+    const deal = await this.resolveDealForProposal(trimmedDealId);
+    const draft = this.proposalDraftFromDeal({ ...(deal || {}), deal_id: trimmedDealId });
+
+    this.openProposalForm(draft, [], { readOnly: false });
+    UI.toast(
+      'Proposal template opened. Review and complete missing details, then save to create the proposal.'
+    );
   },
   addRow(section) {
     const groups = this.groupedItems(this.collectProposalItems());
