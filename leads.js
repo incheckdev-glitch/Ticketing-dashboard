@@ -51,7 +51,9 @@ const Leads = {
       proposal_needed: this.normalizeBool(raw.proposal_needed),
       agreement_needed: this.normalizeBool(raw.agreement_needed),
       notes: String(raw.notes || '').trim(),
-      updated_at: raw.updated_at || raw.updatedAt || ''
+      updated_at: raw.updated_at || raw.updatedAt || '',
+      converted_at: raw.converted_at || raw.convertedAt || '',
+      deal_id: String(raw.deal_id || raw.deal_id_ref || raw.converted_deal_id || '').trim()
     };
   },
   backendLead(lead) {
@@ -126,6 +128,37 @@ const Leads = {
     return Api.postAuthenticated('leads', 'delete', {
       lead_id: leadId
     });
+  },
+  async convertToDeal(leadId) {
+    return Api.postAuthenticated('leads', 'convert_to_deal', {
+      lead_id: leadId
+    });
+  },
+  isConvertedLead(row = {}) {
+    const status = this.normalizeText(row.status);
+    if (status.includes('converted') || status === 'won' || status === 'closed won') return true;
+    if (String(row.deal_id || '').trim()) return true;
+    return !!String(row.converted_at || '').trim();
+  },
+  canConvertLead(row = {}) {
+    return Permissions.canCreateLead() && !this.isConvertedLead(row) && !!String(row.lead_id || '').trim();
+  },
+  getConvertedDealId(response) {
+    const dealCandidates = [
+      response?.deal,
+      response?.deals?.[0],
+      response?.data?.deal,
+      response?.result?.deal,
+      response?.payload?.deal,
+      response?.created_deal,
+      response?.createdDeal
+    ];
+    for (const candidate of dealCandidates) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      const dealId = String(candidate.deal_id || candidate.dealId || candidate.id || '').trim();
+      if (dealId) return dealId;
+    }
+    return '';
   },
   applyFilters() {
     const parseDateOnly = value => {
@@ -413,9 +446,21 @@ const Leads = {
 
     E.leadsTbody.innerHTML = rows
       .map(row => {
-        const actions = this.canEditDelete()
-          ? `<button class="btn ghost sm" type="button" data-lead-edit="${U.escapeAttr(row.lead_id)}">Edit</button> <button class="btn ghost sm" type="button" data-lead-delete="${U.escapeAttr(row.lead_id)}">Delete</button>`
-          : '<span class="muted">—</span>';
+        const actionButtons = [];
+        if (this.canConvertLead(row)) {
+          actionButtons.push(
+            `<button class="btn ghost sm" type="button" data-lead-convert="${U.escapeAttr(row.lead_id)}">Convert to Deal</button>`
+          );
+        }
+        if (this.canEditDelete()) {
+          actionButtons.push(
+            `<button class="btn ghost sm" type="button" data-lead-edit="${U.escapeAttr(row.lead_id)}">Edit</button>`
+          );
+          actionButtons.push(
+            `<button class="btn ghost sm" type="button" data-lead-delete="${U.escapeAttr(row.lead_id)}">Delete</button>`
+          );
+        }
+        const actions = actionButtons.length ? actionButtons.join(' ') : '<span class="muted">—</span>';
         return `<tr>
           <td>${U.escapeHtml(row.lead_id || '—')}</td>
           <td>${this.formatDate(row.created_at)}</td>
@@ -623,6 +668,35 @@ const Leads = {
       this.setFormBusy(false);
     }
   },
+  async convertLeadById(leadId) {
+    if (!Permissions.canCreateLead()) {
+      UI.toast('Login is required to convert leads.');
+      return;
+    }
+    const row = this.state.rows.find(item => item.lead_id === leadId);
+    if (!this.canConvertLead(row)) {
+      UI.toast('This lead is already converted or unavailable.');
+      return;
+    }
+    this.setFormBusy(true);
+    try {
+      const response = await this.convertToDeal(leadId);
+      const dealId = this.getConvertedDealId(response);
+      UI.toast(dealId ? `Lead converted to deal ${dealId}.` : 'Lead converted to deal.');
+      await Promise.all([
+        this.loadAndRefresh({ force: true }),
+        window.Deals?.loadAndRefresh ? Deals.loadAndRefresh({ force: true }) : Promise.resolve()
+      ]);
+    } catch (error) {
+      if (isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      UI.toast('Unable to convert lead: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setFormBusy(false);
+    }
+  },
   handleFilterChange() {
     this.applyFilters();
     this.render();
@@ -687,7 +761,12 @@ const Leads = {
           return;
         }
         const deleteId = event.target?.getAttribute('data-lead-delete');
-        if (deleteId) this.deleteLeadById(deleteId);
+        if (deleteId) {
+          this.deleteLeadById(deleteId);
+          return;
+        }
+        const convertId = event.target?.getAttribute('data-lead-convert');
+        if (convertId) this.convertLeadById(convertId);
       });
     }
 

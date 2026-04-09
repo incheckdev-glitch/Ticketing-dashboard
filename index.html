@@ -249,6 +249,10 @@
                     role="tab" aria-selected="false" aria-controls="leadsView">
               <span class="icon" aria-hidden="true">🧲</span> Leads
             </button>
+            <button id="dealsTab" class="view-tab" data-view="deals"
+                    role="tab" aria-selected="false" aria-controls="dealsView">
+              <span class="icon" aria-hidden="true">🤝</span> Deals
+            </button>
             <button id="usersTab" class="view-tab" data-view="users"
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
@@ -262,7 +266,7 @@
         <div class="card summary-bar" id="issuesSummaryCard">
           <span id="issuesSummaryText" aria-live="polite">Loading summary…</span>
           <span id="issuesLastUpdated" class="summary-meta" aria-live="polite">Last updated: --</span>
-         <span class="shortcut-chip">Shortcuts: 1/2/3/4/5 tabs · / search · Ctrl+K AI</span>
+         <span class="shortcut-chip">Shortcuts: 1/2/3/4/5/6 tabs · / search · Ctrl+K AI</span>
         </div>
 
         <div class="grid cols-4" id="kpis" aria-live="polite"></div>
@@ -950,6 +954,52 @@
           </div>
         </div>
       </section>
+
+      <section id="dealsView" class="view" role="tabpanel" aria-labelledby="dealsTab">
+        <div class="card" aria-label="Deals list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Deals</strong>
+              <div class="muted">Converted opportunities synced from backend deals resource.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="dealsSearchInput" class="input" type="search"
+                     placeholder="Search deal, lead, company, owner, notes..." aria-label="Search deals" />
+              <button id="dealsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="dealsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Deals table">
+            <table id="dealsTable">
+              <thead>
+                <tr>
+                  <th>Deal ID</th>
+                  <th>Lead ID</th>
+                  <th>Full Name</th>
+                  <th>Company Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Country</th>
+                  <th>Lead Source</th>
+                  <th>Service Interest</th>
+                  <th>Stage</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Estimated Value</th>
+                  <th>Currency</th>
+                  <th>Assigned To</th>
+                  <th>Proposal Needed</th>
+                  <th>Agreement Needed</th>
+                  <th>Converted At</th>
+                  <th>Converted By</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="dealsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
         </div>
       </div>
     </main>
@@ -1578,6 +1628,7 @@
   <script src="planner.js"></script>
   <script src="ui.js"></script>
   <script src="leads.js"></script>
+  <script src="deals.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>
 </body>
