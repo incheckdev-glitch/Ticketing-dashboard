@@ -1,7 +1,7 @@
 const Leads = {
   formDropdownDefaults: {
     lead_source: ['Website', 'Referral', 'LinkedIn', 'Email', 'Call', 'WhatsApp', 'Event', 'Other'],
-    service_interest: ['Software' , 'Consulting', 'Other'],
+    service_interest: ['Software' , 'Other' , 'Consulting'],
     status: ['New', 'Qualified', 'Contacted', 'Proposal Sent', 'Negotiation', 'Won', 'Lost', 'On Hold'],
     priority: ['High', 'Medium', 'Low'],
     currency: ['USD', 'EUR', 'GBP', 'AED']
