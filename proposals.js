@@ -513,6 +513,41 @@ const Proposals = {
     this.renderCatalogOptionList('annual_saas');
     this.renderCatalogOptionList('one_time_fee');
   },
+  getCatalogItemByName(section, itemName) {
+    const target = this.normalizeText(itemName);
+    if (!target) return null;
+    return (
+      this.getCatalogRowsForSection(section).find(
+        row => this.normalizeText(row?.item_name) === target
+      ) || null
+    );
+  },
+  applyCatalogSelectionToRow(tr, section) {
+    if (!tr || section === 'capability') return;
+    const itemInput = tr.querySelector('[data-item-field="item_name"]');
+    const unitPriceInput = tr.querySelector('[data-item-field="unit_price"]');
+    const locationInput = tr.querySelector('[data-item-field="location_name"]');
+    if (!itemInput || !unitPriceInput) return;
+
+    const selected = this.getCatalogItemByName(section, itemInput.value);
+    if (!selected) {
+      unitPriceInput.readOnly = false;
+      unitPriceInput.removeAttribute('title');
+      tr.dataset.priceLocked = 'false';
+      return;
+    }
+
+    if (selected.unit_price !== null && selected.unit_price !== undefined) {
+      unitPriceInput.value = String(selected.unit_price);
+    }
+    unitPriceInput.readOnly = true;
+    unitPriceInput.title = 'Unit price is set from the proposal catalog.';
+    tr.dataset.priceLocked = 'true';
+
+    if (locationInput && !String(locationInput.value || '').trim() && selected.default_location_name) {
+      locationInput.value = String(selected.default_location_name);
+    }
+  },
   async ensureCatalogLoaded() {
     this.renderCatalogOptionLists();
     const hasRows = this.getCatalogRowsForSection('annual_saas').length || this.getCatalogRowsForSection('one_time_fee').length;
@@ -591,6 +626,7 @@ const Proposals = {
         </tr>`;
       })
       .join('');
+    [...tbody.querySelectorAll('tr[data-item-row]')].forEach(tr => this.applyCatalogSelectionToRow(tr, section));
   },
   renderProposalItems(items = []) {
     this.renderCatalogOptionLists();
@@ -998,6 +1034,7 @@ const Proposals = {
           if (tr) {
             const section = tr.getAttribute('data-item-row');
             if (section !== 'capability') {
+              if (field === 'item_name') this.applyCatalogSelectionToRow(tr, section);
               const get = key => tr.querySelector(`[data-item-field="${key}"]`)?.value ?? '';
               const computed = this.computeCommercialRow({
                 unit_price: get('unit_price'),
@@ -1012,6 +1049,25 @@ const Proposals = {
           }
           this.renderTotalsPreview();
         }
+      });
+      E.proposalForm.addEventListener('change', event => {
+        const field = event.target?.getAttribute('data-item-field');
+        if (field !== 'item_name') return;
+        const tr = event.target.closest('tr[data-item-row]');
+        const section = tr?.getAttribute('data-item-row');
+        if (!tr || !section || section === 'capability') return;
+        this.applyCatalogSelectionToRow(tr, section);
+        const get = key => tr.querySelector(`[data-item-field="${key}"]`)?.value ?? '';
+        const computed = this.computeCommercialRow({
+          unit_price: get('unit_price'),
+          discount_percent: get('discount_percent'),
+          quantity: get('quantity')
+        });
+        const discountedEl = tr.querySelector('[data-item-display="discounted_unit_price"]');
+        const lineTotalEl = tr.querySelector('[data-item-display="line_total"]');
+        if (discountedEl) discountedEl.textContent = this.formatMoney(computed.discounted_unit_price);
+        if (lineTotalEl) lineTotalEl.textContent = this.formatMoney(computed.line_total);
+        this.renderTotalsPreview();
       });
       E.proposalForm.addEventListener('click', event => {
         const section = event.target?.getAttribute('data-item-remove');
