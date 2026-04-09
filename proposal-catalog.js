@@ -376,8 +376,13 @@ const ProposalCatalog = {
     }
     try {
       const response = await this.getProposalCatalogItem(catalogItemId);
-      const source = response?.item || response?.data?.item || response;
-      this.openForm(this.normalizeItem(source));
+      const source =
+        response?.item ||
+        response?.data?.item ||
+        (Array.isArray(response?.data) ? response.data[0] : null) ||
+        (Array.isArray(response) ? response[0] : null) ||
+        response;
+      this.openForm(this.normalizeItem(source || {}));
     } catch (error) {
       UI.toast('Unable to load catalog item: ' + (error?.message || 'Unknown error'));
     }
