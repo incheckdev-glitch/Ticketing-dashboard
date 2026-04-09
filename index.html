@@ -965,6 +965,7 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <input id="dealsSearchInput" class="input" type="search"
                      placeholder="Search deal, lead, company, owner, notes..." aria-label="Search deals" />
+              <button id="dealsCreateBtn" class="btn sm" type="button">Create Deal</button>
               <button id="dealsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
             </div>
           </div>
@@ -993,6 +994,7 @@
                   <th>Converted At</th>
                   <th>Converted By</th>
                   <th>Notes</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="dealsTbody"></tbody>
@@ -1526,6 +1528,125 @@
           <div style="display:flex;gap:8px;">
             <button id="leadFormCancelBtn" type="button" class="btn ghost">Cancel</button>
             <button id="leadFormSaveBtn" type="submit" class="btn">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="dealFormModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dealFormTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="dealFormTitle" style="margin:0;font-size:20px">Create Deal</h2>
+        <button class="modal-close" id="dealFormCloseBtn" aria-label="Close deal form">✕</button>
+      </div>
+      <form id="dealForm" class="stack" style="margin-top:12px;">
+        <div class="grid cols-2">
+          <div class="filter-row">
+            <label class="muted" for="dealFormDealId">Deal ID</label>
+            <input id="dealFormDealId" class="input" type="text" readonly />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormLeadId">Lead ID</label>
+            <input id="dealFormLeadId" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormFullName">Full Name</label>
+            <input id="dealFormFullName" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormCompanyName">Company Name</label>
+            <input id="dealFormCompanyName" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormPhone">Phone</label>
+            <input id="dealFormPhone" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormEmail">Email</label>
+            <input id="dealFormEmail" class="input" type="email" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormCountry">Country</label>
+            <input id="dealFormCountry" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormLeadSource">Lead Source</label>
+            <select id="dealFormLeadSource" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormServiceInterest">Service Interest</label>
+            <select id="dealFormServiceInterest" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormStage">Stage</label>
+            <select id="dealFormStage" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormStatus">Status</label>
+            <select id="dealFormStatus" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormPriority">Priority</label>
+            <select id="dealFormPriority" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormEstimatedValue">Estimated Value</label>
+            <input id="dealFormEstimatedValue" class="input" type="number" step="0.01" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormCurrency">Currency</label>
+            <select id="dealFormCurrency" class="select">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormAssignedTo">Assigned To</label>
+            <input id="dealFormAssignedTo" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormConvertedBy">Converted By</label>
+            <input id="dealFormConvertedBy" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormProposalNeeded">Proposal Needed</label>
+            <select id="dealFormProposalNeeded" class="select">
+              <option value="">—</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormAgreementNeeded">Agreement Needed</label>
+            <select id="dealFormAgreementNeeded" class="select">
+              <option value="">—</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="dealFormConvertedAt">Converted At</label>
+            <input id="dealFormConvertedAt" class="input" type="text" readonly />
+          </div>
+          <div class="filter-row" style="grid-column:1 / -1;">
+            <label class="muted" for="dealFormNotes">Notes</label>
+            <textarea id="dealFormNotes" class="input" rows="3" placeholder="Optional notes"></textarea>
+          </div>
+        </div>
+        <div class="actions" style="justify-content:space-between;gap:8px;">
+          <button id="dealFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
+          <div style="display:flex;gap:8px;">
+            <button id="dealFormCancelBtn" type="button" class="btn ghost">Cancel</button>
+            <button id="dealFormSaveBtn" type="submit" class="btn">Save</button>
           </div>
         </div>
       </form>
