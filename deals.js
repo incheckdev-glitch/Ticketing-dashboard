@@ -38,28 +38,45 @@ const Deals = {
     return '—';
   },
   normalizeDeal(raw = {}) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const lead = source.lead && typeof source.lead === 'object' ? source.lead : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+
     const dealId = String(raw.deal_id || raw.dealId || raw.id || '').trim();
     return {
       deal_id: dealId,
-      lead_id: String(raw.lead_id || raw.leadId || '').trim(),
-      full_name: String(raw.full_name || raw.fullName || '').trim(),
-      company_name: String(raw.company_name || raw.companyName || '').trim(),
-      phone: String(raw.phone || '').trim(),
-      email: String(raw.email || '').trim(),
-      country: String(raw.country || '').trim(),
-      lead_source: String(raw.lead_source || raw.leadSource || '').trim(),
-      service_interest: String(raw.service_interest || raw.serviceInterest || '').trim(),
-      stage: String(raw.stage || '').trim(),
-      status: String(raw.status || '').trim(),
-      priority: String(raw.priority || '').trim(),
-      estimated_value: raw.estimated_value ?? raw.estimatedValue ?? '',
-      currency: String(raw.currency || '').trim(),
-      assigned_to: String(raw.assigned_to || raw.assignedTo || '').trim(),
-      proposal_needed: this.normalizeBool(raw.proposal_needed),
-      agreement_needed: this.normalizeBool(raw.agreement_needed),
-      converted_at: raw.converted_at || raw.convertedAt || '',
-      converted_by: String(raw.converted_by || raw.convertedBy || '').trim(),
-      notes: String(raw.notes || '').trim()
+      lead_id: String(pick(source.lead_id, source.leadId, lead.lead_id, lead.leadId)).trim(),
+      full_name: String(pick(source.full_name, source.fullName, lead.full_name, lead.fullName)).trim(),
+      company_name: String(
+        pick(source.company_name, source.companyName, lead.company_name, lead.companyName)
+      ).trim(),
+      phone: String(pick(source.phone, lead.phone)).trim(),
+      email: String(pick(source.email, lead.email)).trim(),
+      country: String(pick(source.country, lead.country)).trim(),
+      lead_source: String(pick(source.lead_source, source.leadSource, lead.lead_source, lead.leadSource)).trim(),
+      service_interest: String(
+        pick(source.service_interest, source.serviceInterest, lead.service_interest, lead.serviceInterest)
+      ).trim(),
+      stage: String(pick(source.stage)).trim(),
+      status: String(pick(source.status, lead.status)).trim(),
+      priority: String(pick(source.priority, lead.priority)).trim(),
+      estimated_value: pick(source.estimated_value, source.estimatedValue, lead.estimated_value, lead.estimatedValue),
+      currency: String(pick(source.currency, lead.currency)).trim(),
+      assigned_to: String(pick(source.assigned_to, source.assignedTo, lead.assigned_to, lead.assignedTo)).trim(),
+      proposal_needed: this.normalizeBool(
+        pick(source.proposal_needed, source.proposalNeeded, lead.proposal_needed, lead.proposalNeeded)
+      ),
+      agreement_needed: this.normalizeBool(
+        pick(source.agreement_needed, source.agreementNeeded, lead.agreement_needed, lead.agreementNeeded)
+      ),
+      converted_at: pick(source.converted_at, source.convertedAt, lead.converted_at, lead.convertedAt),
+      converted_by: String(pick(source.converted_by, source.convertedBy, lead.converted_by, lead.convertedBy)).trim(),
+      notes: String(pick(source.notes, lead.notes)).trim()
     };
   },
   extractRows(response) {
