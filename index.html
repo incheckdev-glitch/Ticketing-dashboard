@@ -322,6 +322,10 @@
                     role="tab" aria-selected="false" aria-controls="proposalsView">
               <span class="icon" aria-hidden="true">🧾</span> Proposals
             </button>
+            <button id="proposalCatalogTab" class="view-tab" data-view="proposalCatalog"
+                    role="tab" aria-selected="false" aria-controls="proposalCatalogView">
+              <span class="icon" aria-hidden="true">📚</span> Proposal Catalog
+            </button>
             <button id="usersTab" class="view-tab" data-view="users"
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
@@ -1152,6 +1156,63 @@
                 </tr>
               </thead>
               <tbody id="proposalsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="proposalCatalogView" class="view" role="tabpanel" aria-labelledby="proposalCatalogTab">
+        <div class="grid cols-4" id="proposalCatalogSummary" aria-live="polite"></div>
+        <div class="card" aria-label="Proposal catalog list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Proposal Catalog</strong>
+              <div class="muted">Reusable proposal items for annual SaaS, one-time fee, and capability entries.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="proposalCatalogSearchInput" class="input" type="search" placeholder="Search item, category, notes..." aria-label="Search proposal catalog items" />
+              <select id="proposalCatalogSectionFilter" class="select" aria-label="Filter by section">
+                <option value="All">All Sections</option>
+                <option value="annual_saas">annual_saas</option>
+                <option value="one_time_fee">one_time_fee</option>
+                <option value="capability">capability</option>
+              </select>
+              <select id="proposalCatalogActiveFilter" class="select" aria-label="Filter by active state">
+                <option value="All">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select id="proposalCatalogSortFilter" class="select" aria-label="Sort proposal catalog">
+                <option value="updated_desc">Updated (Newest)</option>
+                <option value="created_desc">Created (Newest)</option>
+                <option value="sort_order_asc">Sort Order (Asc)</option>
+              </select>
+              <button id="proposalCatalogRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+              <button id="proposalCatalogCreateBtn" class="btn sm" type="button">Add Item</button>
+            </div>
+          </div>
+          <div id="proposalCatalogState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Proposal catalog table">
+            <table id="proposalCatalogTable">
+              <thead>
+                <tr>
+                  <th>Catalog ID</th>
+                  <th>Active</th>
+                  <th>Section</th>
+                  <th>Category</th>
+                  <th>Item Name</th>
+                  <th>Default Location</th>
+                  <th>Unit Price</th>
+                  <th>Discount %</th>
+                  <th>Quantity</th>
+                  <th>Capability Name</th>
+                  <th>Capability Value</th>
+                  <th>Sort Order</th>
+                  <th>Updated At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="proposalCatalogTbody"></tbody>
             </table>
           </div>
         </div>
@@ -1992,6 +2053,84 @@
       <iframe id="proposalPreviewFrame" title="Proposal preview content" style="width:100%;min-height:70vh;border:1px solid var(--border);border-radius:10px;background:#fff;"></iframe>
     </div>
   </div>
+  <div id="proposalCatalogFormModal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="proposalCatalogFormTitle" aria-hidden="true">
+    <div class="modal-content" style="max-width:820px;">
+      <div class="header">
+        <h2 id="proposalCatalogFormTitle" style="margin:0;font-size:20px;">Proposal Catalog Item</h2>
+        <div class="actions">
+          <button class="modal-close" id="proposalCatalogFormCloseBtn" aria-label="Close proposal catalog form">✕</button>
+        </div>
+      </div>
+      <form id="proposalCatalogForm">
+        <input type="hidden" id="proposalCatalogFormItemId" />
+        <div class="filter-group">
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormIsActive">Active</label>
+            <select id="proposalCatalogFormIsActive" class="select">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormSection">Section</label>
+            <select id="proposalCatalogFormSection" class="select" required>
+              <option value="annual_saas">annual_saas</option>
+              <option value="one_time_fee">one_time_fee</option>
+              <option value="capability">capability</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormCategory">Category</label>
+            <input id="proposalCatalogFormCategory" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormItemName">Item Name</label>
+            <input id="proposalCatalogFormItemName" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormLocation">Default Location</label>
+            <input id="proposalCatalogFormLocation" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormUnitPrice">Unit Price</label>
+            <input id="proposalCatalogFormUnitPrice" class="input" type="number" step="0.01" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormDiscountPercent">Discount %</label>
+            <input id="proposalCatalogFormDiscountPercent" class="input" type="number" step="0.01" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormQuantity">Quantity</label>
+            <input id="proposalCatalogFormQuantity" class="input" type="number" step="0.01" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormCapabilityName">Capability Name</label>
+            <input id="proposalCatalogFormCapabilityName" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormCapabilityValue">Capability Value</label>
+            <input id="proposalCatalogFormCapabilityValue" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormSortOrder">Sort Order</label>
+            <input id="proposalCatalogFormSortOrder" class="input" type="number" step="1" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="proposalCatalogFormNotes">Notes</label>
+            <textarea id="proposalCatalogFormNotes" class="input" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="actions" style="justify-content:space-between;gap:8px;margin-top:12px;">
+          <button id="proposalCatalogFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
+          <div style="display:flex;gap:8px;">
+            <button id="proposalCatalogFormCancelBtn" type="button" class="btn ghost">Cancel</button>
+            <button id="proposalCatalogFormSaveBtn" type="submit" class="btn">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div class="spinner" id="spinner" aria-hidden="true"><div class="ring"></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -2044,6 +2183,7 @@
   <script src="leads.js"></script>
   <script src="deals.js"></script>
   <script src="proposals.js"></script>
+  <script src="proposal-catalog.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>
 </body>
