@@ -14,6 +14,9 @@ const Permissions = {
   canCreateTicket() {
     return Session.isAuthenticated();
   },
+  canCreateLead() {
+    return Session.isAuthenticated();
+  },
   canViewCsmActivity() {
     return Session.isAuthenticated() && !this.isDev();
   },
@@ -21,6 +24,9 @@ const Permissions = {
     return this.isAdmin() || this.isHoo();
   },
   canEditTicket() {
+    return this.isAdminLike();
+  },
+  canEditDeleteLead() {
     return this.isAdminLike();
   },
   canManageEvents() {

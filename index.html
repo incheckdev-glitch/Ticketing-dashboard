@@ -190,6 +190,10 @@
                     role="tab" aria-selected="false" aria-controls="csmView">
               <span class="icon" aria-hidden="true">🧑‍💼</span> CSM Daily Activity
             </button>
+            <button id="leadsTab" class="view-tab" data-view="leads"
+                    role="tab" aria-selected="false" aria-controls="leadsView">
+              <span class="icon" aria-hidden="true">🧲</span> Leads
+            </button>
             <button id="usersTab" class="view-tab" data-view="users"
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
@@ -203,7 +207,7 @@
         <div class="card summary-bar" id="issuesSummaryCard">
           <span id="issuesSummaryText" aria-live="polite">Loading summary…</span>
           <span id="issuesLastUpdated" class="summary-meta" aria-live="polite">Last updated: --</span>
-         <span class="shortcut-chip">Shortcuts: 1/2/3/4 tabs · / search · Ctrl+K AI</span>
+         <span class="shortcut-chip">Shortcuts: 1/2/3/4/5 tabs · / search · Ctrl+K AI</span>
         </div>
 
         <div class="grid cols-4" id="kpis" aria-live="polite"></div>
@@ -820,6 +824,91 @@
           </form>
         </div>
       </section>
+
+      <section id="leadsView" class="view" role="tabpanel" aria-labelledby="leadsTab">
+        <div class="card" aria-label="Leads list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Leads</strong>
+              <div class="muted">Lead pipeline synced with backend resource.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button id="leadsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+              <button id="leadsCreateBtn" class="btn sm" type="button">Create Lead</button>
+            </div>
+          </div>
+
+          <div class="filter-group" style="margin-bottom:10px;">
+            <div class="filter-row">
+              <label class="muted" for="leadsSearchInput">Search</label>
+              <input id="leadsSearchInput" class="input" type="search" placeholder="Lead ID, name, company, email, notes..." />
+            </div>
+          </div>
+
+          <div class="grid cols-5" style="gap:10px;margin-bottom:10px;">
+            <div class="filter-row">
+              <label class="muted" for="leadsStatusFilter">Status</label>
+              <select id="leadsStatusFilter" class="select"><option>All</option></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="leadsServiceInterestFilter">Service Interest</label>
+              <select id="leadsServiceInterestFilter" class="select"><option>All</option></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="leadsAssignedToFilter">Assigned To</label>
+              <select id="leadsAssignedToFilter" class="select"><option>All</option></select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="leadsProposalNeededFilter">Proposal Needed</label>
+              <select id="leadsProposalNeededFilter" class="select">
+                <option value="All">All</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="muted" for="leadsAgreementNeededFilter">Agreement Needed</label>
+              <select id="leadsAgreementNeededFilter" class="select">
+                <option value="All">All</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="leadsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Leads table">
+            <table id="leadsTable">
+              <thead>
+                <tr>
+                  <th>Lead ID</th>
+                  <th>Created At</th>
+                  <th>Full Name</th>
+                  <th>Company Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Country</th>
+                  <th>Lead Source</th>
+                  <th>Service Interest</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Estimated Value</th>
+                  <th>Currency</th>
+                  <th>Assigned To</th>
+                  <th>Next Follow-up</th>
+                  <th>Last Contact</th>
+                  <th>Proposal Needed</th>
+                  <th>Agreement Needed</th>
+                  <th>Notes</th>
+                  <th>Updated At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leadsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
         </div>
       </div>
     </main>
@@ -1234,6 +1323,113 @@
       </form>
     </div>
   </div>
+  <div id="leadFormModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="leadFormTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="leadFormTitle" style="margin:0;font-size:20px">Create Lead</h2>
+        <button class="modal-close" id="leadFormCloseBtn" aria-label="Close lead form">✕</button>
+      </div>
+      <form id="leadForm" class="stack" style="margin-top:12px;">
+        <div class="grid cols-2">
+          <div class="filter-row">
+            <label class="muted" for="leadFormLeadId">Lead ID</label>
+            <input id="leadFormLeadId" class="input" type="text" readonly />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormCreatedAt">Created At</label>
+            <input id="leadFormCreatedAt" class="input" type="text" readonly />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormFullName">Full Name *</label>
+            <input id="leadFormFullName" class="input" type="text" required />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormCompanyName">Company Name</label>
+            <input id="leadFormCompanyName" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormPhone">Phone</label>
+            <input id="leadFormPhone" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormEmail">Email</label>
+            <input id="leadFormEmail" class="input" type="email" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormCountry">Country</label>
+            <input id="leadFormCountry" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormLeadSource">Lead Source</label>
+            <input id="leadFormLeadSource" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormServiceInterest">Service Interest</label>
+            <input id="leadFormServiceInterest" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormStatus">Status</label>
+            <input id="leadFormStatus" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormPriority">Priority</label>
+            <input id="leadFormPriority" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormEstimatedValue">Estimated Value</label>
+            <input id="leadFormEstimatedValue" class="input" type="number" step="0.01" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormCurrency">Currency</label>
+            <input id="leadFormCurrency" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormAssignedTo">Assigned To</label>
+            <input id="leadFormAssignedTo" class="input" type="text" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormNextFollowupDate">Next Follow-up</label>
+            <input id="leadFormNextFollowupDate" class="input" type="date" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormLastContactDate">Last Contact</label>
+            <input id="leadFormLastContactDate" class="input" type="date" />
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormProposalNeeded">Proposal Needed</label>
+            <select id="leadFormProposalNeeded" class="select">
+              <option value="">—</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormAgreementNeeded">Agreement Needed</label>
+            <select id="leadFormAgreementNeeded" class="select">
+              <option value="">—</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="filter-row" style="grid-column:1 / -1;">
+            <label class="muted" for="leadFormNotes">Notes</label>
+            <textarea id="leadFormNotes" class="input" rows="3" placeholder="Optional notes"></textarea>
+          </div>
+          <div class="filter-row">
+            <label class="muted" for="leadFormUpdatedAt">Updated At</label>
+            <input id="leadFormUpdatedAt" class="input" type="text" readonly />
+          </div>
+        </div>
+        <div class="actions" style="justify-content:space-between;gap:8px;">
+          <button id="leadFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
+          <div style="display:flex;gap:8px;">
+            <button id="leadFormCancelBtn" type="button" class="btn ghost">Cancel</button>
+            <button id="leadFormSaveBtn" type="submit" class="btn">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
   <div id="freezeModal" class="modal" role="dialog" aria-modal="true"
        aria-labelledby="freezeModalTitle" aria-describedby="freezeModalBody">
     <div class="modal-content">
@@ -1330,6 +1526,7 @@
   <script src="calendar.js"></script>
   <script src="planner.js"></script>
   <script src="ui.js"></script>
+  <script src="leads.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>
 </body>

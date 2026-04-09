@@ -1906,7 +1906,7 @@ function trapFocus(container, e) {
 function setActiveView(view) {
  if (view === 'csm' && !Permissions.canViewCsmActivity()) view = 'issues';
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'users'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'users'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1917,6 +1917,8 @@ function setActiveView(view) {
         ? E.insightsTab
         : name === 'csm'
         ? E.csmTab
+        : name === 'leads'
+        ? E.leadsTab
         : E.usersTab;
     const panel =
       name === 'issues'
@@ -1927,6 +1929,8 @@ function setActiveView(view) {
         ? E.insightsView
         : name === 'csm'
         ? E.csmView
+        : name === 'leads'
+        ? E.leadsView
         : E.usersView;
     const active = name === view;
     if (tab) {
@@ -1946,6 +1950,7 @@ function setActiveView(view) {
   }
   if (view === 'insights') Analytics.refresh(UI.Issues.applyFilters());
   if (view === 'csm') CSMActivity.loadAndRefresh();
+  if (view === 'leads' && window.Leads?.loadAndRefresh) Leads.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   updatePrimaryActionButton(view);
 }
@@ -1953,10 +1958,16 @@ function setActiveView(view) {
 function updatePrimaryActionButton(activeView) {
   if (!E.createTicketBtn) return;
   const isCsm = activeView === 'csm';
+  const isLeads = activeView === 'leads';
   E.createTicketBtn.innerHTML = isCsm
     ? '<span class="icon" aria-hidden="true">➕</span> Add activity'
+    : isLeads
+    ? '<span class="icon" aria-hidden="true">➕</span> Create Lead'
     : '<span class="icon" aria-hidden="true">➕</span> Create Ticket';
-  E.createTicketBtn.setAttribute('aria-label', isCsm ? 'Add activity' : 'Create new ticket');
+  E.createTicketBtn.setAttribute(
+    'aria-label',
+    isCsm ? 'Add activity' : isLeads ? 'Create lead' : 'Create new ticket'
+  );
 }
 
 /* ---------- Calendar wiring ---------- */
@@ -3939,7 +3950,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.usersTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.usersTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4010,6 +4021,8 @@ function wireCore() {
       loadIssues(true);
       loadEvents(true);
       if (E.csmView?.classList.contains('active')) CSMActivity.loadAndRefresh({ force: true });
+      if (E.leadsView?.classList.contains('active') && window.Leads?.loadAndRefresh)
+        Leads.loadAndRefresh({ force: true });
     });
   if (E.exportCsv)
     E.exportCsv.addEventListener('click', () => {
@@ -4020,6 +4033,15 @@ function wireCore() {
       if (!requirePermission(() => Permissions.canCreateTicket(), 'Login is required to create a ticket.'))
         return;
       const isCsmView = E.csmView?.classList.contains('active');
+      const isLeadsView = E.leadsView?.classList.contains('active');
+      if (isLeadsView && window.Leads?.openForm) {
+        if (!Permissions.canCreateLead()) {
+          UI.toast('Login is required to create leads.');
+          return;
+        }
+        Leads.openForm();
+        return;
+      }
       window.open(
         isCsmView ? 'https://forms.gle/jV7XLrquc8beyi228' : 'https://forms.gle/PPnEP1AQneoBT79s5',
         '_blank',
@@ -4029,7 +4051,7 @@ function wireCore() {
 
   if (E.shortcutsHelp) {
     E.shortcutsHelp.addEventListener('click', () => {
-     UI.toast('Shortcuts: 1/2/3/4 switch tabs · / focus search · Ctrl+K AI query');
+     UI.toast('Shortcuts: 1/2/3/4/5 switch tabs · / focus search · Ctrl+K AI query');
     });
   }
 
@@ -5521,7 +5543,7 @@ function wireKeyboardShortcuts() {
 
     if (isInputLike) return;
 
-    // 1/2/3/4/5 → switch tabs
+    // 1/2/3/4/5/6 → switch tabs
     if (e.key === '1') {
       setActiveView('issues');
     } else if (e.key === '2') {
@@ -5530,7 +5552,9 @@ function wireKeyboardShortcuts() {
       setActiveView('insights');
     } else if (e.key === '4') {
       setActiveView('csm');
-    } else if (e.key === '5' && Permissions.canManageUsers()) {
+    } else if (e.key === '5') {
+      setActiveView('leads');
+    } else if (e.key === '6' && Permissions.canManageUsers()) {
       setActiveView('users');
     }
   });
@@ -5572,6 +5596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wirePlanner();
   wireAIQuery();
   wireCSMActivity();
+  if (window.Leads?.wire) Leads.wire();
   wireKeyboardShortcuts();
 
   let isAuthenticated = Session.isAuthenticated();
@@ -5594,7 +5619,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!Session.isAuthenticated()) {
     const view = localStorage.getItem(LS_KEYS.view) || 'issues';
     setActiveView(
-      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'users' ? view : 'issues'
+      view === 'calendar' || view === 'insights' || view === 'csm' || view === 'leads' || view === 'users' ? view : 'issues'
     );
   }
 
