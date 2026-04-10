@@ -326,6 +326,10 @@
                     role="tab" aria-selected="false" aria-controls="agreementsView">
               <span class="icon" aria-hidden="true">📄</span> Agreements
             </button>
+            <button id="clientsTab" class="view-tab" data-view="clients"
+                    role="tab" aria-selected="false" aria-controls="clientsView">
+              <span class="icon" aria-hidden="true">🏢</span> Clients
+            </button>
             <button id="proposalCatalogTab" class="view-tab" data-view="proposalCatalog"
                     role="tab" aria-selected="false" aria-controls="proposalCatalogView">
               <span class="icon" aria-hidden="true">📚</span> Proposal Catalog
@@ -1192,6 +1196,41 @@
                 </tr>
               </thead>
               <tbody id="agreementsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="clientsView" class="view" role="tabpanel" aria-labelledby="clientsTab">
+        <div class="grid csm-kpi-grid-six" id="clientsSummary" aria-live="polite"></div>
+        <div class="card" aria-label="Clients list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Clients</strong>
+              <div class="muted">Consolidated client records synced from backend clients resource.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="clientsSearchInput" class="input" type="search" placeholder="Search customer, legal name, contact, email..." aria-label="Search clients" />
+              <select id="clientsStatusFilter" class="select" aria-label="Filter by account status"><option value="All">All Statuses</option></select>
+              <select id="clientsCountryFilter" class="select" aria-label="Filter by country"><option value="All">All Countries</option></select>
+              <select id="clientsSortFilter" class="select" aria-label="Sort clients">
+                <option value="updated_at_desc">Updated (Newest)</option>
+                <option value="latest_signed_date_desc">Latest Signed Date (Newest)</option>
+                <option value="customer_name_asc">Customer Name (A-Z)</option>
+              </select>
+              <button id="clientsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+              <button id="clientsCreateBtn" class="btn sm" type="button">Create Client</button>
+            </div>
+          </div>
+          <div id="clientsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Clients table">
+            <table id="clientsTable">
+              <thead>
+                <tr>
+                  <th>Client ID</th><th>Customer Name</th><th>Legal Name</th><th>Contact Name</th><th>Contact Email</th><th>Mobile</th><th>Country</th><th>Account Status</th><th>Billing Frequency</th><th>Payment Terms</th><th>Currency</th><th>Latest Grand Total</th><th>Agreements Count</th><th>Signed Agreements</th><th>Active Agreements</th><th>Latest Signed Date</th><th>Latest Agreement ID</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="clientsTbody"></tbody>
             </table>
           </div>
         </div>
@@ -2311,6 +2350,42 @@
     </div>
   </div>
 
+  <div id="clientFormModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="clientFormTitle" aria-hidden="true">
+    <div class="modal-content" style="max-width:900px;">
+      <div class="header">
+        <h2 id="clientFormTitle" style="margin:0;font-size:20px;">Client</h2>
+        <div class="actions"><button class="modal-close" id="clientFormCloseBtn" aria-label="Close client form">✕</button></div>
+      </div>
+      <form id="clientForm">
+        <input id="clientFormClientId" type="hidden" />
+        <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+          <div class="filter-row"><label class="muted" for="clientFormCustomerName">Customer Name</label><input id="clientFormCustomerName" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCustomerLegalName">Customer Legal Name</label><input id="clientFormCustomerLegalName" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCustomerContactName">Customer Contact Name</label><input id="clientFormCustomerContactName" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCustomerContactEmail">Customer Contact Email</label><input id="clientFormCustomerContactEmail" class="input" type="email" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCustomerContactMobile">Customer Contact Mobile</label><input id="clientFormCustomerContactMobile" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCompanyPhone">Company Phone</label><input id="clientFormCompanyPhone" class="input" type="text" /></div>
+          <div class="filter-row" style="grid-column:1 / -1;"><label class="muted" for="clientFormCompanyAddress">Company Address</label><input id="clientFormCompanyAddress" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCountry">Country</label><input id="clientFormCountry" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormTaxRegistrationNumber">Tax Registration Number</label><input id="clientFormTaxRegistrationNumber" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormAccountStatus">Account Status</label><input id="clientFormAccountStatus" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormContractTerm">Contract Term</label><input id="clientFormContractTerm" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormBillingFrequency">Billing Frequency</label><input id="clientFormBillingFrequency" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormPaymentTerms">Payment Terms</label><input id="clientFormPaymentTerms" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="clientFormCurrency">Currency</label><input id="clientFormCurrency" class="input" type="text" /></div>
+          <div class="filter-row" style="grid-column:1 / -1;"><label class="muted" for="clientFormNotes">Notes</label><textarea id="clientFormNotes" class="input" rows="3"></textarea></div>
+        </div>
+        <div class="actions" style="justify-content:space-between;gap:8px;margin-top:12px;">
+          <button id="clientFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button>
+          <div style="display:flex;gap:8px;">
+            <button id="clientFormCancelBtn" type="button" class="btn ghost">Cancel</button>
+            <button id="clientFormSaveBtn" type="submit" class="btn">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="spinner" id="spinner" aria-hidden="true"><div class="ring"></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -2363,6 +2438,7 @@
   <script src="deals.js"></script>
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
+  <script src="clients.js"></script>
   <script src="proposal-catalog.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>

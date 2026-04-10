@@ -118,6 +118,24 @@ const Api = {
       agreement_id: agreementId
     });
   },
+  async listClients() {
+    return this.postAuthenticated('clients', 'list', {});
+  },
+  async getClient(clientId) {
+    return this.postAuthenticated('clients', 'get', { client_id: clientId });
+  },
+  async createClient(client) {
+    return this.postAuthenticated('clients', 'create', { client });
+  },
+  async updateClient(clientId, updates) {
+    return this.postAuthenticated('clients', 'update', {
+      client_id: clientId,
+      updates
+    });
+  },
+  async deleteClient(clientId) {
+    return this.postAuthenticated('clients', 'delete', { client_id: clientId });
+  },
 };
 
 async function apiPost(payload = {}) {
