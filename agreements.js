@@ -221,6 +221,7 @@ const Agreements = {
       const options = ['All', ...statuses];
       E.agreementsStatusFilter.innerHTML = options.map(v=>`<option>${U.escapeHtml(v)}</option>`).join('');
       E.agreementsStatusFilter.value = options.includes(this.state.status) ? this.state.status : 'All';
+      UI.DarkPopover?.syncFromSource(E.agreementsStatusFilter);
     }
     if (E.agreementsSearchInput) E.agreementsSearchInput.value = this.state.search;
     if (E.agreementsProposalDealFilter) E.agreementsProposalDealFilter.value = this.state.proposalOrDeal;
@@ -345,6 +346,8 @@ const Agreements = {
       const id = `agreementForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
       set(id, agreement[field] || '');
     });
+    UI.DarkPopover?.syncFromSource(E.agreementFormStatus);
+    UI.DarkPopover?.syncFromSource(E.agreementFormBillingFrequency);
   },
   setFormReadOnly(readOnly) {
     if (!E.agreementForm) return;
@@ -535,6 +538,15 @@ const Agreements = {
   },
   wire() {
     if (this.state.initialized) return;
+    UI.DarkPopover?.setupSelect(E.agreementsStatusFilter);
+    UI.DarkPopover?.setupSelect(E.agreementFormStatus);
+    UI.DarkPopover?.setupInput(E.agreementFormBillingFrequency, [
+      'One-time',
+      'Monthly',
+      'Quarterly',
+      'Semi-Annual',
+      'Annual'
+    ]);
     const bindState = (el, key) => {
       if (!el) return;
       const sync = () => {

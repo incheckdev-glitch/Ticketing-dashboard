@@ -288,6 +288,7 @@ const Proposals = {
       const options = ['All', ...statusValues];
       E.proposalsStatusFilter.innerHTML = options.map(v => `<option>${U.escapeHtml(v)}</option>`).join('');
       E.proposalsStatusFilter.value = options.includes(this.state.status) ? this.state.status : 'All';
+      UI.DarkPopover?.syncFromSource(E.proposalsStatusFilter);
     }
     if (E.proposalsSearchInput) E.proposalsSearchInput.value = this.state.search;
     if (E.proposalsCustomerFilter) E.proposalsCustomerFilter.value = this.state.customer;
@@ -463,6 +464,8 @@ const Proposals = {
     set(E.proposalFormProviderSignatoryTitle, proposal.provider_signatory_title || '');
     set(E.proposalFormProviderSignDate, proposal.provider_sign_date || '');
     set(E.proposalFormTerms, proposal.terms_conditions || '');
+    UI.DarkPopover?.syncFromSource(E.proposalFormStatus);
+    UI.DarkPopover?.syncFromSource(E.proposalFormBillingFrequency);
   },
   computeCommercialRow(item) {
     const unit = this.toNumberSafe(item.unit_price);
@@ -971,6 +974,15 @@ const Proposals = {
   },
   wire() {
     if (this.state.initialized) return;
+    UI.DarkPopover?.setupSelect(E.proposalsStatusFilter);
+    UI.DarkPopover?.setupSelect(E.proposalFormStatus);
+    UI.DarkPopover?.setupInput(E.proposalFormBillingFrequency, [
+      'One-time',
+      'Monthly',
+      'Quarterly',
+      'Semi-Annual',
+      'Annual'
+    ]);
 
     const bindState = (el, key) => {
       if (!el) return;
