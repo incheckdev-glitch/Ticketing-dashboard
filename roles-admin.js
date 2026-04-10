@@ -1,4 +1,16 @@
 const RolesAdmin = {
+  tabPermissionResources: {
+    calendar: 'events',
+    insights: 'insights',
+    csm: 'csm',
+    leads: 'leads',
+    deals: 'deals',
+    proposals: 'proposals',
+    agreements: 'agreements',
+    proposalCatalog: 'proposal_catalog',
+    users: 'users',
+    rolesPermissions: 'roles'
+  },
   state: {
     roles: [],
     permissions: [],
@@ -56,6 +68,13 @@ const RolesAdmin = {
         } catch (error) {
           UI.toast(String(error?.message || 'Unable to create permission rule.'));
         }
+      });
+    }
+    if (E.tabPermissionBulkForm) {
+      E.tabPermissionBulkForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!Permissions.canManageRolesPermissions()) return UI.toast('Forbidden.');
+        await this.applyBulkTabPermissions();
       });
     }
   },
@@ -125,6 +144,18 @@ const RolesAdmin = {
   renderRoleSelects() {
     if (window.UserAdmin?.applyRoleOptions) {
       window.UserAdmin.applyRoleOptions(this.state.roles);
+    }
+    if (E.tabPermissionRole) {
+      const current = String(E.tabPermissionRole.value || '').trim().toLowerCase();
+      E.tabPermissionRole.innerHTML = [
+        '<option value="">Select role *</option>',
+        ...this.state.roles.map(role => {
+          const key = this.roleKey(role);
+          const name = this.displayName(role);
+          return `<option value="${U.escapeAttr(key)}">${U.escapeHtml(name || key || '—')}</option>`;
+        })
+      ].join('');
+      if (current) E.tabPermissionRole.value = current;
     }
   },
   renderRolesTable(error = '') {
@@ -294,6 +325,74 @@ const RolesAdmin = {
       UI.applyRolePermissions();
     } catch (error) {
       UI.toast(String(error?.message || 'Unable to delete permission rule.'));
+    }
+  },
+  selectedCrudActions() {
+    const entries = [
+      ['view', E.tabPermissionActionView],
+      ['create', E.tabPermissionActionCreate],
+      ['edit', E.tabPermissionActionEdit],
+      ['delete', E.tabPermissionActionDelete]
+    ];
+    return entries.filter(([, input]) => Boolean(input?.checked)).map(([name]) => name);
+  },
+  resolveBulkTabKeys(target) {
+    const normalized = String(target || '').trim();
+    if (normalized === 'all_tabs') return Object.keys(this.tabPermissionResources);
+    if (this.tabPermissionResources[normalized]) return [normalized];
+    return [];
+  },
+  async applyBulkTabPermissions() {
+    const roleKey = String(E.tabPermissionRole?.value || '')
+      .trim()
+      .toLowerCase();
+    const target = String(E.tabPermissionTarget?.value || '').trim();
+    const selectedActions = this.selectedCrudActions();
+    const tabKeys = this.resolveBulkTabKeys(target);
+
+    if (!roleKey) return UI.toast('Please choose a role.');
+    if (!tabKeys.length) return UI.toast('Please choose a valid tab target.');
+    if (!selectedActions.length) return UI.toast('Select at least one action.');
+
+    const existingByRule = new Map();
+    this.state.permissions.forEach(permission => {
+      const resource = String(permission.resource || '').trim().toLowerCase();
+      const action = String(permission.action || '').trim().toLowerCase();
+      if (resource && action) existingByRule.set(`${resource}:${action}`, permission);
+    });
+
+    const requests = [];
+    tabKeys.forEach(tabKey => {
+      const resource = this.tabPermissionResources[tabKey];
+      selectedActions.forEach(action => {
+        const existing = existingByRule.get(`${resource}:${action}`);
+        const roles = new Set(
+          this.normalizeAllowedRoles(existing)
+            .split(',')
+            .map(v => String(v || '').trim().toLowerCase())
+            .filter(Boolean)
+        );
+        roles.add(roleKey);
+        requests.push(
+          Api.saveRolePermission({
+            permission_id: this.permissionId(existing),
+            resource,
+            action,
+            allowed_roles_csv: [...roles].join(','),
+            description: String(existing?.description || '').trim() || `${tabKey} ${action} access`
+          })
+        );
+      });
+    });
+
+    try {
+      await Promise.all(requests);
+      UI.toast(`Applied ${selectedActions.join('/')} permissions to ${tabKeys.length} tab(s).`);
+      await this.refreshPermissions(true);
+      await Permissions.loadMatrix(true);
+      UI.applyRolePermissions();
+    } catch (error) {
+      UI.toast(String(error?.message || 'Unable to apply tab permissions.'));
     }
   }
 };
