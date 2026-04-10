@@ -2012,28 +2012,32 @@
           <div class="filter-row"><label class="muted" for="proposalFormServiceStartDate">Service Start Date</label><input id="proposalFormServiceStartDate" class="input" type="date" /></div>
           <div class="filter-row">
             <label class="muted" for="proposalFormContractTerm">Contract Term</label>
-            <input id="proposalFormContractTerm" class="input" type="text" list="proposalCommercialTermOptions" />
+            <input id="proposalFormContractTerm" class="input" type="text" list="proposalContractTermOptions" />
           </div>
           <div class="filter-row"><label class="muted" for="proposalFormAccountNumber">Account Number</label><input id="proposalFormAccountNumber" class="input" type="text" /></div>
           <div class="filter-row">
             <label class="muted" for="proposalFormBillingFrequency">Billing Frequency</label>
-            <input id="proposalFormBillingFrequency" class="input" type="text" list="proposalCommercialTermOptions" />
+            <input id="proposalFormBillingFrequency" class="input" type="text" list="proposalBillingCycleOptions" />
           </div>
           <div class="filter-row">
             <label class="muted" for="proposalFormPaymentTerm">Payment Term</label>
-            <input id="proposalFormPaymentTerm" class="input" type="text" list="proposalCommercialTermOptions" />
+            <input id="proposalFormPaymentTerm" class="input" type="text" list="proposalPaymentTermOptions" />
           </div>
           <div class="filter-row"><label class="muted" for="proposalFormPoNumber">PO Number</label><input id="proposalFormPoNumber" class="input" type="text" /></div>
         </div>
-        <datalist id="proposalCommercialTermOptions">
+        <datalist id="proposalBillingCycleOptions">
           <option value="One-time"></option>
           <option value="Monthly"></option>
           <option value="Quarterly"></option>
           <option value="Semi-Annual"></option>
           <option value="Annual"></option>
+        </datalist>
+        <datalist id="proposalContractTermOptions">
           <option value="1 year"></option>
           <option value="2 years"></option>
           <option value="3 years"></option>
+        </datalist>
+        <datalist id="proposalPaymentTermOptions">
           <option value="Due on Receipt"></option>
           <option value="Net 7"></option>
           <option value="Net 15"></option>
@@ -2245,19 +2249,23 @@
         <div class="divider" style="margin:12px 0;"></div><strong style="display:block;margin-bottom:8px;">Agreement Details</strong>
         <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
           <div class="filter-row"><label class="muted" for="agreementFormAgreementDate">Agreement Date</label><input id="agreementFormAgreementDate" class="input" type="date" /></div><div class="filter-row"><label class="muted" for="agreementFormEffectiveDate">Effective Date</label><input id="agreementFormEffectiveDate" class="input" type="date" /></div>
-          <div class="filter-row"><label class="muted" for="agreementFormServiceStartDate">Service Start Date</label><input id="agreementFormServiceStartDate" class="input" type="date" /></div><div class="filter-row"><label class="muted" for="agreementFormAgreementLength">Agreement Length</label><input id="agreementFormAgreementLength" class="input" type="text" list="agreementCommercialTermOptions" /></div>
+          <div class="filter-row"><label class="muted" for="agreementFormServiceStartDate">Service Start Date</label><input id="agreementFormServiceStartDate" class="input" type="date" /></div><div class="filter-row"><label class="muted" for="agreementFormAgreementLength">Agreement Length</label><input id="agreementFormAgreementLength" class="input" type="text" list="agreementLengthOptions" /></div>
           <div class="filter-row"><label class="muted" for="agreementFormAccountNumber">Account Number</label><input id="agreementFormAccountNumber" class="input" type="text" /></div><div class="filter-row"><label class="muted" for="agreementFormPoNumber">PO Number</label><input id="agreementFormPoNumber" class="input" type="text" /></div>
-          <div class="filter-row"><label class="muted" for="agreementFormBillingFrequency">Billing Frequency</label><input id="agreementFormBillingFrequency" class="input" type="text" list="agreementCommercialTermOptions" /></div><div class="filter-row"><label class="muted" for="agreementFormPaymentTerm">Payment Term</label><input id="agreementFormPaymentTerm" class="input" type="text" list="agreementCommercialTermOptions" /></div>
+          <div class="filter-row"><label class="muted" for="agreementFormBillingFrequency">Billing Frequency</label><input id="agreementFormBillingFrequency" class="input" type="text" list="agreementBillingCycleOptions" /></div><div class="filter-row"><label class="muted" for="agreementFormPaymentTerm">Payment Term</label><input id="agreementFormPaymentTerm" class="input" type="text" list="agreementPaymentTermOptions" /></div>
         </div>
-        <datalist id="agreementCommercialTermOptions">
+        <datalist id="agreementBillingCycleOptions">
           <option value="One-time"></option>
           <option value="Monthly"></option>
           <option value="Quarterly"></option>
           <option value="Semi-Annual"></option>
           <option value="Annual"></option>
+        </datalist>
+        <datalist id="agreementLengthOptions">
           <option value="1 year"></option>
           <option value="2 years"></option>
           <option value="3 years"></option>
+        </datalist>
+        <datalist id="agreementPaymentTermOptions">
           <option value="Due on Receipt"></option>
           <option value="Net 7"></option>
           <option value="Net 15"></option>
