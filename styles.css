@@ -300,6 +300,24 @@ header{
 }
 .input::placeholder{color:var(--muted)}
 
+/* Keep proposal/agreement dropdown menu options visually aligned with status filters */
+#statusFilter option,
+#proposalsStatusFilter option,
+#agreementsStatusFilter option,
+#proposalFormStatus option,
+#agreementFormStatus option{
+  background:#020617;
+  color:var(--text);
+}
+:root[data-theme="light"] #statusFilter option,
+:root[data-theme="light"] #proposalsStatusFilter option,
+:root[data-theme="light"] #agreementsStatusFilter option,
+:root[data-theme="light"] #proposalFormStatus option,
+:root[data-theme="light"] #agreementFormStatus option{
+  background:#ffffff;
+  color:#0f172a;
+}
+
 /* Marketing layout */
 .section{
   padding:64px 0;
