@@ -440,6 +440,7 @@
               </select>
             </div>
           </div>
+        </div>
       </section>
 
       <section id="rolesView" class="view" role="tabpanel" aria-labelledby="rolesTab">
@@ -535,6 +536,33 @@
           </form>
         </div>
 
+        <div class="card" aria-label="Tab CRUD access helper">
+          <strong>Tab access + CRUD helper</strong>
+          <div class="muted" style="margin:6px 0 10px;">Grant one role access to an individual tab or all tabs with selected actions.</div>
+          <form id="tabPermissionBulkForm" class="user-form-grid">
+            <select id="tabPermissionRole" class="select" required>
+              <option value="">Select role *</option>
+            </select>
+            <select id="tabPermissionTarget" class="select" required>
+              <option value="all_tabs">All tabs</option>
+              <option value="calendar">Calendar</option>
+              <option value="insights">AI Insights</option>
+              <option value="csm">CSM Daily Activity</option>
+              <option value="leads">Leads</option>
+              <option value="deals">Deals</option>
+              <option value="proposals">Proposals</option>
+              <option value="agreements">Agreements</option>
+              <option value="proposalCatalog">Proposal Catalog</option>
+              <option value="users">Users</option>
+              <option value="roles">Roles</option>
+              <option value="rolePermissions">Role Permissions</option>
+            </select>
+            <label><input id="tabPermissionActionView" type="checkbox" checked /> View</label>
+            <label><input id="tabPermissionActionCreate" type="checkbox" /> Create</label>
+            <label><input id="tabPermissionActionEdit" type="checkbox" /> Edit</label>
+            <label><input id="tabPermissionActionDelete" type="checkbox" /> Delete</label>
+            <button id="tabPermissionBulkSubmit" class="btn primary" type="submit">Apply access</button>
+          </form>
         </div>
       </section>
 
