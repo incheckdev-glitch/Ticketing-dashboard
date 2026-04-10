@@ -553,13 +553,15 @@ const Agreements = {
     if (E.agreementsCreateBtn) E.agreementsCreateBtn.addEventListener('click', () => this.openAgreementForm());
     if (E.agreementsCreateFromProposalBtn) E.agreementsCreateFromProposalBtn.addEventListener('click', () => this.createFromProposalFlow(E.agreementsCreateFromProposalInput?.value || ''));
     if (E.agreementsTbody) E.agreementsTbody.addEventListener('click', event => {
-      const viewId = event.target?.getAttribute('data-agreement-view');
+      const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-delete]');
+      if (!trigger) return;
+      const viewId = trigger.getAttribute('data-agreement-view');
       if (viewId) return this.openAgreementFormById(viewId, { readOnly: true });
-      const editId = event.target?.getAttribute('data-agreement-edit');
+      const editId = trigger.getAttribute('data-agreement-edit');
       if (editId) return this.openAgreementFormById(editId, { readOnly: false });
-      const previewId = event.target?.getAttribute('data-agreement-preview');
+      const previewId = trigger.getAttribute('data-agreement-preview');
       if (previewId) return this.previewAgreementHtml(previewId);
-      const deleteId = event.target?.getAttribute('data-agreement-delete');
+      const deleteId = trigger.getAttribute('data-agreement-delete');
       if (deleteId) return this.deleteById(deleteId);
     });
 
@@ -571,8 +573,10 @@ const Agreements = {
     if (E.agreementForm) {
       E.agreementForm.addEventListener('submit', event => { event.preventDefault(); this.submitForm(); });
       E.agreementForm.addEventListener('click', event => {
-        const section = event.target?.getAttribute('data-item-remove');
-        const index = Number(event.target?.getAttribute('data-item-index'));
+        const trigger = event.target?.closest?.('button[data-item-remove]');
+        if (!trigger) return;
+        const section = trigger.getAttribute('data-item-remove');
+        const index = Number(trigger.getAttribute('data-item-index'));
         if (section && Number.isInteger(index) && index >= 0) this.removeRow(section, index);
       });
       E.agreementForm.addEventListener('input', event => {
