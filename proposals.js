@@ -70,6 +70,22 @@ const Proposals = {
   normalizeText(value) {
     return String(value ?? '').trim().toLowerCase();
   },
+  generateRefNumber() {
+    return `${Date.now()}${Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0')}`;
+  },
+  sanitizeRefNumber(value = '') {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (/^\d+(?:\.0+)?$/.test(raw)) return raw.split('.')[0];
+    const digitsOnly = raw.replace(/\D+/g, '');
+    return digitsOnly;
+  },
+  ensureRefNumber(value = '') {
+    const sanitized = this.sanitizeRefNumber(value);
+    return sanitized || this.generateRefNumber();
+  },
   normalizeProposal(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const normalized = {};
@@ -79,7 +95,7 @@ const Proposals = {
       normalized[field] = typeof value === 'string' ? value.trim() : value;
     });
     normalized.proposal_id = String(normalized.proposal_id || source.id || '').trim();
-    normalized.ref_number = String(normalized.ref_number || '').trim();
+    normalized.ref_number = this.ensureRefNumber(normalized.ref_number || '');
     normalized.proposal_title = String(normalized.proposal_title || '').trim();
     normalized.customer_name = String(normalized.customer_name || '').trim();
     normalized.status = String(normalized.status || '').trim();
@@ -421,6 +437,7 @@ const Proposals = {
     if (!E.proposalForm) return;
     E.proposalForm.reset();
     if (E.proposalFormProposalId) E.proposalFormProposalId.value = '';
+    E.proposalForm.dataset.refNumber = '';
     this.state.currentProposalId = '';
     this.state.currentItems = [];
     if (E.proposalFormDeleteBtn) E.proposalFormDeleteBtn.style.display = 'none';
@@ -700,8 +717,10 @@ const Proposals = {
     ];
   },
   collectProposalFormData() {
+    const existingRefNumber = String(E.proposalForm?.dataset.refNumber || '').trim();
     return {
       proposal_id: String(E.proposalFormProposalId?.value || '').trim(),
+      ref_number: this.ensureRefNumber(existingRefNumber),
       proposal_title: String(E.proposalFormTitleField?.value || '').trim(),
       deal_id: String(E.proposalFormDealId?.value || '').trim(),
       proposal_date: String(E.proposalFormProposalDate?.value || '').trim(),
@@ -770,6 +789,7 @@ const Proposals = {
 
     E.proposalForm.dataset.mode = mode;
     E.proposalForm.dataset.id = base.proposal_id || '';
+    E.proposalForm.dataset.refNumber = base.ref_number || '';
     this.assignFormValues(base);
     if (!readOnly && mode === 'create' && E.proposalFormAccountNumber) {
       E.proposalFormAccountNumber.value = this.ensureAccountNumber(E.proposalFormAccountNumber.value);
