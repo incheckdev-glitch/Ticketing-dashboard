@@ -34,6 +34,8 @@ window.CONFIG = {
   CALENDAR_SHEET_NAME: 'CalendarEvents',
   DEALS_SHEET_NAME: 'Deals',
   PROPOSAL_CATALOG_SHEET_NAME: runtimeConfig.PROPOSAL_CATALOG_SHEET_NAME || 'Proposal Catalog',
+  ROLES_SHEET_NAME: runtimeConfig.ROLES_SHEET_NAME || 'Roles',
+  ROLE_PERMISSIONS_SHEET_NAME: runtimeConfig.ROLE_PERMISSIONS_SHEET_NAME || 'Role Permissions',
 
   ISSUE_API_URL: runtimeConfig.ISSUE_API_URL || API_BASE_URL,
 
