@@ -188,8 +188,76 @@ const Agreements = {
   async createAgreement(agreement, items) { return Api.createAgreement(agreement, items); },
   async updateAgreement(id, updates, items) { return Api.updateAgreement(id, updates, items); },
   async deleteAgreement(id) { return Api.deleteAgreement(id); },
+  async listClients() { return Api.listClients(); },
+  async createClient(client) { return Api.createClient(client); },
+  async updateClient(clientId, updates) { return Api.updateClient(clientId, updates); },
   async createAgreementFromProposal(proposalId) { return Api.createAgreementFromProposal(proposalId); },
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
+  isSignedStatus(status) {
+    return this.normalizeText(status).includes('signed');
+  },
+  extractClientRows(response) {
+    const candidates = [
+      response,
+      response?.clients,
+      response?.items,
+      response?.rows,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.data?.clients,
+      response?.result?.clients,
+      response?.payload?.clients
+    ];
+    for (const candidate of candidates) if (Array.isArray(candidate)) return candidate;
+    return [];
+  },
+  buildClientFromAgreement(agreement = {}, agreementId = '') {
+    return {
+      customer_name: String(agreement.customer_name || '').trim(),
+      customer_legal_name: String(agreement.customer_legal_name || '').trim(),
+      customer_contact_name: String(agreement.customer_contact_name || '').trim(),
+      customer_contact_email: String(agreement.customer_contact_email || '').trim(),
+      customer_contact_mobile: String(agreement.customer_contact_mobile || '').trim(),
+      company_address: String(agreement.customer_address || '').trim(),
+      account_status: 'Signed',
+      contract_term: String(agreement.agreement_length || '').trim(),
+      billing_frequency: String(agreement.billing_frequency || '').trim(),
+      payment_terms: String(agreement.payment_term || '').trim(),
+      currency: String(agreement.currency || '').trim(),
+      latest_grand_total: this.toNumberSafe(agreement.grand_total),
+      total_signed_value: this.toNumberSafe(agreement.grand_total),
+      signed_agreements_count: 1,
+      active_agreements_count: 1,
+      latest_signed_date: String(agreement.customer_sign_date || agreement.agreement_date || '').trim(),
+      latest_agreement_id: String(agreementId || agreement.agreement_id || '').trim(),
+      latest_proposal_id: String(agreement.proposal_id || '').trim(),
+      latest_deal_id: String(agreement.deal_id || '').trim(),
+      latest_lead_id: String(agreement.lead_id || '').trim()
+    };
+  },
+  async syncSignedAgreementToClient(agreement = {}, agreementId = '') {
+    if (!this.isSignedStatus(agreement.status)) return;
+    const signedClient = this.buildClientFromAgreement(agreement, agreementId);
+    const response = await this.listClients();
+    const rows = this.extractClientRows(response);
+    const targetEmail = this.normalizeText(agreement.customer_contact_email);
+    const targetName = this.normalizeText(agreement.customer_name);
+    const existing = rows.find(row => {
+      const latestAgreementId = String(row?.latest_agreement_id || '').trim();
+      if (latestAgreementId && latestAgreementId === signedClient.latest_agreement_id) return true;
+      const email = this.normalizeText(row?.customer_contact_email);
+      if (targetEmail && email && email === targetEmail) return true;
+      const name = this.normalizeText(row?.customer_name);
+      return targetName && name && name === targetName;
+    });
+    const existingId = String(existing?.client_id || '').trim();
+    if (existingId) {
+      await this.updateClient(existingId, signedClient);
+      return;
+    }
+    await this.createClient(signedClient);
+  },
   applyFilters() {
     const terms = String(this.state.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
     const relationTerms = String(this.state.proposalOrDeal || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -427,8 +495,16 @@ const Agreements = {
     const id = String(E.agreementForm?.dataset.id || '').trim();
     const { agreement, items } = this.collectFormValues();
     try {
-      if (id) await this.updateAgreement(id, agreement, items);
-      else await this.createAgreement(agreement, items);
+      const saveResponse = id
+        ? await this.updateAgreement(id, agreement, items)
+        : await this.createAgreement(agreement, items);
+      const persistedAgreement = this.extractAgreementAndItems(saveResponse, id).agreement;
+      const persistedAgreementId = String(persistedAgreement?.agreement_id || id || '').trim();
+      try {
+        await this.syncSignedAgreementToClient({ ...agreement, ...persistedAgreement }, persistedAgreementId);
+      } catch (clientSyncError) {
+        UI.toast(`Agreement saved, but client sync failed: ${clientSyncError?.message || 'Unknown error'}`);
+      }
       this.closeAgreementForm();
       await this.loadAndRefresh({ force: true });
       UI.toast(id ? 'Agreement updated.' : 'Agreement created.');
