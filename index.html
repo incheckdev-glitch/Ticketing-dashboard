@@ -2012,38 +2012,37 @@
           <div class="filter-row"><label class="muted" for="proposalFormServiceStartDate">Service Start Date</label><input id="proposalFormServiceStartDate" class="input" type="date" /></div>
           <div class="filter-row">
             <label class="muted" for="proposalFormContractTerm">Contract Term</label>
-            <select id="proposalFormContractTerm" class="select">
-              <option value="1 year">1 year</option>
-              <option value="2 years">2 years</option>
-              <option value="3 years">3 years</option>
-            </select>
+            <input id="proposalFormContractTerm" class="input" type="text" list="proposalCommercialTermOptions" />
           </div>
           <div class="filter-row"><label class="muted" for="proposalFormAccountNumber">Account Number</label><input id="proposalFormAccountNumber" class="input" type="text" /></div>
           <div class="filter-row">
             <label class="muted" for="proposalFormBillingFrequency">Billing Frequency</label>
-            <select id="proposalFormBillingFrequency" class="select">
-              <option value="One-time">One-time</option>
-              <option value="Monthly">Monthly</option>
-              <option value="Quarterly">Quarterly</option>
-              <option value="Semi-Annual">Semi-Annual</option>
-              <option value="Annual">Annual</option>
-            </select>
+            <input id="proposalFormBillingFrequency" class="input" type="text" list="proposalCommercialTermOptions" />
           </div>
           <div class="filter-row">
             <label class="muted" for="proposalFormPaymentTerm">Payment Term</label>
-            <select id="proposalFormPaymentTerm" class="select">
-              <option value="Due on Receipt">Due on Receipt</option>
-              <option value="Net 7">Net 7</option>
-              <option value="Net 15">Net 15</option>
-              <option value="Net 30">Net 30</option>
-              <option value="Net 45">Net 45</option>
-              <option value="Net 60">Net 60</option>
-              <option value="50% Upfront / 50% Delivery">50% Upfront / 50% Delivery</option>
-              <option value="Milestone Based">Milestone Based</option>
-            </select>
+            <input id="proposalFormPaymentTerm" class="input" type="text" list="proposalCommercialTermOptions" />
           </div>
           <div class="filter-row"><label class="muted" for="proposalFormPoNumber">PO Number</label><input id="proposalFormPoNumber" class="input" type="text" /></div>
         </div>
+        <datalist id="proposalCommercialTermOptions">
+          <option value="One-time"></option>
+          <option value="Monthly"></option>
+          <option value="Quarterly"></option>
+          <option value="Semi-Annual"></option>
+          <option value="Annual"></option>
+          <option value="1 year"></option>
+          <option value="2 years"></option>
+          <option value="3 years"></option>
+          <option value="Due on Receipt"></option>
+          <option value="Net 7"></option>
+          <option value="Net 15"></option>
+          <option value="Net 30"></option>
+          <option value="Net 45"></option>
+          <option value="Net 60"></option>
+          <option value="50% Upfront / 50% Delivery"></option>
+          <option value="Milestone Based"></option>
+        </datalist>
 
         <div class="divider" style="margin:12px 0;"></div>
         <strong style="display:block;margin-bottom:8px;">Signatory</strong>
