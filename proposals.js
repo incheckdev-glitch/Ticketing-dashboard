@@ -405,6 +405,18 @@ const Proposals = {
       terms_conditions: ''
     };
   },
+  generateAccountNumber() {
+    const now = new Date();
+    const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+      now.getDate()
+    ).padStart(2, '0')}`;
+    const randomPart = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    return `ACC-${datePart}-${randomPart}`;
+  },
+  ensureAccountNumber(value = '') {
+    const trimmed = String(value || '').trim();
+    return trimmed || this.generateAccountNumber();
+  },
   resetForm() {
     if (!E.proposalForm) return;
     E.proposalForm.reset();
@@ -706,7 +718,7 @@ const Proposals = {
       provider_contact_email: String(E.proposalFormProviderContactEmail?.value || '').trim(),
       service_start_date: String(E.proposalFormServiceStartDate?.value || '').trim(),
       contract_term: String(E.proposalFormContractTerm?.value || '').trim(),
-      account_number: String(E.proposalFormAccountNumber?.value || '').trim(),
+      account_number: this.ensureAccountNumber(E.proposalFormAccountNumber?.value),
       billing_frequency: String(E.proposalFormBillingFrequency?.value || '').trim(),
       payment_term: String(E.proposalFormPaymentTerm?.value || '').trim(),
       po_number: String(E.proposalFormPoNumber?.value || '').trim(),
@@ -759,6 +771,9 @@ const Proposals = {
     E.proposalForm.dataset.mode = mode;
     E.proposalForm.dataset.id = base.proposal_id || '';
     this.assignFormValues(base);
+    if (!readOnly && mode === 'create' && E.proposalFormAccountNumber) {
+      E.proposalFormAccountNumber.value = this.ensureAccountNumber(E.proposalFormAccountNumber.value);
+    }
     this.renderProposalItems(this.state.currentItems);
     this.ensureCatalogLoaded();
 

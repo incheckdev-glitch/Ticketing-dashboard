@@ -146,6 +146,18 @@ const Agreements = {
       customer_sign_date: '', generated_by: '', notes: ''
     };
   },
+  generateAccountNumber() {
+    const now = new Date();
+    const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+      now.getDate()
+    ).padStart(2, '0')}`;
+    const randomPart = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    return `ACC-${datePart}-${randomPart}`;
+  },
+  ensureAccountNumber(value = '') {
+    const trimmed = String(value || '').trim();
+    return trimmed || this.generateAccountNumber();
+  },
   extractRows(response) {
     const candidates = [response, response?.agreements, response?.items, response?.rows, response?.data, response?.result, response?.payload, response?.data?.agreements, response?.result?.agreements, response?.payload?.agreements];
     for (const candidate of candidates) if (Array.isArray(candidate)) return candidate;
@@ -268,6 +280,7 @@ const Agreements = {
       const inputId = `agreementForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
       agreement[field] = v(inputId);
     });
+    agreement.account_number = this.ensureAccountNumber(agreement.account_number);
     const items = this.collectItems();
     const totals = this.calculateTotals(items);
     agreement.saas_total = totals.saas_total;
@@ -365,6 +378,10 @@ const Agreements = {
     this.renderItemRows(items);
     E.agreementForm.dataset.id = agreement.agreement_id || '';
     E.agreementForm.dataset.mode = agreement.agreement_id ? 'edit' : 'create';
+    if (!readOnly && !agreement.agreement_id) {
+      const accountNumberEl = document.getElementById('agreementFormAccountNumber');
+      if (accountNumberEl) accountNumberEl.value = this.ensureAccountNumber(accountNumberEl.value);
+    }
     if (E.agreementFormTitle) E.agreementFormTitle.textContent = agreement.agreement_id ? (readOnly ? 'View Agreement' : 'Edit Agreement') : 'Create Agreement';
     this.setFormReadOnly(readOnly);
     E.agreementFormModal.classList.add('open');
