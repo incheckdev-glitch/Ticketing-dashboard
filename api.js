@@ -137,18 +137,22 @@ const Api = {
     return this.postAuthenticated('clients', 'delete', { client_id: clientId });
   },
   async listRoles() {
-    return this.postAuthenticated('roles', 'list', {});
+    return this.postAuthenticated('roles', 'list', {
+      sheetName: CONFIG.ROLES_SHEET_NAME
+    });
   },
   async getRole(roleIdOrKey) {
     return this.postAuthenticated('roles', 'get', {
       role_id: roleIdOrKey,
-      role_key: roleIdOrKey
+      role_key: roleIdOrKey,
+      sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
   async createRole(payload = {}) {
     return this.postAuthenticated('roles', 'create', {
       role: payload,
-      ...payload
+      ...payload,
+      sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
   async updateRole(roleIdOrKey, updates = {}) {
@@ -156,42 +160,55 @@ const Api = {
       role_id: roleIdOrKey,
       role_key: roleIdOrKey,
       updates,
-      role: { role_key: roleIdOrKey, ...updates }
+      role: { role_key: roleIdOrKey, ...updates },
+      sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
   async deleteRole(roleIdOrKey) {
     return this.postAuthenticated('roles', 'delete', {
       role_id: roleIdOrKey,
-      role_key: roleIdOrKey
+      role_key: roleIdOrKey,
+      sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
   async listRolePermissions() {
-    return this.postAuthenticated('role_permissions', 'list', {});
+    return this.postAuthenticated('role_permissions', 'list', {
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
+    });
   },
   async getRolePermission(permissionId) {
-    return this.postAuthenticated('role_permissions', 'get', { permission_id: permissionId });
+    return this.postAuthenticated('role_permissions', 'get', {
+      permission_id: permissionId,
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
+    });
   },
   async createRolePermission(payload = {}) {
     return this.postAuthenticated('role_permissions', 'create', {
       permission: payload,
-      ...payload
+      ...payload,
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
     });
   },
   async updateRolePermission(permissionId, updates = {}) {
     return this.postAuthenticated('role_permissions', 'update', {
       permission_id: permissionId,
       updates,
-      permission: { permission_id: permissionId, ...updates }
+      permission: { permission_id: permissionId, ...updates },
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
     });
   },
   async saveRolePermission(payload = {}) {
     return this.postAuthenticated('role_permissions', 'save', {
       permission: payload,
-      ...payload
+      ...payload,
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
     });
   },
   async deleteRolePermission(permissionId) {
-    return this.postAuthenticated('role_permissions', 'delete', { permission_id: permissionId });
+    return this.postAuthenticated('role_permissions', 'delete', {
+      permission_id: permissionId,
+      sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
+    });
   }
 };
 
