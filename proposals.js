@@ -996,22 +996,23 @@ const Proposals = {
 
     if (E.proposalsTbody) {
       E.proposalsTbody.addEventListener('click', event => {
-        const viewId = event.target?.getAttribute('data-proposal-view');
+        const getActionValue = action => event.target?.closest?.(`[${action}]`)?.getAttribute(action) || '';
+        const viewId = getActionValue('data-proposal-view');
         if (viewId) {
           this.openProposalFormById(viewId, { readOnly: true });
           return;
         }
-        const editId = event.target?.getAttribute('data-proposal-edit');
+        const editId = getActionValue('data-proposal-edit');
         if (editId) {
           this.openProposalFormById(editId, { readOnly: false });
           return;
         }
-        const previewId = event.target?.getAttribute('data-proposal-preview');
+        const previewId = getActionValue('data-proposal-preview');
         if (previewId) {
           this.previewProposalHtml(previewId);
           return;
         }
-        const convertAgreementId = event.target?.getAttribute('data-proposal-convert-agreement');
+        const convertAgreementId = getActionValue('data-proposal-convert-agreement');
         if (convertAgreementId) {
           if (typeof setActiveView === 'function') setActiveView('agreements');
           if (window.Agreements?.createFromProposalFlow) {
@@ -1021,7 +1022,7 @@ const Proposals = {
           }
           return;
         }
-        const deleteId = event.target?.getAttribute('data-proposal-delete');
+        const deleteId = getActionValue('data-proposal-delete');
         if (deleteId) this.deleteById(deleteId);
       });
     }
