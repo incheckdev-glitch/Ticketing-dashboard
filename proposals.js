@@ -340,6 +340,7 @@ const Proposals = {
             <button class="btn ghost sm" type="button" data-proposal-view="${id}">View</button>
             <button class="btn ghost sm" type="button" data-proposal-edit="${id}">Edit</button>
             <button class="btn ghost sm" type="button" data-proposal-preview="${id}">Preview</button>
+            <button class="btn ghost sm" type="button" data-proposal-convert-agreement="${id}">Convert to Agreement</button>
             <button class="btn ghost sm" type="button" data-proposal-delete="${id}">Delete</button>
           </td>
         </tr>`;
@@ -1008,6 +1009,16 @@ const Proposals = {
         const previewId = event.target?.getAttribute('data-proposal-preview');
         if (previewId) {
           this.previewProposalHtml(previewId);
+          return;
+        }
+        const convertAgreementId = event.target?.getAttribute('data-proposal-convert-agreement');
+        if (convertAgreementId) {
+          if (typeof setActiveView === 'function') setActiveView('agreements');
+          if (window.Agreements?.createFromProposalFlow) {
+            window.Agreements.createFromProposalFlow(convertAgreementId);
+          } else {
+            UI.toast('Agreements module is unavailable.');
+          }
           return;
         }
         const deleteId = event.target?.getAttribute('data-proposal-delete');
