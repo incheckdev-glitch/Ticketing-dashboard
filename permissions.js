@@ -24,6 +24,30 @@ const Permissions = {
       .toLowerCase();
   },
   extractRows(response) {
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const coerceRows = value => {
+      const parsed = parseJsonIfNeeded(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (!parsed || typeof parsed !== 'object') return [];
+
+      const objectValues = Object.values(parsed).filter(Boolean);
+      if (objectValues.length && objectValues.every(item => item && typeof item === 'object')) {
+        const hasRuleLikeShape = objectValues.some(
+          item => 'resource' in item || 'action' in item || 'allowed_roles' in item || 'allowed_roles_csv' in item
+        );
+        if (hasRuleLikeShape) return objectValues;
+      }
+      return [];
+    };
     const candidates = [
       response,
       response?.items,
@@ -36,7 +60,8 @@ const Permissions = {
       response?.data?.rows
     ];
     for (const candidate of candidates) {
-      if (Array.isArray(candidate)) return candidate;
+      const rows = coerceRows(candidate);
+      if (rows.length) return rows;
     }
     return [];
   },
