@@ -640,6 +640,9 @@ const Deals = {
     if (E.dealFormAgreementNeeded) E.dealFormAgreementNeeded.value = '';
     this.syncDealFormDropdowns();
   },
+  currentUserAssignee() {
+    return String(Session.displayName() || Session.username() || Session.user()?.email || '').trim();
+  },
   openForm(row = null) {
     if (!E.dealFormModal || !E.dealForm) return;
     const isEdit = !!row;
@@ -682,6 +685,7 @@ const Deals = {
     } else {
       if (E.dealFormDealId) E.dealFormDealId.value = 'Auto-generated';
       if (E.dealFormConvertedAt) E.dealFormConvertedAt.value = new Date().toLocaleString();
+      if (E.dealFormAssignedTo) E.dealFormAssignedTo.value = this.currentUserAssignee();
       this.syncDealFormDropdowns();
     }
 
