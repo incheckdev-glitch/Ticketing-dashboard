@@ -156,7 +156,7 @@ const Permissions = {
     if (key === 'issues') return Session.isAuthenticated();
     const resource = this.tabResourceMap[key];
     if (!resource) return Session.isAuthenticated();
-    return this.can(resource, 'view', { fallback: Session.isAuthenticated() && !this.state.loaded });
+    return this.can(resource, 'view', { fallback: Session.isAuthenticated() });
   }
 };
 

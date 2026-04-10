@@ -631,8 +631,13 @@ const UI = {
       { key: 'proposals', tabEl: E.proposalsTab, viewEl: E.proposalsView },
       { key: 'agreements', tabEl: E.agreementsTab, viewEl: E.agreementsView },
       { key: 'proposalCatalog', tabEl: E.proposalCatalogTab, viewEl: E.proposalCatalogView },
-      { key: 'users', tabEl: E.usersTab, viewEl: E.usersView },
-      { key: 'rolesPermissions', tabEl: E.rolesPermissionsTab, viewEl: E.rolesPermissionsView },
+      { key: 'users', tabEl: E.usersTab, viewEl: E.usersView, forceAllowed: Permissions.canManageUsers() },
+      {
+        key: 'rolesPermissions',
+        tabEl: E.rolesPermissionsTab,
+        viewEl: E.rolesPermissionsView,
+        forceAllowed: Permissions.canManageRolesPermissions()
+      },
       {
         key: 'calendar',
         tabEl: E.calendarTab,
@@ -645,7 +650,7 @@ const UI = {
       }
     ];
     tabAccessRules.forEach(rule => {
-      const allowed = Permissions.canAccessTab(rule.key);
+      const allowed = typeof rule.forceAllowed === 'boolean' ? rule.forceAllowed : Permissions.canAccessTab(rule.key);
       if (rule.tabEl) rule.tabEl.style.display = allowed ? '' : 'none';
       if (!allowed && rule.viewEl?.classList.contains('active')) {
         setActiveView('issues');
