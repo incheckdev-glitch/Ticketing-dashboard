@@ -530,6 +530,9 @@ const Leads = {
     if (E.leadFormAgreementNeeded) E.leadFormAgreementNeeded.value = '';
     this.syncLeadFormDropdowns();
   },
+  currentUserAssignee() {
+    return String(Session.displayName() || Session.username() || Session.user()?.email || '').trim();
+  },
   openForm(row = null) {
     if (!E.leadFormModal || !E.leadForm) return;
     const isEdit = !!row;
@@ -569,6 +572,7 @@ const Leads = {
     } else {
       if (E.leadFormLeadId) E.leadFormLeadId.value = 'Auto-generated';
       if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = new Date().toLocaleString();
+      if (E.leadFormAssignedTo) E.leadFormAssignedTo.value = this.currentUserAssignee();
       this.syncLeadFormDropdowns();
     }
 
