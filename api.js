@@ -90,7 +90,34 @@ const Api = {
       catalog_item_id: catalogItemId,
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
-  }
+  },
+  async listAgreements() {
+    return this.postAuthenticated('agreements', 'list', {});
+  },
+  async getAgreement(agreementId) {
+    return this.postAuthenticated('agreements', 'get', { agreement_id: agreementId });
+  },
+  async createAgreement(agreement, items = []) {
+    return this.postAuthenticated('agreements', 'create', { agreement, items });
+  },
+  async updateAgreement(agreementId, updates, items = []) {
+    return this.postAuthenticated('agreements', 'update', {
+      agreement_id: agreementId,
+      updates,
+      items
+    });
+  },
+  async deleteAgreement(agreementId) {
+    return this.postAuthenticated('agreements', 'delete', { agreement_id: agreementId });
+  },
+  async createAgreementFromProposal(proposalId) {
+    return this.postAuthenticated('agreements', 'create_from_proposal', { proposal_id: proposalId });
+  },
+  async generateAgreementHtml(agreementId) {
+    return this.postAuthenticated('agreements', 'generate_agreement_html', {
+      agreement_id: agreementId
+    });
+  },
 };
 
 async function apiPost(payload = {}) {
