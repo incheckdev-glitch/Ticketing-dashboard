@@ -236,6 +236,85 @@ const Agreements = {
       latest_lead_id: String(agreement.lead_id || '').trim()
     };
   },
+  mergeClientValue(existingValue, incomingValue) {
+    const incoming = typeof incomingValue === 'string' ? incomingValue.trim() : incomingValue;
+    if (incoming === '' || incoming === null || incoming === undefined) return existingValue;
+    return incoming;
+  },
+  parseDateValue(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  },
+  isSameAgreement(existing = {}, signedClient = {}) {
+    const existingAgreementId = String(existing.latest_agreement_id || '').trim();
+    const incomingAgreementId = String(signedClient.latest_agreement_id || '').trim();
+    return !!existingAgreementId && !!incomingAgreementId && existingAgreementId === incomingAgreementId;
+  },
+  mergeExistingClientWithSignedAgreement(existing = {}, signedClient = {}) {
+    const sameAgreement = this.isSameAgreement(existing, signedClient);
+    const existingFirstSigned = String(existing.first_signed_date || '').trim();
+    const incomingLatestSigned = String(signedClient.latest_signed_date || '').trim();
+    const existingFirstDate = this.parseDateValue(existingFirstSigned);
+    const incomingLatestDate = this.parseDateValue(incomingLatestSigned);
+    const firstSignedDate = existingFirstDate && incomingLatestDate
+      ? (incomingLatestDate < existingFirstDate ? incomingLatestSigned : existingFirstSigned)
+      : (existingFirstSigned || incomingLatestSigned);
+
+    const existingLatestDate = this.parseDateValue(existing.latest_signed_date);
+    const shouldUseIncomingAsLatest = !existingLatestDate || (incomingLatestDate && incomingLatestDate >= existingLatestDate);
+    const incomingLatestAgreementId = String(signedClient.latest_agreement_id || '').trim();
+
+    const nextSignedCount = sameAgreement
+      ? this.toNumberSafe(existing.signed_agreements_count)
+      : this.toNumberSafe(existing.signed_agreements_count) + 1;
+    const nextAgreementsCount = Math.max(
+      this.toNumberSafe(existing.agreements_count),
+      nextSignedCount
+    );
+    const nextActiveCount = Math.max(
+      this.toNumberSafe(existing.active_agreements_count),
+      sameAgreement ? this.toNumberSafe(existing.active_agreements_count) : this.toNumberSafe(existing.active_agreements_count) + 1
+    );
+
+    return {
+      customer_name: this.mergeClientValue(existing.customer_name, signedClient.customer_name),
+      customer_legal_name: this.mergeClientValue(existing.customer_legal_name, signedClient.customer_legal_name),
+      customer_contact_name: this.mergeClientValue(existing.customer_contact_name, signedClient.customer_contact_name),
+      customer_contact_email: this.mergeClientValue(existing.customer_contact_email, signedClient.customer_contact_email),
+      customer_contact_mobile: this.mergeClientValue(existing.customer_contact_mobile, signedClient.customer_contact_mobile),
+      company_address: this.mergeClientValue(existing.company_address, signedClient.company_address),
+      account_status: this.mergeClientValue(existing.account_status, signedClient.account_status),
+      contract_term: this.mergeClientValue(existing.contract_term, signedClient.contract_term),
+      billing_frequency: this.mergeClientValue(existing.billing_frequency, signedClient.billing_frequency),
+      payment_terms: this.mergeClientValue(existing.payment_terms, signedClient.payment_terms),
+      currency: this.mergeClientValue(existing.currency, signedClient.currency),
+      latest_grand_total: this.toNumberSafe(signedClient.latest_grand_total) || this.toNumberSafe(existing.latest_grand_total),
+      total_signed_value: sameAgreement
+        ? this.toNumberSafe(existing.total_signed_value)
+        : this.toNumberSafe(existing.total_signed_value) + this.toNumberSafe(signedClient.latest_grand_total),
+      agreements_count: nextAgreementsCount,
+      signed_agreements_count: nextSignedCount,
+      active_agreements_count: nextActiveCount,
+      first_signed_date: firstSignedDate,
+      latest_signed_date: shouldUseIncomingAsLatest
+        ? (incomingLatestSigned || String(existing.latest_signed_date || '').trim())
+        : String(existing.latest_signed_date || '').trim(),
+      latest_agreement_id: shouldUseIncomingAsLatest
+        ? (incomingLatestAgreementId || String(existing.latest_agreement_id || '').trim())
+        : String(existing.latest_agreement_id || '').trim(),
+      latest_proposal_id: shouldUseIncomingAsLatest
+        ? this.mergeClientValue(existing.latest_proposal_id, signedClient.latest_proposal_id)
+        : String(existing.latest_proposal_id || '').trim(),
+      latest_deal_id: shouldUseIncomingAsLatest
+        ? this.mergeClientValue(existing.latest_deal_id, signedClient.latest_deal_id)
+        : String(existing.latest_deal_id || '').trim(),
+      latest_lead_id: shouldUseIncomingAsLatest
+        ? this.mergeClientValue(existing.latest_lead_id, signedClient.latest_lead_id)
+        : String(existing.latest_lead_id || '').trim()
+    };
+  },
   async syncSignedAgreementToClient(agreement = {}, agreementId = '') {
     if (!this.isSignedStatus(agreement.status)) return;
     const signedClient = this.buildClientFromAgreement(agreement, agreementId);
@@ -253,7 +332,8 @@ const Agreements = {
     });
     const existingId = String(existing?.client_id || '').trim();
     if (existingId) {
-      await this.updateClient(existingId, signedClient);
+      const mergedPayload = this.mergeExistingClientWithSignedAgreement(existing, signedClient);
+      await this.updateClient(existingId, mergedPayload);
       return;
     }
     await this.createClient(signedClient);
