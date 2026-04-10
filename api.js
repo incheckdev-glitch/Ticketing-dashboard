@@ -136,6 +136,40 @@ const Api = {
   async deleteClient(clientId) {
     return this.postAuthenticated('clients', 'delete', { client_id: clientId });
   },
+  async listRoles() {
+    return this.postAuthenticated('roles', 'list', {});
+  },
+  async getRole(roleKey) {
+    return this.postAuthenticated('roles', 'get', { role_key: roleKey });
+  },
+  async createRole(payload = {}) {
+    return this.postAuthenticated('roles', 'create', {
+      role: payload,
+      ...payload
+    });
+  },
+  async updateRole(roleKey, updates = {}) {
+    return this.postAuthenticated('roles', 'update', {
+      role_key: roleKey,
+      updates,
+      role: { role_key: roleKey, ...updates }
+    });
+  },
+  async deleteRole(roleKey) {
+    return this.postAuthenticated('roles', 'delete', { role_key: roleKey });
+  },
+  async listRolePermissions() {
+    return this.postAuthenticated('role_permissions', 'list', {});
+  },
+  async saveRolePermission(payload = {}) {
+    return this.postAuthenticated('role_permissions', 'save', {
+      permission: payload,
+      ...payload
+    });
+  },
+  async deleteRolePermission(permissionId) {
+    return this.postAuthenticated('role_permissions', 'delete', { permission_id: permissionId });
+  }
 };
 
 async function apiPost(payload = {}) {

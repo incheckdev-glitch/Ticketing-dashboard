@@ -687,6 +687,10 @@ body.auth-locked .login-hint{
 #usersTable th,#usersTable td{
   white-space:nowrap;
 }
+#rolesTable th,#rolesTable td,
+#rolePermissionsTable th,#rolePermissionsTable td{
+  white-space:nowrap;
+}
 @media(max-width:980px){
   .user-form-grid{
     grid-template-columns:repeat(2,minmax(0,1fr));
