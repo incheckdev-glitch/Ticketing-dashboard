@@ -484,9 +484,25 @@ const Agreements = {
       return;
     }
     try {
-      await this.createAgreementFromProposal(id);
+      const response = await this.createAgreementFromProposal(id);
+      const { agreement, items } = this.extractAgreementAndItems(response);
       await this.loadAndRefresh({ force: true });
-      UI.toast(`Agreement created from proposal ${id}.`);
+      const createdAgreementId = String(agreement?.agreement_id || '').trim();
+      if (createdAgreementId) {
+        this.openAgreementForm(agreement, items, { readOnly: false });
+        UI.toast(
+          `Agreement ${createdAgreementId} created from proposal ${id}. Review, complete missing fields, and verify details before saving.`
+        );
+      } else {
+        this.openAgreementForm(
+          this.normalizeAgreement({ ...this.emptyAgreement(), proposal_id: id }),
+          items,
+          { readOnly: false }
+        );
+        UI.toast(
+          `Agreement template created from proposal ${id}. Complete missing fields and verify details before saving.`
+        );
+      }
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
