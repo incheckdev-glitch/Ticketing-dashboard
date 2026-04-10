@@ -526,6 +526,13 @@ function cacheEls() {
     'rolePermissionCreateAction',
     'rolePermissionCreateAllowedRoles',
     'rolePermissionCreateDescription',
+    'tabPermissionBulkForm',
+    'tabPermissionRole',
+    'tabPermissionTarget',
+    'tabPermissionActionView',
+    'tabPermissionActionCreate',
+    'tabPermissionActionEdit',
+    'tabPermissionActionDelete',
     'accentColor',
     'heroTriagePct',
     'heroHighImpactCount',
@@ -617,19 +624,33 @@ const UI = {
 
     if (E.currentUserChip) E.currentUserChip.textContent = `User: ${displayName}`;
     if (E.currentRoleChip) E.currentRoleChip.textContent = `Role: ${role}`;
-    if (E.csmTab) E.csmTab.style.display = Permissions.canViewCsmActivity() ? '' : 'none';
-    if (!Permissions.canViewCsmActivity() && E.csmView?.classList.contains('active')) {
-      setActiveView('issues');
-    }
-    if (E.usersTab) E.usersTab.style.display = Permissions.canManageUsers() ? '' : 'none';
-    if (!Permissions.canManageUsers() && E.usersView?.classList.contains('active')) {
-      setActiveView('issues');
-    }
-    if (E.rolesPermissionsTab)
-      E.rolesPermissionsTab.style.display = Permissions.canManageRolesPermissions() ? '' : 'none';
-    if (!Permissions.canManageRolesPermissions() && E.rolesPermissionsView?.classList.contains('active')) {
-      setActiveView('issues');
-    }
+    const tabAccessRules = [
+      { key: 'csm', tabEl: E.csmTab, viewEl: E.csmView },
+      { key: 'leads', tabEl: E.leadsTab, viewEl: E.leadsView },
+      { key: 'deals', tabEl: E.dealsTab, viewEl: E.dealsView },
+      { key: 'proposals', tabEl: E.proposalsTab, viewEl: E.proposalsView },
+      { key: 'agreements', tabEl: E.agreementsTab, viewEl: E.agreementsView },
+      { key: 'proposalCatalog', tabEl: E.proposalCatalogTab, viewEl: E.proposalCatalogView },
+      { key: 'users', tabEl: E.usersTab, viewEl: E.usersView },
+      { key: 'rolesPermissions', tabEl: E.rolesPermissionsTab, viewEl: E.rolesPermissionsView },
+      {
+        key: 'calendar',
+        tabEl: E.calendarTab,
+        viewEl: E.calendarView
+      },
+      {
+        key: 'insights',
+        tabEl: E.insightsTab,
+        viewEl: E.insightsView
+      }
+    ];
+    tabAccessRules.forEach(rule => {
+      const allowed = Permissions.canAccessTab(rule.key);
+      if (rule.tabEl) rule.tabEl.style.display = allowed ? '' : 'none';
+      if (!allowed && rule.viewEl?.classList.contains('active')) {
+        setActiveView('issues');
+      }
+    });
     if (E.addEventBtn) E.addEventBtn.style.display = Permissions.canManageEvents() ? '' : 'none';
     if (E.freezeManageBtn) E.freezeManageBtn.style.display = canManageFreezeWindows ? '' : 'none';
     if (E.freezeManageBtnSecondary) E.freezeManageBtnSecondary.style.display = canManageFreezeWindows ? '' : 'none';

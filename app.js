@@ -1904,9 +1904,7 @@ function trapFocus(container, e) {
 }
 
 function setActiveView(view) {
- if (view === 'csm' && !Permissions.canViewCsmActivity()) view = 'issues';
- if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- if (view === 'rolesPermissions' && !Permissions.canManageRolesPermissions()) view = 'issues';
+ if (!Permissions.canAccessTab(view)) view = 'issues';
  const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users', 'rolesPermissions'];
   names.forEach(name => {
     const tab =
@@ -5615,9 +5613,9 @@ function wireKeyboardShortcuts() {
       setActiveView('proposalCatalog');
     } else if (e.key === '9') {
       setActiveView('agreements');
-    } else if (e.key === '0' && Permissions.canManageUsers()) {
+    } else if (e.key === '0' && Permissions.canAccessTab('users')) {
       setActiveView('users');
-    } else if (e.key === '-' && Permissions.canManageRolesPermissions()) {
+    } else if (e.key === '-' && Permissions.canAccessTab('rolesPermissions')) {
       setActiveView('rolesPermissions');
     }
   });

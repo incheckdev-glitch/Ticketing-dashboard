@@ -1,4 +1,17 @@
 const Permissions = {
+  tabResourceMap: {
+    issues: null,
+    calendar: 'events',
+    insights: 'insights',
+    csm: 'csm',
+    leads: 'leads',
+    deals: 'deals',
+    proposals: 'proposals',
+    agreements: 'agreements',
+    proposalCatalog: 'proposal_catalog',
+    users: 'users',
+    rolesPermissions: 'roles'
+  },
   state: {
     loaded: false,
     loading: false,
@@ -136,6 +149,14 @@ const Permissions = {
   },
   canUseInternalIssueFilters() {
     return this.can('tickets', 'internal_filters', { fallback: this.isAdminLike() });
+  },
+  canAccessTab(viewKey) {
+    const key = String(viewKey || '').trim();
+    if (!key) return false;
+    if (key === 'issues') return Session.isAuthenticated();
+    const resource = this.tabResourceMap[key];
+    if (!resource) return Session.isAuthenticated();
+    return this.can(resource, 'view', { fallback: Session.isAuthenticated() && !this.state.loaded });
   }
 };
 
