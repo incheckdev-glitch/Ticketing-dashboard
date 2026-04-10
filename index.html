@@ -334,6 +334,10 @@
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
             </button>
+            <button id="rolesPermissionsTab" class="view-tab" data-view="rolesPermissions"
+                    role="tab" aria-selected="false" aria-controls="rolesPermissionsView" style="display:none;">
+              <span class="icon" aria-hidden="true">🛡️</span> Roles &amp; Permissions
+            </button>
           </div>
         </aside>
         <div class="content-panels">
@@ -432,6 +436,86 @@
               </select>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="rolesPermissionsView" class="view" role="tabpanel" aria-labelledby="rolesPermissionsTab">
+        <div class="card" aria-label="Roles management">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Roles</strong>
+              <div class="muted">Manage dynamic roles from backend resource.</div>
+            </div>
+            <button id="rolesRefreshBtn" class="btn ghost sm" type="button">Refresh roles</button>
+          </div>
+          <div id="rolesState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Roles table">
+            <table id="rolesTable">
+              <thead>
+                <tr>
+                  <th scope="col">role_key</th>
+                  <th scope="col">display_name</th>
+                  <th scope="col">description</th>
+                  <th scope="col">is_system</th>
+                  <th scope="col">is_active</th>
+                  <th scope="col">updated_at</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rolesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" aria-label="Create role">
+          <strong>Create role</strong>
+          <form id="roleCreateForm" class="user-form-grid" style="margin-top:10px;">
+            <input id="roleCreateKey" class="input" type="text" placeholder="role_key *" required />
+            <input id="roleCreateDisplayName" class="input" type="text" placeholder="Display name *" required />
+            <input id="roleCreateDescription" class="input" type="text" placeholder="Description" />
+            <select id="roleCreateIsActive" class="select">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            <button id="roleCreateSubmit" class="btn primary" type="submit">Create role</button>
+          </form>
+        </div>
+
+        <div class="card" aria-label="Permission matrix">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Permission matrix</strong>
+              <div class="muted">Manage access rules by resource + action.</div>
+            </div>
+            <button id="rolePermissionsRefreshBtn" class="btn ghost sm" type="button">Refresh permissions</button>
+          </div>
+          <div id="rolePermissionsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Permission matrix table">
+            <table id="rolePermissionsTable">
+              <thead>
+                <tr>
+                  <th scope="col">resource</th>
+                  <th scope="col">action</th>
+                  <th scope="col">allowed_roles</th>
+                  <th scope="col">description</th>
+                  <th scope="col">updated_at</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rolePermissionsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" aria-label="Create permission rule">
+          <strong>Create permission rule</strong>
+          <form id="rolePermissionCreateForm" class="user-form-grid" style="margin-top:10px;">
+            <input id="rolePermissionCreateResource" class="input" type="text" placeholder="resource *" required />
+            <input id="rolePermissionCreateAction" class="input" type="text" placeholder="action *" required />
+            <input id="rolePermissionCreateAllowedRoles" class="input" type="text" placeholder="allowed roles CSV (e.g. admin,manager)" required />
+            <input id="rolePermissionCreateDescription" class="input" type="text" placeholder="Description" />
+            <button id="rolePermissionCreateSubmit" class="btn primary" type="submit">Create rule</button>
+          </form>
         </div>
       </section>
 
@@ -950,16 +1034,34 @@
             <input id="userCreateUsername" class="input" type="text" placeholder="Username *" required />
             <input id="userCreateEmail" class="input" type="email" placeholder="Email *" required />
             <select id="userCreateRole" class="select">
-              <option value="viewer">viewer</option>
-              <option value="hoo">hoo</option>
-              <option value="dev">dev</option>
-              <option value="admin">admin</option>
+              <option value="">Loading roles…</option>
             </select>
             <input id="userCreatePassword" class="input" type="password" placeholder="Temporary password *" required />
             <button id="userCreateSubmit" class="btn primary" type="submit">Create user</button>
           </form>
         </div>
       </section>
+
+      <div id="userEditModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userEditTitle" aria-hidden="true">
+        <div class="modal-content" style="max-width:760px;">
+          <div class="header">
+            <h2 id="userEditTitle" style="margin:0;font-size:20px">Edit user</h2>
+            <button class="modal-close" id="userEditClose" aria-label="Close user edit">✕</button>
+          </div>
+          <form id="userEditForm" class="user-form-grid">
+            <input id="userEditName" class="input" type="text" placeholder="Full name *" required />
+            <input id="userEditUsername" class="input" type="text" placeholder="Username *" required />
+            <input id="userEditEmail" class="input" type="email" placeholder="Email *" required />
+            <select id="userEditRole" class="select" required>
+              <option value="">Loading roles…</option>
+            </select>
+            <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;">
+              <button id="userEditCancel" class="btn ghost" type="button">Cancel</button>
+              <button id="userEditSubmit" class="btn primary" type="submit">Save changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <section id="leadsView" class="view" role="tabpanel" aria-labelledby="leadsTab">
         <div class="card" aria-label="Leads list">
@@ -2364,6 +2466,7 @@
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
   <script src="proposal-catalog.js"></script>
+  <script src="roles-admin.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>
 </body>

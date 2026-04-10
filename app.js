@@ -1906,7 +1906,8 @@ function trapFocus(container, e) {
 function setActiveView(view) {
  if (view === 'csm' && !Permissions.canViewCsmActivity()) view = 'issues';
  if (view === 'users' && !Permissions.canManageUsers()) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users'];
+ if (view === 'rolesPermissions' && !Permissions.canManageRolesPermissions()) view = 'issues';
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users', 'rolesPermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1927,7 +1928,9 @@ function setActiveView(view) {
         ? E.agreementsTab
         : name === 'proposalCatalog'
         ? E.proposalCatalogTab
-        : E.usersTab;
+        : name === 'users'
+        ? E.usersTab
+        : E.rolesPermissionsTab;
     const panel =
       name === 'issues'
         ? E.issuesView
@@ -1947,7 +1950,9 @@ function setActiveView(view) {
         ? E.agreementsView
         : name === 'proposalCatalog'
         ? E.proposalCatalogView
-        : E.usersView;
+        : name === 'users'
+        ? E.usersView
+        : E.rolesPermissionsView;
     const active = name === view;
     if (tab) {
       tab.classList.toggle('active', active);
@@ -1977,6 +1982,7 @@ function setActiveView(view) {
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
+  if (view === 'rolesPermissions' && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
   updatePrimaryActionButton(view);
 }
 
@@ -3978,7 +3984,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.proposalCatalogTab, E.usersTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.proposalCatalogTab, E.usersTab, E.rolesPermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4405,6 +4411,7 @@ function wireDashboardGate() {
 
     try {
       const user = await Session.login(identifier, passcode);
+      await Permissions.loadMatrix(true);
       UI.applyRolePermissions();
       E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
@@ -4429,6 +4436,7 @@ function wireDashboardGate() {
   if (E.logoutBtn) {
     E.logoutBtn.addEventListener('click', async () => {
       await Session.logout();
+      Permissions.reset();
       UI.applyRolePermissions();
       E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
@@ -5609,6 +5617,8 @@ function wireKeyboardShortcuts() {
       setActiveView('agreements');
     } else if (e.key === '0' && Permissions.canManageUsers()) {
       setActiveView('users');
+    } else if (e.key === '-' && Permissions.canManageRolesPermissions()) {
+      setActiveView('rolesPermissions');
     }
   });
 }
@@ -5638,6 +5648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireDashboardGate();
   wireCore();
   if (window.UserAdmin?.wire) UserAdmin.wire();
+  if (window.RolesAdmin?.wire) RolesAdmin.wire();
   wireSorting();
   wirePaging();
   wireFilters();
@@ -5663,6 +5674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!valid) {
         await handleExpiredSession('Saved session is invalid or expired. Please log in again.');
       } else {
+        await Permissions.loadMatrix(true);
         isAuthenticated = true;
       }
     } catch (error) {
@@ -5684,7 +5696,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         view === 'proposals' ||
         view === 'agreements' ||
         view === 'proposalCatalog' ||
-        view === 'users'
+        view === 'users' ||
+        view === 'rolesPermissions'
         ? view
         : 'issues'
     );

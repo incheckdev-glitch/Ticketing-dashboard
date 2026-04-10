@@ -23,19 +23,9 @@ const Session = {
   },
   normalizeSessionPayload(session = {}, fallbackToken = '') {
     const token = String(session?.token || session?.authToken || fallbackToken || '').trim();
-    const backendRole = String(session?.role || '')
+    const role = String(session?.role || '')
       .trim()
       .toLowerCase();
-    const role =
-      backendRole === ROLES.ADMIN
-        ? ROLES.ADMIN
-        : backendRole === ROLES.DEV
-        ? ROLES.DEV
-        : backendRole === ROLES.HOO
-        ? ROLES.HOO
-        : backendRole === ROLES.VIEWER
-        ? ROLES.VIEWER
-        : null;
     if (!token || !role) return null;
     return {
       authToken: token,
@@ -170,13 +160,7 @@ const Session = {
     };
   },
   isAuthenticated() {
-    return (
-      !!this.state.authToken &&
-      (this.state.role === ROLES.ADMIN ||
-        this.state.role === ROLES.DEV ||
-        this.state.role === ROLES.VIEWER ||
-        this.state.role === ROLES.HOO)
-    );
+    return !!this.state.authToken && !!String(this.state.role || '').trim();
   },
   role() {
     return this.state.role || null;

@@ -158,7 +158,9 @@ function cacheEls() {
     'currentUserChip',
     'currentRoleChip',
     'usersTab',
+    'rolesPermissionsTab',
     'usersView',
+    'rolesPermissionsView',
     'csmSearchInput',
     'csmNameFilter',
     'csmClientFilter',
@@ -499,6 +501,31 @@ function cacheEls() {
     'userCreateRole',
     'userCreatePassword',
     'userCreateSubmit',
+    'userEditModal',
+    'userEditForm',
+    'userEditClose',
+    'userEditCancel',
+    'userEditName',
+    'userEditUsername',
+    'userEditEmail',
+    'userEditRole',
+    'userEditSubmit',
+    'rolesRefreshBtn',
+    'rolesState',
+    'rolesTbody',
+    'roleCreateForm',
+    'roleCreateKey',
+    'roleCreateDisplayName',
+    'roleCreateDescription',
+    'roleCreateIsActive',
+    'rolePermissionsRefreshBtn',
+    'rolePermissionsState',
+    'rolePermissionsTbody',
+    'rolePermissionCreateForm',
+    'rolePermissionCreateResource',
+    'rolePermissionCreateAction',
+    'rolePermissionCreateAllowedRoles',
+    'rolePermissionCreateDescription',
     'accentColor',
     'heroTriagePct',
     'heroHighImpactCount',
@@ -596,6 +623,11 @@ const UI = {
     }
     if (E.usersTab) E.usersTab.style.display = Permissions.canManageUsers() ? '' : 'none';
     if (!Permissions.canManageUsers() && E.usersView?.classList.contains('active')) {
+      setActiveView('issues');
+    }
+    if (E.rolesPermissionsTab)
+      E.rolesPermissionsTab.style.display = Permissions.canManageRolesPermissions() ? '' : 'none';
+    if (!Permissions.canManageRolesPermissions() && E.rolesPermissionsView?.classList.contains('active')) {
       setActiveView('issues');
     }
     if (E.addEventBtn) E.addEventBtn.style.display = Permissions.canManageEvents() ? '' : 'none';

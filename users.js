@@ -1,8 +1,11 @@
 const UserAdmin = {
   state: {
     rows: [],
+    roles: [],
     loading: false,
-    error: ''
+    loadingRoles: false,
+    error: '',
+    editingUserId: ''
   },
   wire() {
     if (E.usersRefreshBtn) {
@@ -19,11 +22,11 @@ const UserAdmin = {
           name: String(E.userCreateName?.value || '').trim(),
           username: String(E.userCreateUsername?.value || '').trim(),
           email: String(E.userCreateEmail?.value || '').trim(),
-          role: String(E.userCreateRole?.value || ROLES.VIEWER).trim().toLowerCase(),
+          role: String(E.userCreateRole?.value || '').trim().toLowerCase(),
           password: String(E.userCreatePassword?.value || '')
         };
-        if (!payload.name || !payload.username || !payload.email || !payload.password) {
-          UI.toast('Name, username, email, and password are required.');
+        if (!payload.name || !payload.username || !payload.email || !payload.password || !payload.role) {
+          UI.toast('Name, username, email, role, and password are required.');
           return;
         }
         try {
@@ -32,7 +35,7 @@ const UserAdmin = {
             ...payload
           });
           if (E.userCreateForm) E.userCreateForm.reset();
-          if (E.userCreateRole) E.userCreateRole.value = ROLES.VIEWER;
+          this.applyRoleOptions(this.state.roles);
           UI.toast('User created successfully.');
           await this.refresh();
         } catch (error) {
@@ -40,6 +43,63 @@ const UserAdmin = {
         }
       });
     }
+    if (E.userEditClose) E.userEditClose.addEventListener('click', () => this.closeEditModal());
+    if (E.userEditCancel) E.userEditCancel.addEventListener('click', () => this.closeEditModal());
+    if (E.userEditForm) {
+      E.userEditForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        await this.submitEdit();
+      });
+    }
+    this.loadRoles();
+  },
+  normalizeRole(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase();
+  },
+  roleOptionsFromRows(rows = []) {
+    return rows
+      .map(role => ({
+        key: this.normalizeRole(role.role_key || role.key || role.role),
+        label: String(role.display_name || role.role_key || role.key || role.role || '').trim()
+      }))
+      .filter(role => role.key && role.label);
+  },
+  async loadRoles(force = false) {
+    if (this.state.loadingRoles && !force) return;
+    this.state.loadingRoles = true;
+    try {
+      if (window.RolesAdmin?.ensureRolesLoaded) {
+        this.state.roles = await RolesAdmin.ensureRolesLoaded(force);
+      } else {
+        const response = await Api.listRoles();
+        this.state.roles = this.extractRows(response);
+      }
+      this.applyRoleOptions(this.state.roles);
+    } catch {
+      this.state.roles = [];
+      this.applyRoleOptions([]);
+    } finally {
+      this.state.loadingRoles = false;
+    }
+  },
+  applyRoleOptions(rows = []) {
+    const options = this.roleOptionsFromRows(rows);
+    const setOptions = (selectEl, { fallbackLabel } = {}) => {
+      if (!selectEl) return;
+      if (!options.length) {
+        selectEl.innerHTML = `<option value="">${fallbackLabel || 'No roles available'}</option>`;
+        selectEl.disabled = true;
+        return;
+      }
+      selectEl.disabled = false;
+      selectEl.innerHTML = options
+        .map(role => `<option value="${U.escapeAttr(role.key)}">${U.escapeHtml(role.label)}</option>`)
+        .join('');
+    };
+    setOptions(E.userCreateRole, { fallbackLabel: 'No roles available (refresh Roles)' });
+    setOptions(E.userEditRole, { fallbackLabel: 'No roles available (refresh Roles)' });
   },
   async refresh(force = false) {
     if (!Permissions.canManageUsers()) return;
@@ -146,15 +206,7 @@ const UserAdmin = {
         const currentUserId = Session.user().user_id;
         const isSelf = !!userId && userId === currentUserId;
         const active = this.normalizeActive(user);
-        const rawRole = String(user.role || '').toLowerCase();
-        const role =
-          rawRole === ROLES.ADMIN
-            ? ROLES.ADMIN
-            : rawRole === ROLES.DEV
-            ? ROLES.DEV
-            : rawRole === ROLES.HOO
-            ? ROLES.HOO
-            : ROLES.VIEWER;
+        const role = this.normalizeRole(user.role || '—') || '—';
         const created = this.formatDate(this.getCreatedAt(user));
         const updated = this.formatDate(this.getUpdatedAt(user));
         const lastLogin = this.formatDate(this.getLastLoginAt(user));
@@ -196,24 +248,38 @@ const UserAdmin = {
     const currentUserId = Session.user().user_id;
     const userId = this.getUserId(user);
     const isSelf = userId === String(currentUserId || '');
-    const name = window.prompt('Name', String(user.name || ''));
-    if (name == null) return;
-    const email = window.prompt('Email', String(user.email || ''));
-    if (email == null) return;
-    const username = window.prompt('Username', String(user.username || ''));
-    if (username == null) return;
-    const role = window.prompt('Role (admin/dev/viewer/hoo)', String(user.role || ROLES.VIEWER));
-    if (role == null) return;
-    const enteredRole = String(role).trim().toLowerCase();
-    const normalizedRole =
-      enteredRole === ROLES.ADMIN
-        ? ROLES.ADMIN
-        : enteredRole === ROLES.DEV
-        ? ROLES.DEV
-        : enteredRole === ROLES.HOO
-        ? ROLES.HOO
-        : ROLES.VIEWER;
-    if (isSelf && normalizedRole !== ROLES.ADMIN) {
+    await this.loadRoles();
+    if (!this.state.roles.length) return UI.toast('No roles available. Refresh Roles & Permissions first.');
+    this.state.editingUserId = userId;
+    if (E.userEditName) E.userEditName.value = String(user.name || '');
+    if (E.userEditEmail) E.userEditEmail.value = String(user.email || '');
+    if (E.userEditUsername) E.userEditUsername.value = String(user.username || '');
+    if (E.userEditRole) E.userEditRole.value = this.normalizeRole(user.role || '');
+    if (E.userEditModal) {
+      E.userEditModal.classList.add('open');
+      E.userEditModal.setAttribute('aria-hidden', 'false');
+    }
+    if (E.userEditSubmit) E.userEditSubmit.dataset.selfEdit = isSelf ? 'true' : 'false';
+  },
+  closeEditModal() {
+    this.state.editingUserId = '';
+    if (E.userEditModal) {
+      E.userEditModal.classList.remove('open');
+      E.userEditModal.setAttribute('aria-hidden', 'true');
+    }
+  },
+  async submitEdit() {
+    const userId = this.state.editingUserId;
+    if (!userId) return;
+    const name = String(E.userEditName?.value || '').trim();
+    const email = String(E.userEditEmail?.value || '').trim();
+    const username = String(E.userEditUsername?.value || '').trim();
+    const normalizedRole = this.normalizeRole(E.userEditRole?.value || '');
+    if (!name || !email || !username || !normalizedRole) {
+      UI.toast('Name, username, email, and role are required.');
+      return;
+    }
+    if (E.userEditSubmit?.dataset.selfEdit === 'true' && normalizedRole !== ROLES.ADMIN) {
       const allow = window.confirm('You are editing your own account. Changing your role may end admin access. Continue?');
       if (!allow) return;
     }
@@ -237,6 +303,7 @@ const UserAdmin = {
         }
       });
       UI.toast('User updated.');
+      this.closeEditModal();
       await this.refresh();
     } catch (error) {
       this.handleError(error, 'Unable to update user.');
