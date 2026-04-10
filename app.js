@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users', 'rolesPermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1928,7 +1928,9 @@ function setActiveView(view) {
         ? E.proposalCatalogTab
         : name === 'users'
         ? E.usersTab
-        : E.rolesPermissionsTab;
+        : name === 'roles'
+        ? E.rolesTab
+        : E.rolePermissionsTab;
     const panel =
       name === 'issues'
         ? E.issuesView
@@ -1950,7 +1952,9 @@ function setActiveView(view) {
         ? E.proposalCatalogView
         : name === 'users'
         ? E.usersView
-        : E.rolesPermissionsView;
+        : name === 'roles'
+        ? E.rolesView
+        : E.rolePermissionsView;
     const active = name === view;
     if (tab) {
       tab.classList.toggle('active', active);
@@ -1980,7 +1984,7 @@ function setActiveView(view) {
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
-  if (view === 'rolesPermissions' && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
+  if ((view === 'roles' || view === 'rolePermissions') && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
   updatePrimaryActionButton(view);
 }
 
@@ -3982,7 +3986,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.proposalCatalogTab, E.usersTab, E.rolesPermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -5615,8 +5619,8 @@ function wireKeyboardShortcuts() {
       setActiveView('agreements');
     } else if (e.key === '0' && Permissions.canAccessTab('users')) {
       setActiveView('users');
-    } else if (e.key === '-' && Permissions.canAccessTab('rolesPermissions')) {
-      setActiveView('rolesPermissions');
+    } else if (e.key === '-' && Permissions.canAccessTab('roles')) {
+      setActiveView('roles');
     }
   });
 }
@@ -5695,7 +5699,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         view === 'agreements' ||
         view === 'proposalCatalog' ||
         view === 'users' ||
-        view === 'rolesPermissions'
+        view === 'roles' ||
+        view === 'rolePermissions'
         ? view
         : 'issues'
     );

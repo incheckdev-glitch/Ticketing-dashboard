@@ -62,7 +62,8 @@ const UserAdmin = {
     return rows
       .map(role => ({
         key: this.normalizeRole(role.role_key || role.key || role.role),
-        label: String(role.display_name || role.role_key || role.key || role.role || '').trim()
+        label: String(role.display_name || role.role_key || role.key || role.role || '').trim(),
+        isActive: role?.is_active !== false
       }))
       .filter(role => role.key && role.label);
   },
@@ -84,22 +85,31 @@ const UserAdmin = {
       this.state.loadingRoles = false;
     }
   },
-  applyRoleOptions(rows = []) {
+  applyRoleOptions(rows = [], selectedRole = '') {
     const options = this.roleOptionsFromRows(rows);
-    const setOptions = (selectEl, { fallbackLabel } = {}) => {
+    const activeOptions = options.filter(role => role.isActive);
+    const normalizedSelected = this.normalizeRole(selectedRole);
+    const setOptions = (selectEl, { fallbackLabel, includeSelected = false } = {}) => {
       if (!selectEl) return;
-      if (!options.length) {
+      let scoped = activeOptions.slice();
+      if (includeSelected && normalizedSelected && !scoped.some(role => role.key === normalizedSelected)) {
+        const selectedOption = options.find(role => role.key === normalizedSelected);
+        if (selectedOption) scoped = [selectedOption, ...scoped];
+        else scoped = [{ key: normalizedSelected, label: normalizedSelected, isActive: false }, ...scoped];
+      }
+      if (!scoped.length) {
         selectEl.innerHTML = `<option value="">${fallbackLabel || 'No roles available'}</option>`;
         selectEl.disabled = true;
         return;
       }
       selectEl.disabled = false;
-      selectEl.innerHTML = options
+      selectEl.innerHTML = scoped
         .map(role => `<option value="${U.escapeAttr(role.key)}">${U.escapeHtml(role.label)}</option>`)
         .join('');
+      if (includeSelected && normalizedSelected) selectEl.value = normalizedSelected;
     };
     setOptions(E.userCreateRole, { fallbackLabel: 'No roles available (refresh Roles)' });
-    setOptions(E.userEditRole, { fallbackLabel: 'No roles available (refresh Roles)' });
+    setOptions(E.userEditRole, { fallbackLabel: 'No roles available (refresh Roles)', includeSelected: true });
   },
   async refresh(force = false) {
     if (!Permissions.canManageUsers()) return;
@@ -254,7 +264,9 @@ const UserAdmin = {
     if (E.userEditName) E.userEditName.value = String(user.name || '');
     if (E.userEditEmail) E.userEditEmail.value = String(user.email || '');
     if (E.userEditUsername) E.userEditUsername.value = String(user.username || '');
-    if (E.userEditRole) E.userEditRole.value = this.normalizeRole(user.role || '');
+    const existingRole = this.normalizeRole(user.role || '');
+    this.applyRoleOptions(this.state.roles, existingRole);
+    if (E.userEditRole) E.userEditRole.value = existingRole;
     if (E.userEditModal) {
       E.userEditModal.classList.add('open');
       E.userEditModal.setAttribute('aria-hidden', 'false');

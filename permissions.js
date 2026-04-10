@@ -10,7 +10,8 @@ const Permissions = {
     agreements: 'agreements',
     proposalCatalog: 'proposal_catalog',
     users: 'users',
-    rolesPermissions: 'roles'
+    roles: 'roles',
+    rolePermissions: 'role_permissions'
   },
   state: {
     loaded: false,
