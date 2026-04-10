@@ -139,8 +139,11 @@ const Api = {
   async listRoles() {
     return this.postAuthenticated('roles', 'list', {});
   },
-  async getRole(roleKey) {
-    return this.postAuthenticated('roles', 'get', { role_key: roleKey });
+  async getRole(roleIdOrKey) {
+    return this.postAuthenticated('roles', 'get', {
+      role_id: roleIdOrKey,
+      role_key: roleIdOrKey
+    });
   },
   async createRole(payload = {}) {
     return this.postAuthenticated('roles', 'create', {
@@ -148,18 +151,38 @@ const Api = {
       ...payload
     });
   },
-  async updateRole(roleKey, updates = {}) {
+  async updateRole(roleIdOrKey, updates = {}) {
     return this.postAuthenticated('roles', 'update', {
-      role_key: roleKey,
+      role_id: roleIdOrKey,
+      role_key: roleIdOrKey,
       updates,
-      role: { role_key: roleKey, ...updates }
+      role: { role_key: roleIdOrKey, ...updates }
     });
   },
-  async deleteRole(roleKey) {
-    return this.postAuthenticated('roles', 'delete', { role_key: roleKey });
+  async deleteRole(roleIdOrKey) {
+    return this.postAuthenticated('roles', 'delete', {
+      role_id: roleIdOrKey,
+      role_key: roleIdOrKey
+    });
   },
   async listRolePermissions() {
     return this.postAuthenticated('role_permissions', 'list', {});
+  },
+  async getRolePermission(permissionId) {
+    return this.postAuthenticated('role_permissions', 'get', { permission_id: permissionId });
+  },
+  async createRolePermission(payload = {}) {
+    return this.postAuthenticated('role_permissions', 'create', {
+      permission: payload,
+      ...payload
+    });
+  },
+  async updateRolePermission(permissionId, updates = {}) {
+    return this.postAuthenticated('role_permissions', 'update', {
+      permission_id: permissionId,
+      updates,
+      permission: { permission_id: permissionId, ...updates }
+    });
   },
   async saveRolePermission(payload = {}) {
     return this.postAuthenticated('role_permissions', 'save', {

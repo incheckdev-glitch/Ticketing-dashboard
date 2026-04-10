@@ -334,9 +334,13 @@
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
             </button>
-            <button id="rolesPermissionsTab" class="view-tab" data-view="rolesPermissions"
-                    role="tab" aria-selected="false" aria-controls="rolesPermissionsView" style="display:none;">
-              <span class="icon" aria-hidden="true">🛡️</span> Roles &amp; Permissions
+            <button id="rolesTab" class="view-tab" data-view="roles"
+                    role="tab" aria-selected="false" aria-controls="rolesView" style="display:none;">
+              <span class="icon" aria-hidden="true">🧩</span> Roles
+            </button>
+            <button id="rolePermissionsTab" class="view-tab" data-view="rolePermissions"
+                    role="tab" aria-selected="false" aria-controls="rolePermissionsView" style="display:none;">
+              <span class="icon" aria-hidden="true">🛡️</span> Role Permissions
             </button>
           </div>
         </aside>
@@ -439,7 +443,12 @@
         </div>
       </section>
 
-      <section id="rolesPermissionsView" class="view" role="tabpanel" aria-labelledby="rolesPermissionsTab">
+      <section id="rolesView" class="view" role="tabpanel" aria-labelledby="rolesTab">
+        <div class="grid cols-3" id="rolesKpis" aria-live="polite">
+          <article class="card kpi"><div class="label">Total Roles</div><div id="rolesTotalCount" class="value">0</div></article>
+          <article class="card kpi"><div class="label">Active Roles</div><div id="rolesActiveCount" class="value">0</div></article>
+          <article class="card kpi"><div class="label">Inactive Roles</div><div id="rolesInactiveCount" class="value">0</div></article>
+        </div>
         <div class="card" aria-label="Roles management">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
             <div>
@@ -453,10 +462,10 @@
             <table id="rolesTable">
               <thead>
                 <tr>
+                  <th scope="col">role_id</th>
                   <th scope="col">role_key</th>
                   <th scope="col">display_name</th>
                   <th scope="col">description</th>
-                  <th scope="col">is_system</th>
                   <th scope="col">is_active</th>
                   <th scope="col">updated_at</th>
                   <th scope="col">Actions</th>
@@ -480,7 +489,9 @@
             <button id="roleCreateSubmit" class="btn primary" type="submit">Create role</button>
           </form>
         </div>
+      </section>
 
+      <section id="rolePermissionsView" class="view" role="tabpanel" aria-labelledby="rolePermissionsTab">
         <div class="card" aria-label="Permission matrix">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
             <div>
@@ -489,11 +500,18 @@
             </div>
             <button id="rolePermissionsRefreshBtn" class="btn ghost sm" type="button">Refresh permissions</button>
           </div>
+          <form id="rolePermissionsFiltersForm" class="user-form-grid" style="margin-bottom:10px;">
+            <input id="rolePermissionsSearchResource" class="input" type="search" placeholder="Search resource" />
+            <input id="rolePermissionsSearchAction" class="input" type="search" placeholder="Search action" />
+            <input id="rolePermissionsSearchAllowedRoles" class="input" type="search" placeholder="Search allowed roles" />
+            <input id="rolePermissionsResourceFilter" class="input" type="search" placeholder="Optional exact resource filter" />
+          </form>
           <div id="rolePermissionsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
           <div class="table-wrap" role="region" aria-label="Permission matrix table">
             <table id="rolePermissionsTable">
               <thead>
                 <tr>
+                  <th scope="col">permission_id</th>
                   <th scope="col">resource</th>
                   <th scope="col">action</th>
                   <th scope="col">allowed_roles</th>
@@ -536,7 +554,8 @@
               <option value="agreements">Agreements</option>
               <option value="proposalCatalog">Proposal Catalog</option>
               <option value="users">Users</option>
-              <option value="rolesPermissions">Roles &amp; Permissions</option>
+              <option value="roles">Roles</option>
+              <option value="rolePermissions">Role Permissions</option>
             </select>
             <label><input id="tabPermissionActionView" type="checkbox" checked /> View</label>
             <label><input id="tabPermissionActionCreate" type="checkbox" /> Create</label>
