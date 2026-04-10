@@ -2219,7 +2219,19 @@
           <div class="filter-row"><label class="muted" for="agreementFormAgreementId">Agreement ID</label><input id="agreementFormAgreementId" class="input" type="text" readonly /></div>
           <div class="filter-row"><label class="muted" for="agreementFormAgreementNumber">Agreement Number</label><input id="agreementFormAgreementNumber" class="input" type="text" /></div>
           <div class="filter-row"><label class="muted" for="agreementFormAgreementTitle">Agreement Title</label><input id="agreementFormAgreementTitle" class="input" type="text" /></div>
-          <div class="filter-row"><label class="muted" for="agreementFormStatus">Status</label><input id="agreementFormStatus" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="agreementFormStatus">Status</label>
+            <select id="agreementFormStatus" class="select">
+              <option value="Draft">Draft</option>
+              <option value="Sent">Sent</option>
+              <option value="Under Review">Under Review</option>
+              <option value="Revision Required">Revision Required</option>
+              <option value="Approved">Approved</option>
+              <option value="Signed">Signed</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Expired">Expired</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
           <div class="filter-row"><label class="muted" for="agreementFormProposalId">Proposal ID</label><input id="agreementFormProposalId" class="input" type="text" /></div>
           <div class="filter-row"><label class="muted" for="agreementFormDealId">Deal ID</label><input id="agreementFormDealId" class="input" type="text" /></div>
           <div class="filter-row"><label class="muted" for="agreementFormLeadId">Lead ID</label><input id="agreementFormLeadId" class="input" type="text" /></div>
