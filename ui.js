@@ -674,6 +674,155 @@ const UI = {
   }
 };
 
+UI.DarkPopover = {
+  registry: new Map(),
+  uid: 0,
+  setupSelect(selectEl) {
+    if (!selectEl || this.registry.has(selectEl)) return;
+    const id = selectEl.id || `dark-popover-select-${++this.uid}`;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dark-popover-select';
+    wrapper.dataset.sourceId = id;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'dark-popover-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-controls', `${id}-menu`);
+    trigger.innerHTML = '<span class="dark-popover-label"></span><span class="dark-popover-arrow">▼</span>';
+
+    const menu = document.createElement('div');
+    menu.className = 'dark-popover-menu';
+    menu.id = `${id}-menu`;
+    menu.setAttribute('role', 'listbox');
+    menu.hidden = true;
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(menu);
+    selectEl.insertAdjacentElement('afterend', wrapper);
+    selectEl.classList.add('dark-popover-source');
+    selectEl.setAttribute('aria-hidden', 'true');
+    selectEl.tabIndex = -1;
+
+    const instance = { source: selectEl, wrapper, trigger, menu, type: 'select' };
+    this.registry.set(selectEl, instance);
+    trigger.addEventListener('click', () => this.toggle(instance));
+    document.addEventListener('click', event => {
+      if (!instance.wrapper.contains(event.target)) this.close(instance);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') this.close(instance);
+    });
+    selectEl.addEventListener('change', () => this.syncFromSource(selectEl));
+    const observer = new MutationObserver(() => this.syncFromSource(selectEl));
+    observer.observe(selectEl, { childList: true, subtree: true, attributes: true });
+    instance.observer = observer;
+    this.syncFromSource(selectEl);
+  },
+  setupInput(inputEl, options = []) {
+    if (!inputEl || this.registry.has(inputEl)) return;
+    const id = inputEl.id || `dark-popover-input-${++this.uid}`;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dark-popover-select';
+    wrapper.dataset.sourceId = id;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'dark-popover-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-controls', `${id}-menu`);
+    trigger.innerHTML = '<span class="dark-popover-label"></span><span class="dark-popover-arrow">▼</span>';
+
+    const menu = document.createElement('div');
+    menu.className = 'dark-popover-menu';
+    menu.id = `${id}-menu`;
+    menu.setAttribute('role', 'listbox');
+    menu.hidden = true;
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(menu);
+    inputEl.insertAdjacentElement('afterend', wrapper);
+    inputEl.classList.add('dark-popover-source');
+    inputEl.setAttribute('aria-hidden', 'true');
+    inputEl.tabIndex = -1;
+
+    const normalizedOptions = options
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+    const instance = { source: inputEl, wrapper, trigger, menu, type: 'input', options: normalizedOptions };
+    this.registry.set(inputEl, instance);
+
+    trigger.addEventListener('click', () => this.toggle(instance));
+    document.addEventListener('click', event => {
+      if (!instance.wrapper.contains(event.target)) this.close(instance);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') this.close(instance);
+    });
+    inputEl.addEventListener('change', () => this.syncFromSource(inputEl));
+    const observer = new MutationObserver(() => this.syncFromSource(inputEl));
+    observer.observe(inputEl, { attributes: true, attributeFilter: ['disabled', 'value'] });
+    instance.observer = observer;
+    this.syncFromSource(inputEl);
+  },
+  buildOptions(instance) {
+    const { source, menu, type, options = [] } = instance;
+    const values =
+      type === 'select'
+        ? Array.from(source.options || []).map(option => ({
+            value: String(option.value || option.textContent || '').trim(),
+            label: String(option.textContent || option.value || '').trim()
+          }))
+        : options.map(value => ({ value, label: value }));
+
+    menu.innerHTML = values
+      .map(option => {
+        const selected = option.value === String(source.value || '').trim();
+        return `<button type="button" class="dark-popover-option${selected ? ' is-active' : ''}" role="option" aria-selected="${selected ? 'true' : 'false'}" data-value="${U.escapeAttr(option.value)}">${U.escapeHtml(option.label || option.value)}</button>`;
+      })
+      .join('');
+
+    menu.querySelectorAll('.dark-popover-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        source.value = String(btn.getAttribute('data-value') || '');
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        source.dispatchEvent(new Event('change', { bubbles: true }));
+        this.syncFromSource(source);
+        this.close(instance);
+      });
+    });
+  },
+  syncFromSource(sourceEl) {
+    const instance = this.registry.get(sourceEl);
+    if (!instance) return;
+    this.buildOptions(instance);
+    const value = String(sourceEl.value || '').trim();
+    const selectedOption = instance.menu.querySelector(`.dark-popover-option[data-value="${CSS.escape(value)}"]`);
+    const fallbackOption = instance.menu.querySelector('.dark-popover-option');
+    const label = selectedOption?.textContent?.trim() || fallbackOption?.textContent?.trim() || 'Select';
+    const labelEl = instance.trigger.querySelector('.dark-popover-label');
+    if (labelEl) labelEl.textContent = label;
+    instance.trigger.disabled = !!sourceEl.disabled;
+  },
+  toggle(instance) {
+    if (!instance) return;
+    if (instance.menu.hidden) this.open(instance);
+    else this.close(instance);
+  },
+  open(instance) {
+    if (!instance) return;
+    instance.menu.hidden = false;
+    instance.trigger.setAttribute('aria-expanded', 'true');
+  },
+  close(instance) {
+    if (!instance) return;
+    instance.menu.hidden = true;
+    instance.trigger.setAttribute('aria-expanded', 'false');
+  }
+};
+
 const GridState = {
   sortKey: 'date',
   sortAsc: false,
