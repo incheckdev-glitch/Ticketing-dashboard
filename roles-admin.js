@@ -79,7 +79,34 @@ const RolesAdmin = {
     }
   },
   extractRows(response) {
-    const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!trimmed) return value;
+      if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const payload = parseJsonIfNeeded(response);
+    const candidates = [
+      payload,
+      payload?.items,
+      payload?.rows,
+      payload?.permissions,
+      payload?.values,
+      payload?.data,
+      payload?.result,
+      payload?.payload,
+      payload?.data?.items,
+      payload?.data?.rows,
+      payload?.data?.permissions,
+      payload?.result?.items,
+      payload?.result?.rows,
+      payload?.result?.permissions
+    ];
     for (const candidate of candidates) {
       if (Array.isArray(candidate)) return candidate;
     }
