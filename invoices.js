@@ -903,8 +903,9 @@ const Invoices = {
       const response = await Api.generateInvoiceHtml(id);
       const html = String(response?.html || response?.invoice_html || response?.content || response || '').trim();
       if (!html) return UI.toast('No invoice HTML was returned by backend.');
+      const brandedHtml = U.addIncheckDocumentLogo(html);
       if (E.invoicePreviewTitle) E.invoicePreviewTitle.textContent = `Invoice Preview · ${id}`;
-      if (E.invoicePreviewFrame) E.invoicePreviewFrame.srcdoc = html;
+      if (E.invoicePreviewFrame) E.invoicePreviewFrame.srcdoc = brandedHtml;
       if (E.invoicePreviewModal) {
         E.invoicePreviewModal.classList.add('open');
         E.invoicePreviewModal.setAttribute('aria-hidden', 'false');

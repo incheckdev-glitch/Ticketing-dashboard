@@ -156,6 +156,32 @@ const U = {
     if (min && x < min) return false;
     if (max && x >= max) return false;
     return true;
+  },
+  addIncheckDocumentLogo: html => {
+    const raw = String(html || '').trim();
+    if (!raw) return '';
+    if (/data-incheck360-doc-logo/i.test(raw)) return raw;
+
+    const styleTag = `<style data-incheck360-doc-logo-style>
+      .incheck360-doc-logo-wrap{display:flex;justify-content:center;margin:0 0 16px;}
+      .incheck360-doc-logo{width:220px;max-width:100%;height:auto;display:block;}
+    </style>`;
+    const logoMarkup =
+      '<div class="incheck360-doc-logo-wrap" data-incheck360-doc-logo><img class="incheck360-doc-logo" src="assets/incheck-logo.svg" alt="InCheck 360 logo" /></div>';
+
+    let output = raw;
+    if (/<\/head>/i.test(output) && !/data-incheck360-doc-logo-style/i.test(output)) {
+      output = output.replace(/<\/head>/i, `${styleTag}</head>`);
+    } else if (!/data-incheck360-doc-logo-style/i.test(output)) {
+      output = `${styleTag}${output}`;
+    }
+
+    if (/<body[^>]*>/i.test(output)) {
+      output = output.replace(/<body([^>]*)>/i, `<body$1>${logoMarkup}`);
+    } else {
+      output = `${logoMarkup}${output}`;
+    }
+    return output;
   }
 };
 
