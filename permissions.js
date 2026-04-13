@@ -8,6 +8,7 @@ const Permissions = {
     deals: 'deals',
     proposals: 'proposals',
     agreements: 'agreements',
+    clients: 'clients',
     proposalCatalog: 'proposal_catalog',
     users: 'users',
     roles: 'roles',

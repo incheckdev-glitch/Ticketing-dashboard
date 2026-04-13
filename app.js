@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'clients', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1924,6 +1924,8 @@ function setActiveView(view) {
         ? E.proposalsTab
         : name === 'agreements'
         ? E.agreementsTab
+        : name === 'clients'
+        ? E.clientsTab
         : name === 'proposalCatalog'
         ? E.proposalCatalogTab
         : name === 'users'
@@ -1948,6 +1950,8 @@ function setActiveView(view) {
         ? E.proposalsView
         : name === 'agreements'
         ? E.agreementsView
+        : name === 'clients'
+        ? E.clientsView
         : name === 'proposalCatalog'
         ? E.proposalCatalogView
         : name === 'users'
@@ -1968,7 +1972,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'proposalCatalog' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'clients' || view === 'proposalCatalog' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -1982,6 +1986,7 @@ function setActiveView(view) {
   if (view === 'deals' && window.Deals?.loadAndRefresh) Deals.loadAndRefresh();
   if (view === 'proposals' && window.Proposals?.loadAndRefresh) Proposals.loadAndRefresh();
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
+  if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   if ((view === 'roles' || view === 'rolePermissions') && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
@@ -3986,7 +3991,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.clientsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4065,6 +4070,8 @@ function wireCore() {
         Proposals.loadAndRefresh({ force: true });
       if (E.agreementsView?.classList.contains('active') && window.Agreements?.loadAndRefresh)
         Agreements.loadAndRefresh({ force: true });
+      if (E.clientsView?.classList.contains('active') && window.Clients?.loadAndRefresh)
+        Clients.loadAndRefresh({ force: true });
       if (E.proposalCatalogView?.classList.contains('active') && window.ProposalCatalog?.loadAndRefresh)
         ProposalCatalog.loadAndRefresh({ force: true });
     });
@@ -5619,9 +5626,11 @@ function wireKeyboardShortcuts() {
       setActiveView('proposalCatalog');
     } else if (e.key === '9') {
       setActiveView('agreements');
-    } else if (e.key === '0' && Permissions.canAccessTab('users')) {
+    } else if (e.key === '0') {
+      setActiveView('clients');
+    } else if (e.key === '-' && Permissions.canAccessTab('users')) {
       setActiveView('users');
-    } else if (e.key === '-' && Permissions.canAccessTab('roles')) {
+    } else if (e.key === '=' && Permissions.canAccessTab('roles')) {
       setActiveView('roles');
     }
   });
@@ -5668,6 +5677,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.Deals?.wire) Deals.wire();
   if (window.Proposals?.wire) Proposals.wire();
   if (window.Agreements?.wire) Agreements.wire();
+  if (window.Clients?.wire) Clients.wire();
   if (window.ProposalCatalog?.wire) ProposalCatalog.wire();
   wireKeyboardShortcuts();
 
