@@ -208,20 +208,35 @@ const Proposals = {
     return [];
   },
   extractProposalAndItems(response, fallbackId = '') {
-    const candidates = [response, response?.data, response?.result, response?.payload];
+    const candidates = [
+      response,
+      response?.result,
+      response?.payload,
+      response?.item,
+      response?.data,
+      Array.isArray(response?.data) ? response.data[0] : null
+    ];
     let proposal = null;
     let items = [];
 
     for (const candidate of candidates) {
       if (!candidate || typeof candidate !== 'object') continue;
       if (!proposal) {
-        if (candidate.proposal && typeof candidate.proposal === 'object') proposal = candidate.proposal;
+        if (candidate.item && typeof candidate.item === 'object') proposal = candidate.item;
+        else if (Array.isArray(candidate.data) && candidate.data[0] && typeof candidate.data[0] === 'object')
+          proposal = candidate.data[0];
+        else if (candidate.data && typeof candidate.data === 'object') proposal = candidate.data;
+        else if (candidate.proposal && typeof candidate.proposal === 'object') proposal = candidate.proposal;
         else if (candidate.proposal_id || candidate.ref_number || candidate.proposal_title)
           proposal = candidate;
       }
       if (!items.length) {
         if (Array.isArray(candidate.items)) items = candidate.items;
         else if (Array.isArray(candidate.proposal_items)) items = candidate.proposal_items;
+        else if (candidate.item && Array.isArray(candidate.item.items)) items = candidate.item.items;
+        else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
+          items = candidate.data[0].items;
+        else if (candidate.data && Array.isArray(candidate.data.items)) items = candidate.data.items;
       }
     }
 

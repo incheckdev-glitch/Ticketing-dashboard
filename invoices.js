@@ -298,11 +298,13 @@ const Invoices = {
     };
     const candidates = [
       response,
-      response?.data,
-      response?.rows,
-      response?.items,
       response?.result,
       response?.payload,
+      response?.item,
+      response?.data,
+      Array.isArray(response?.data) ? response.data[0] : null,
+      response?.rows,
+      response?.items,
       response?.invoices,
       response?.invoice,
       response?.created_invoice,
@@ -344,7 +346,11 @@ const Invoices = {
       if (!parsedCandidate || typeof parsedCandidate !== 'object') continue;
       const parsedObject = parsedCandidate;
       if (!invoice) {
-        if (parsedObject.invoice && typeof parsedObject.invoice === 'object') invoice = parsedObject.invoice;
+        if (parsedObject.item && typeof parsedObject.item === 'object') invoice = parsedObject.item;
+        else if (Array.isArray(parsedObject.data) && parsedObject.data[0] && typeof parsedObject.data[0] === 'object')
+          invoice = parsedObject.data[0];
+        else if (parsedObject.data && typeof parsedObject.data === 'object') invoice = parsedObject.data;
+        else if (parsedObject.invoice && typeof parsedObject.invoice === 'object') invoice = parsedObject.invoice;
         else if (parsedObject.created_invoice && typeof parsedObject.created_invoice === 'object') invoice = parsedObject.created_invoice;
         else if (parsedObject.invoice_id || parsedObject.invoice_number) invoice = parsedObject;
       }
@@ -352,6 +358,10 @@ const Invoices = {
         if (Array.isArray(parsedObject.items)) items = parsedObject.items;
         else if (Array.isArray(parsedObject.invoice_items)) items = parsedObject.invoice_items;
         else if (Array.isArray(parsedObject.created_invoice_items)) items = parsedObject.created_invoice_items;
+        else if (parsedObject.item && Array.isArray(parsedObject.item.items)) items = parsedObject.item.items;
+        else if (Array.isArray(parsedObject.data) && Array.isArray(parsedObject.data[0]?.items))
+          items = parsedObject.data[0].items;
+        else if (parsedObject.data && Array.isArray(parsedObject.data.items)) items = parsedObject.data.items;
       }
     }
     return {

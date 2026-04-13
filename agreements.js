@@ -164,18 +164,33 @@ const Agreements = {
     return [];
   },
   extractAgreementAndItems(response, fallbackId = '') {
-    const candidates = [response, response?.data, response?.result, response?.payload];
+    const candidates = [
+      response,
+      response?.result,
+      response?.payload,
+      response?.item,
+      response?.data,
+      Array.isArray(response?.data) ? response.data[0] : null
+    ];
     let agreement = null;
     let items = [];
     for (const candidate of candidates) {
       if (!candidate || typeof candidate !== 'object') continue;
       if (!agreement) {
-        if (candidate.agreement && typeof candidate.agreement === 'object') agreement = candidate.agreement;
+        if (candidate.item && typeof candidate.item === 'object') agreement = candidate.item;
+        else if (Array.isArray(candidate.data) && candidate.data[0] && typeof candidate.data[0] === 'object')
+          agreement = candidate.data[0];
+        else if (candidate.data && typeof candidate.data === 'object') agreement = candidate.data;
+        else if (candidate.agreement && typeof candidate.agreement === 'object') agreement = candidate.agreement;
         else if (candidate.agreement_id || candidate.agreement_number || candidate.agreement_title) agreement = candidate;
       }
       if (!items.length) {
         if (Array.isArray(candidate.items)) items = candidate.items;
         else if (Array.isArray(candidate.agreement_items)) items = candidate.agreement_items;
+        else if (candidate.item && Array.isArray(candidate.item.items)) items = candidate.item.items;
+        else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
+          items = candidate.data[0].items;
+        else if (candidate.data && Array.isArray(candidate.data.items)) items = candidate.data.items;
       }
     }
     return {
