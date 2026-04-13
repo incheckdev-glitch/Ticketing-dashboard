@@ -772,6 +772,12 @@ const Invoices = {
       await this.openInvoiceById(normalized.invoice_id, { readOnly: false });
     }
   },
+  async openCreateFromAgreementTemplate(agreementId) {
+    const id = String(agreementId || '').trim();
+    if (!id) return;
+    this.openInvoice(this.normalizeInvoice({ ...this.emptyInvoice(), agreement_id: id }), [], { readOnly: false });
+    await this.hydrateFromAgreement(id);
+  },
   async refresh(force = false) {
     if (this.state.loading && !force) return;
     if (!Permissions.canViewInvoices()) {
