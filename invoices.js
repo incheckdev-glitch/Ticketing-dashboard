@@ -341,22 +341,12 @@ const Invoices = {
     let items = [];
     for (const candidate of candidates) {
       const parsedCandidate = parseJsonIfNeeded(candidate);
-      if (!parsedCandidate) continue;
-      if (Array.isArray(parsedCandidate)) {
-        const invoiceFromList = parsedCandidate.find(item => isInvoiceLike(item));
-        if (!invoice && invoiceFromList) invoice = invoiceFromList;
-        if (!items.length && parsedCandidate.every(item => item && typeof item === 'object' && !isInvoiceLike(item))) {
-          items = parsedCandidate;
-        }
-        continue;
-      }
-      if (typeof parsedCandidate !== 'object') continue;
+      if (!parsedCandidate || typeof parsedCandidate !== 'object') continue;
       const parsedObject = parsedCandidate;
       if (!invoice) {
         if (parsedObject.invoice && typeof parsedObject.invoice === 'object') invoice = parsedObject.invoice;
         else if (parsedObject.created_invoice && typeof parsedObject.created_invoice === 'object') invoice = parsedObject.created_invoice;
         else if (parsedObject.invoice_id || parsedObject.invoice_number) invoice = parsedObject;
-        else invoice = extractInvoiceFromObjectValues(parsedObject);
       }
       if (!items.length) {
         if (Array.isArray(parsedObject.items)) items = parsedObject.items;
