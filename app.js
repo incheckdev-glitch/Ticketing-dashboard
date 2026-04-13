@@ -5023,7 +5023,7 @@ const CSMActivity = {
     this.loadError = '';
     this.refresh();
     try {
-      const response = await Api.postAuthenticated('csm', 'list', {}, { requireAuth: true });
+      const response = await Api.postAuthenticatedCached('csm', 'list', {}, { requireAuth: true, forceRefresh: force });
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
       this.rows = rows.filter(row => row.id || row.csmName || row.client || row.timestamp);
       this.loaded = true;

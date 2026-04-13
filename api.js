@@ -61,8 +61,125 @@ const Api = {
       authToken: authToken || ''
     });
   },
+
+  getCacheConfig() {
+    return {
+      prefix: 'ticketing_dashboard_cache_v1',
+      ttlMs: 2 * 60 * 1000
+    };
+  },
+  buildCacheKey(resource, action, payload = {}) {
+    const config = this.getCacheConfig();
+    const cleanPayload = { ...(payload || {}) };
+    delete cleanPayload.authToken;
+    const serialized = JSON.stringify(cleanPayload, Object.keys(cleanPayload).sort());
+    return `${config.prefix}:${resource}:${action}:${serialized}`;
+  },
+  readCachedValue(cacheKey) {
+    if (!cacheKey) return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      const age = Date.now() - Number(parsed.savedAt || 0);
+      const { ttlMs } = this.getCacheConfig();
+      if (age > ttlMs) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  },
+  writeCachedValue(cacheKey, value, syncedAt = new Date().toISOString()) {
+    if (!cacheKey) return;
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          savedAt: Date.now(),
+          syncedAt,
+          value
+        })
+      );
+    } catch {
+      // Ignore storage quota/sandbox failures.
+    }
+  },
+  mergeIncrementalRows(cachedRows = [], freshRows = []) {
+    if (!Array.isArray(cachedRows)) return Array.isArray(freshRows) ? freshRows : [];
+    if (!Array.isArray(freshRows) || !freshRows.length) return cachedRows;
+
+    const idKeys = ['id', 'uuid', 'ticket_id', 'deal_id', 'client_id', 'agreement_id', 'invoice_id', 'proposal_id', 'user_id', 'role_id', 'key'];
+    const getRowId = row => {
+      if (!row || typeof row !== 'object') return '';
+      const match = idKeys.find(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '');
+      return match ? `${match}:${String(row[match])}` : '';
+    };
+
+    const map = new Map();
+    cachedRows.forEach(row => {
+      const id = getRowId(row);
+      if (id) map.set(id, row);
+    });
+
+    const appended = [];
+    freshRows.forEach(row => {
+      const id = getRowId(row);
+      if (id) {
+        const previous = map.get(id) || {};
+        map.set(id, { ...previous, ...row });
+      } else {
+        appended.push(row);
+      }
+    });
+
+    const merged = cachedRows.map(row => {
+      const id = getRowId(row);
+      return id && map.has(id) ? map.get(id) : row;
+    });
+
+    map.forEach((row, id) => {
+      if (!cachedRows.some(existing => getRowId(existing) === id)) {
+        merged.push(row);
+      }
+    });
+
+    if (appended.length) merged.push(...appended);
+    return merged;
+  },
+  async postAuthenticatedCached(resource, action, payload = {}, options = {}) {
+    const cacheKey = options?.cacheKey || this.buildCacheKey(resource, action, payload);
+    const forceRefresh = options?.forceRefresh === true;
+    const cached = this.readCachedValue(cacheKey);
+
+    if (!forceRefresh && cached?.value !== undefined) {
+      const ageMs = Date.now() - Number(cached.savedAt || 0);
+      if (ageMs <= 15000) return cached.value;
+    }
+
+    const incrementalPayload = {
+      ...payload
+    };
+    if (cached?.syncedAt) {
+      incrementalPayload.updated_after = cached.syncedAt;
+      incrementalPayload.if_modified_since = cached.syncedAt;
+    }
+
+    try {
+      const fresh = await this.postAuthenticated(resource, action, incrementalPayload, options);
+      const shouldMerge = Array.isArray(cached?.value) && Array.isArray(fresh);
+      const merged = shouldMerge ? this.mergeIncrementalRows(cached.value, fresh) : fresh;
+      this.writeCachedValue(cacheKey, merged);
+      return merged;
+    } catch (error) {
+      if (cached?.value !== undefined) {
+        return cached.value;
+      }
+      throw error;
+    }
+  },
   async listProposalCatalogItems() {
-    return this.postAuthenticated('proposal_catalog', 'list', {
+    return this.postAuthenticatedCached('proposal_catalog', 'list', {
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
@@ -92,7 +209,7 @@ const Api = {
     });
   },
   async listAgreements() {
-    return this.postAuthenticated('agreements', 'list', {});
+    return this.postAuthenticatedCached('agreements', 'list', {});
   },
   async getAgreement(agreementId) {
     return this.postAuthenticated('agreements', 'get', { agreement_id: agreementId });
@@ -120,7 +237,7 @@ const Api = {
   },
 
   async listInvoices(filters = {}) {
-    return this.postAuthenticated('invoices', 'list', { filters });
+    return this.postAuthenticatedCached('invoices', 'list', { filters });
   },
   async getInvoice(invoiceId) {
     return this.postAuthenticated('invoices', 'get', { invoice_id: invoiceId });
@@ -146,7 +263,7 @@ const Api = {
     return this.postAuthenticated('invoices', 'generate_invoice_html', { invoice_id: invoiceId });
   },
   async listClients() {
-    return this.postAuthenticated('clients', 'list', {});
+    return this.postAuthenticatedCached('clients', 'list', {});
   },
   async getClient(clientId) {
     return this.postAuthenticated('clients', 'get', { client_id: clientId });
@@ -164,7 +281,7 @@ const Api = {
     return this.postAuthenticated('clients', 'delete', { client_id: clientId });
   },
   async listRoles() {
-    return this.postAuthenticated('roles', 'list', {
+    return this.postAuthenticatedCached('roles', 'list', {
       sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
@@ -199,7 +316,7 @@ const Api = {
     });
   },
   async listRolePermissions() {
-    return this.postAuthenticated('role_permissions', 'list', {
+    return this.postAuthenticatedCached('role_permissions', 'list', {
       sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
     });
   },

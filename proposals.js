@@ -229,8 +229,8 @@ const Proposals = {
     const normalizedItems = Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [];
     return { proposal: normalizedProposal, items: normalizedItems };
   },
-  async listProposals() {
-    return Api.postAuthenticated('proposals', 'list', {});
+  async listProposals(options = {}) {
+    return Api.postAuthenticatedCached('proposals', 'list', {}, { forceRefresh: options.forceRefresh === true });
   },
   async getProposal(proposalId) {
     return Api.postAuthenticated('proposals', 'get', { proposal_id: proposalId });
@@ -371,7 +371,7 @@ const Proposals = {
     this.render();
 
     try {
-      const response = await this.listProposals();
+      const response = await this.listProposals({ forceRefresh: force });
       this.state.rows = this.extractRows(response).map(raw => this.normalizeProposal(raw));
       this.renderFilters();
       this.applyFilters();

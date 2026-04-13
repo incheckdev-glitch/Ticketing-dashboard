@@ -118,7 +118,7 @@ const UserAdmin = {
     this.state.error = '';
     this.render();
     try {
-      const response = await Api.postAuthenticated('users', 'list', {});
+      const response = await Api.postAuthenticatedCached('users', 'list', {}, { forceRefresh: force });
       this.state.rows = this.extractRows(response);
       this.state.error = '';
       this.render();
