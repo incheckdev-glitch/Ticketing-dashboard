@@ -219,7 +219,13 @@ const Invoices = {
       const values = Object.values(parsed).filter(Boolean);
       if (!values.length || !values.every(item => item && typeof item === 'object')) return [];
       const hasInvoiceLikeShape = values.some(
-        item => 'invoice_id' in item || 'invoice_number' in item || 'agreement_id' in item
+        item =>
+          'invoice_id' in item ||
+          'invoiceId' in item ||
+          'invoice_number' in item ||
+          'invoiceNumber' in item ||
+          'agreement_id' in item ||
+          'agreementId' in item
       );
       return hasInvoiceLikeShape ? values : [];
     };
@@ -632,7 +638,12 @@ const Invoices = {
     this.state.loadError = '';
     this.render();
     try {
-      const response = await Api.listInvoices({ status: this.state.status, search: this.state.search });
+      const filters = {};
+      const status = String(this.state.status || '').trim();
+      const search = String(this.state.search || '').trim();
+      if (status && status !== 'All') filters.status = status;
+      if (search) filters.search = search;
+      const response = await Api.listInvoices(filters);
       this.state.rows = this.extractRows(response).map(row => this.normalizeInvoice(row));
     } catch (error) {
       this.state.rows = [];
