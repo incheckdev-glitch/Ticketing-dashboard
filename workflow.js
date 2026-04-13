@@ -65,6 +65,7 @@ const Workflow = {
     audit: [],
     loading: false
   },
+  resourceOptions: ['proposals', 'agreements', 'invoices', 'receipts'],
   normalizeRows(response) {
     const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
     for (const item of candidates) {
@@ -79,7 +80,7 @@ const Workflow = {
       resource: get('workflowResource').toLowerCase(),
       current_status: get('workflowCurrentStatus'),
       next_status: get('workflowNextStatus'),
-      allowed_roles: get('workflowAllowedRoles').split(',').map(v => v.trim().toLowerCase()).filter(Boolean),
+      allowed_roles: [get('workflowAllowedRoles').toLowerCase()].filter(Boolean),
       requires_approval: String(get('workflowRequiresApproval')) === 'true',
       approval_role: get('workflowApprovalRole').toLowerCase(),
       max_discount_percent: Number(get('workflowMaxDiscount') || 0),
@@ -96,7 +97,12 @@ const Workflow = {
     if (E.workflowResource) E.workflowResource.value = rule.resource || '';
     if (E.workflowCurrentStatus) E.workflowCurrentStatus.value = rule.current_status || '';
     if (E.workflowNextStatus) E.workflowNextStatus.value = rule.next_status || '';
-    if (E.workflowAllowedRoles) E.workflowAllowedRoles.value = Array.isArray(rule.allowed_roles) ? rule.allowed_roles.join(', ') : String(rule.allowed_roles || rule.allowed_roles_csv || '');
+    if (E.workflowAllowedRoles) {
+      const firstRole = Array.isArray(rule.allowed_roles)
+        ? rule.allowed_roles[0]
+        : String(rule.allowed_roles || rule.allowed_roles_csv || '').split(',').map(v => v.trim()).filter(Boolean)[0];
+      E.workflowAllowedRoles.value = firstRole || '';
+    }
     if (E.workflowRequiresApproval) E.workflowRequiresApproval.value = String(WorkflowEngine.toBool(rule.requires_approval));
     if (E.workflowApprovalRole) E.workflowApprovalRole.value = rule.approval_role || '';
     if (E.workflowMaxDiscount) E.workflowMaxDiscount.value = rule.max_discount_percent ?? '';
@@ -106,10 +112,70 @@ const Workflow = {
     if (E.workflowRequireComment) E.workflowRequireComment.value = String(WorkflowEngine.toBool(rule.require_comment));
     if (E.workflowRequireAttachment) E.workflowRequireAttachment.value = String(WorkflowEngine.toBool(rule.require_attachment));
     if (E.workflowIsActive) E.workflowIsActive.value = String(rule.is_active !== false);
+    this.populateRuleSelects();
   },
   resetRuleForm() {
     if (E.workflowRuleForm) E.workflowRuleForm.reset();
     if (E.workflowRuleId) E.workflowRuleId.value = '';
+    this.populateRuleSelects();
+  },
+  setSelectOptions(selectEl, values = [], placeholder = '') {
+    if (!selectEl) return;
+    const currentValue = String(selectEl.value || '').trim();
+    const uniq = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+    selectEl.innerHTML = [placeholder ? `<option value="">${U.escapeHtml(placeholder)}</option>` : '', ...uniq.map(value => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(value)}</option>`)]
+      .filter(Boolean)
+      .join('');
+    if (currentValue && uniq.includes(currentValue)) selectEl.value = currentValue;
+  },
+  getStatusesForResource(resourceValue = '') {
+    const resource = String(resourceValue || '').trim().toLowerCase();
+    const statuses = new Set();
+    this.state.rules
+      .filter(rule => String(rule.resource || '').trim().toLowerCase() === resource)
+      .forEach(rule => {
+        if (rule.current_status) statuses.add(String(rule.current_status).trim());
+        if (rule.next_status) statuses.add(String(rule.next_status).trim());
+      });
+    const moduleStateRows = {
+      proposals: window.Proposals?.state?.rows,
+      agreements: window.Agreements?.state?.rows,
+      invoices: window.Invoices?.state?.rows,
+      receipts: window.Receipts?.state?.rows
+    }[resource];
+    if (Array.isArray(moduleStateRows)) {
+      moduleStateRows.forEach(row => {
+        const status = String(row?.status || '').trim();
+        if (status) statuses.add(status);
+      });
+    }
+    return [...statuses].sort((a, b) => a.localeCompare(b));
+  },
+  getSystemRoles() {
+    const roleSet = new Set();
+    (window.RolesAdmin?.state?.roles || []).forEach(role => {
+      const key = String(role?.role_key || role?.key || role?.role || '').trim().toLowerCase();
+      if (key) roleSet.add(key);
+    });
+    this.state.rules.forEach(rule => {
+      const roles = Array.isArray(rule.allowed_roles)
+        ? rule.allowed_roles
+        : String(rule.allowed_roles || rule.allowed_roles_csv || '').split(',');
+      roles.map(v => String(v || '').trim().toLowerCase()).filter(Boolean).forEach(role => roleSet.add(role));
+      const approvalRole = String(rule.approval_role || '').trim().toLowerCase();
+      if (approvalRole) roleSet.add(approvalRole);
+    });
+    return [...roleSet].sort((a, b) => a.localeCompare(b));
+  },
+  populateRuleSelects() {
+    this.setSelectOptions(E.workflowResource, this.resourceOptions, 'Select resource');
+    const selectedResource = String(E.workflowResource?.value || '').trim().toLowerCase();
+    const statusOptions = selectedResource ? this.getStatusesForResource(selectedResource) : [];
+    this.setSelectOptions(E.workflowCurrentStatus, statusOptions, 'Select current status');
+    this.setSelectOptions(E.workflowNextStatus, statusOptions, 'Select next status');
+    const roles = this.getSystemRoles();
+    this.setSelectOptions(E.workflowAllowedRoles, roles, 'Select allowed role');
+    this.setSelectOptions(E.workflowApprovalRole, roles, 'Select approval role');
   },
   renderRules() {
     if (!E.workflowRulesTbody) return;
@@ -194,6 +260,7 @@ const Workflow = {
       this.renderApprovals();
       this.renderAudit();
       this.renderMatrix();
+      this.populateRuleSelects();
     } catch (error) {
       UI.toast('Unable to load workflow data: ' + (error?.message || 'Unknown error'));
     } finally {
@@ -242,6 +309,7 @@ const Workflow = {
     if (E.workflowRuleResetBtn) E.workflowRuleResetBtn.addEventListener('click', () => this.resetRuleForm());
     if (E.workflowRefreshBtn) E.workflowRefreshBtn.addEventListener('click', () => this.loadAndRefresh(true));
     if (E.workflowResourceFilter) E.workflowResourceFilter.addEventListener('change', () => this.renderRules());
+    if (E.workflowResource) E.workflowResource.addEventListener('change', () => this.populateRuleSelects());
     if (E.workflowMatrixResource) E.workflowMatrixResource.addEventListener('change', () => this.renderMatrix());
     [E.workflowAuditSearch, E.workflowAuditResourceFilter, E.workflowAuditAllowedFilter].forEach(el => {
       if (!el) return;
