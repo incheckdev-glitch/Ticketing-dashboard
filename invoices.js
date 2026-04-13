@@ -307,16 +307,6 @@ const Invoices = {
       response?.result?.invoice,
       response?.payload?.invoice
     ];
-    const appendObjectValues = value => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return;
-      const values = Object.values(value).filter(Boolean);
-      if (!values.length) return;
-      candidates.push(...values);
-    };
-    appendObjectValues(parseJsonIfNeeded(response));
-    appendObjectValues(parseJsonIfNeeded(response?.data));
-    appendObjectValues(parseJsonIfNeeded(response?.result));
-    appendObjectValues(parseJsonIfNeeded(response?.payload));
     let invoice = null;
     let items = [];
     for (const candidate of candidates) {
@@ -918,6 +908,10 @@ const Invoices = {
           agreement_id: id
         });
         invoiceTemplate.invoice_number = this.ensureInvoiceNumber(invoiceTemplate.invoice_number);
+        if (invoiceTemplate.invoice_id) {
+          await this.openInvoiceById(invoiceTemplate.invoice_id, { readOnly: false });
+          return;
+        }
         this.openInvoice(invoiceTemplate, items, { readOnly: false });
         return;
       }
