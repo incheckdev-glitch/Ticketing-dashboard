@@ -84,6 +84,20 @@ const U = {
     if (isNaN(x)) return '—';
     return x.toISOString().replace('T', ' ').slice(0, 16);
   },
+  fmtDate: d => {
+    if (!d) return '—';
+    const x = d instanceof Date ? d : new Date(d);
+    if (isNaN(x)) return '—';
+    return x.toISOString().slice(0, 10);
+  },
+  fmtNumber: value => {
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return '0';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(num);
+  },
   escapeHtml: s =>
     String(s).replace(/[&<>"']/g, m => (
       {
