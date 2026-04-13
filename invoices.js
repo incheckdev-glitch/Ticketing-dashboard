@@ -286,18 +286,42 @@ const Invoices = {
     return [];
   },
   extractInvoiceAndItems(response, fallbackId = '') {
-    const candidates = [response, response?.data, response?.result, response?.payload];
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const candidates = [
+      response,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.invoice,
+      response?.created_invoice,
+      response?.data?.invoice,
+      response?.result?.invoice,
+      response?.payload?.invoice
+    ];
     let invoice = null;
     let items = [];
     for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== 'object') continue;
+      const parsedCandidate = parseJsonIfNeeded(candidate);
+      if (!parsedCandidate || typeof parsedCandidate !== 'object') continue;
+      const candidate = parsedCandidate;
       if (!invoice) {
         if (candidate.invoice && typeof candidate.invoice === 'object') invoice = candidate.invoice;
+        else if (candidate.created_invoice && typeof candidate.created_invoice === 'object') invoice = candidate.created_invoice;
         else if (candidate.invoice_id || candidate.invoice_number) invoice = candidate;
       }
       if (!items.length) {
         if (Array.isArray(candidate.items)) items = candidate.items;
         else if (Array.isArray(candidate.invoice_items)) items = candidate.invoice_items;
+        else if (Array.isArray(candidate.created_invoice_items)) items = candidate.created_invoice_items;
       }
     }
     return {
@@ -873,6 +897,27 @@ const Invoices = {
   async openCreateFromAgreementTemplate(agreementId) {
     const id = String(agreementId || '').trim();
     if (!id) return;
+    try {
+      const response = await Api.createInvoiceFromAgreement(id);
+      const { invoice, items } = this.extractInvoiceAndItems(response);
+      const hasTemplateData = Boolean(invoice.invoice_id || invoice.customer_name || invoice.customer_legal_name || items.length);
+      if (hasTemplateData) {
+        const invoiceTemplate = this.normalizeInvoice({
+          ...this.emptyInvoice(),
+          ...invoice,
+          agreement_id: id
+        });
+        invoiceTemplate.invoice_number = this.ensureInvoiceNumber(invoiceTemplate.invoice_number);
+        if (invoiceTemplate.invoice_id) {
+          await this.openInvoiceById(invoiceTemplate.invoice_id, { readOnly: false });
+          return;
+        }
+        this.openInvoice(invoiceTemplate, items, { readOnly: false });
+        return;
+      }
+    } catch (_error) {
+      // Fall back to local template hydration from the agreement record.
+    }
     this.openInvoice(this.normalizeInvoice({ ...this.emptyInvoice(), agreement_id: id }), [], { readOnly: false });
     await this.hydrateFromAgreement(id);
   },
