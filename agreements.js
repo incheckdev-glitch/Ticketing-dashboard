@@ -711,14 +711,10 @@ const Agreements = {
       return;
     }
     try {
-      const response = await this.createInvoiceFromAgreement(id);
-      const payload = response?.invoice || response?.data?.invoice || response?.result?.invoice || response;
-      const invoice = payload && typeof payload === 'object' ? payload : {};
-      const existing = Boolean(response?.existing || invoice?.existing);
-      if (existing) UI.toast('Invoice already exists. Opening it.');
       if (typeof setActiveView === 'function') setActiveView('invoices');
-      if (window.Invoices?.openCreateFromAgreementResult) {
-        window.Invoices.openCreateFromAgreementResult({ ...invoice, existing });
+      if (window.Invoices?.openCreateFromAgreementTemplate) {
+        await window.Invoices.openCreateFromAgreementTemplate(id);
+        UI.toast(`Invoice template opened from agreement ${id}. Verify details, then save to create the invoice.`);
       }
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
