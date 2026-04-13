@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'clients', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'receipts', 'clients', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1926,6 +1926,8 @@ function setActiveView(view) {
         ? E.agreementsTab
         : name === 'invoices'
         ? E.invoicesTab
+        : name === 'receipts'
+        ? E.receiptsTab
         : name === 'clients'
         ? E.clientsTab
         : name === 'proposalCatalog'
@@ -1954,6 +1956,8 @@ function setActiveView(view) {
         ? E.agreementsView
         : name === 'invoices'
         ? E.invoicesView
+        : name === 'receipts'
+        ? E.receiptsView
         : name === 'clients'
         ? E.clientsView
         : name === 'proposalCatalog'
@@ -1976,7 +1980,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'clients' || view === 'proposalCatalog' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'receipts' || view === 'clients' || view === 'proposalCatalog' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -1991,6 +1995,7 @@ function setActiveView(view) {
   if (view === 'proposals' && window.Proposals?.loadAndRefresh) Proposals.loadAndRefresh();
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
   if (view === 'invoices' && window.Invoices?.refresh) Invoices.refresh();
+  if (view === 'receipts' && window.Receipts?.refresh) Receipts.refresh();
   if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
@@ -3999,7 +4004,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.clientsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.receiptsTab, E.clientsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4080,6 +4085,8 @@ function wireCore() {
         Agreements.loadAndRefresh({ force: true });
       if (E.invoicesView?.classList.contains('active') && window.Invoices?.refresh)
         Invoices.refresh(true);
+      if (E.receiptsView?.classList.contains('active') && window.Receipts?.refresh)
+        Receipts.refresh(true);
       if (E.clientsView?.classList.contains('active') && window.Clients?.loadAndRefresh)
         Clients.loadAndRefresh({ force: true });
       if (E.proposalCatalogView?.classList.contains('active') && window.ProposalCatalog?.loadAndRefresh)
@@ -5697,6 +5704,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.Proposals?.wire) Proposals.wire();
   if (window.Agreements?.wire) Agreements.wire();
   if (window.Invoices?.init) Invoices.init();
+  if (window.Receipts?.init) Receipts.init();
   if (window.Clients?.wire) Clients.wire();
   if (window.ProposalCatalog?.wire) ProposalCatalog.wire();
   wireKeyboardShortcuts();
@@ -5730,6 +5738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         view === 'proposals' ||
         view === 'agreements' ||
         view === 'invoices' ||
+        view === 'receipts' ||
         view === 'proposalCatalog' ||
         view === 'users' ||
         view === 'roles' ||

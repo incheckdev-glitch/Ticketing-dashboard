@@ -330,6 +330,10 @@
                     role="tab" aria-selected="false" aria-controls="invoicesView">
               <span class="icon" aria-hidden="true">🧮</span> Invoices
             </button>
+            <button id="receiptsTab" class="view-tab" data-view="receipts"
+                    role="tab" aria-selected="false" aria-controls="receiptsView">
+              <span class="icon" aria-hidden="true">🧾</span> Receipts
+            </button>
             <button id="clientsTab" class="view-tab" data-view="clients"
                     role="tab" aria-selected="false" aria-controls="clientsView">
               <span class="icon" aria-hidden="true">🏢</span> Clients
@@ -1413,6 +1417,32 @@
                 </tr>
               </thead>
               <tbody id="invoicesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="receiptsView" class="view" role="tabpanel" aria-labelledby="receiptsTab">
+        <div class="grid cols-4" id="receiptSummary" aria-live="polite"></div>
+        <div class="card" aria-label="Receipts list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Receipts</strong>
+              <div class="muted">Receipt voucher records synced from backend receipts resource.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="receiptsSearchInput" class="input" type="search" placeholder="Receipt number..." aria-label="Filter by receipt number" />
+              <input id="receiptsInvoiceFilter" class="input" type="search" placeholder="Invoice number..." aria-label="Filter by invoice number" />
+              <input id="receiptsCustomerFilter" class="input" type="search" placeholder="Customer name..." aria-label="Filter by customer name" />
+              <select id="receiptsStatusFilter" class="select" aria-label="Filter by status"><option>All</option></select>
+              <button id="receiptsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="receiptsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Receipts table">
+            <table id="receiptsTable">
+              <thead><tr><th>Receipt #</th><th>Invoice #</th><th>Customer</th><th>Receipt Date</th><th>Currency</th><th>Grand Total</th><th>Status</th><th>Updated At</th><th>Actions</th></tr></thead>
+              <tbody id="receiptsTbody"></tbody>
             </table>
           </div>
         </div>
@@ -2597,6 +2627,42 @@
   </div>
 
 
+  <div id="receiptFormModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="receiptFormTitle" aria-hidden="true">
+    <div class="modal-content" style="max-width:1200px;">
+      <div class="header"><h2 id="receiptFormTitle" style="margin:0;font-size:20px">Receipt</h2><div class="actions"><button class="modal-close" id="receiptFormCloseBtn" aria-label="Close receipt form">✕</button></div></div>
+      <form id="receiptForm">
+        <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+          <div class="filter-row"><label class="muted" for="receiptFormReceiptId">Receipt ID</label><input id="receiptFormReceiptId" class="input" type="text" readonly /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormReceiptNumber">Receipt Number</label><input id="receiptFormReceiptNumber" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormInvoiceId">Invoice ID</label><input id="receiptFormInvoiceId" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormInvoiceNumber">Invoice Number</label><input id="receiptFormInvoiceNumber" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormReceiptDate">Receipt Date</label><input id="receiptFormReceiptDate" class="input" type="date" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormCurrency">Currency</label><input id="receiptFormCurrency" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormStatus">Status</label><input id="receiptFormStatus" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormSupportEmail">Support Email</label><input id="receiptFormSupportEmail" class="input" type="email" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormCustomerName">Customer Name</label><input id="receiptFormCustomerName" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormCustomerLegalName">Customer Legal Name</label><input id="receiptFormCustomerLegalName" class="input" type="text" /></div>
+          <div class="filter-row" style="grid-column:1 / -1;"><label class="muted" for="receiptFormCustomerAddress">Customer Address</label><input id="receiptFormCustomerAddress" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormAmountInWords">Amount in Words</label><input id="receiptFormAmountInWords" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="receiptFormPaymentNotes">Payment Notes</label><input id="receiptFormPaymentNotes" class="input" type="text" /></div>
+        </div>
+        <div class="divider" style="margin:12px 0;"></div>
+        <strong style="display:block;margin-bottom:8px;">Location Details</strong>
+        <div class="table-wrap"><table><thead><tr><th>Location Name</th><th>Location Address</th><th>Start Date</th><th>End Date</th><th>Modules</th><th>Amount</th><th>Notes</th></tr></thead><tbody id="receiptLocationItemsTbody"></tbody></table></div>
+        <div class="divider" style="margin:12px 0;"></div>
+        <strong style="display:block;margin-bottom:8px;">One-time Fees</strong>
+        <div class="table-wrap"><table><thead><tr><th>Item Name</th><th>Qty</th><th>Unit Price</th><th>Discount %</th><th>Line Total</th><th>Notes</th></tr></thead><tbody id="receiptOneTimeItemsTbody"></tbody></table></div>
+        <div class="actions" style="justify-content:space-between;gap:8px;margin-top:12px;"><div style="display:flex;gap:8px;"><button id="receiptFormDeleteBtn" type="button" class="btn ghost" style="display:none;">Delete</button><button id="receiptFormPreviewBtn" type="button" class="btn ghost">Preview Receipt</button></div><div style="display:flex;gap:8px;"><button id="receiptFormCancelBtn" type="button" class="btn ghost">Cancel</button><button id="receiptFormSaveBtn" type="submit" class="btn">Save</button></div></div>
+      </form>
+    </div>
+  </div>
+  <div id="receiptPreviewModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="receiptPreviewTitle" aria-hidden="true">
+    <div class="modal-content" style="max-width:1100px;"><div class="header"><h2 id="receiptPreviewTitle" style="margin:0;font-size:20px">Receipt Preview</h2><div class="actions"><button class="modal-close" id="receiptPreviewCloseBtn" aria-label="Close receipt preview">✕</button></div></div>
+      <iframe id="receiptPreviewFrame" title="Receipt preview content" style="width:100%;min-height:70vh;border:1px solid var(--border);border-radius:10px;background:#fff;"></iframe>
+    </div>
+  </div>
+
+
   <div class="spinner" id="spinner" aria-hidden="true"><div class="ring"></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -2650,6 +2716,7 @@
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
   <script src="invoices.js"></script>
+  <script src="receipts.js"></script>
   <script src="clients.js"></script>
   <script src="proposal-catalog.js"></script>
   <script src="roles-admin.js"></script>

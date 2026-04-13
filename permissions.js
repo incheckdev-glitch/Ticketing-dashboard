@@ -9,6 +9,7 @@ const Permissions = {
     proposals: 'proposals',
     agreements: 'agreements',
     invoices: 'invoices',
+    receipts: 'receipts',
     clients: 'clients',
     proposalCatalog: 'proposal_catalog',
     users: 'users',
@@ -248,6 +249,30 @@ const Permissions = {
     return (
       this.can('invoices', 'generate_invoice_html', { fallback: Session.isAuthenticated() }) ||
       this.can('invoices', 'get', { fallback: Session.isAuthenticated() })
+    );
+  },
+  canViewReceipts() {
+    return this.can('receipts', 'list', { fallback: Session.isAuthenticated() });
+  },
+  canCreateReceipt() {
+    return (
+      this.can('receipts', 'create', { fallback: this.isAdminLike() }) ||
+      this.can('receipts', 'save', { fallback: this.isAdminLike() })
+    );
+  },
+  canUpdateReceipt() {
+    return this.can('receipts', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteReceipt() {
+    return this.can('receipts', 'delete', { fallback: this.isAdminLike() });
+  },
+  canCreateReceiptFromInvoice() {
+    return this.can('receipts', 'create_from_invoice', { fallback: this.canCreateReceipt() });
+  },
+  canPreviewReceipt() {
+    return (
+      this.can('receipts', 'generate_receipt_html', { fallback: Session.isAuthenticated() }) ||
+      this.can('receipts', 'get', { fallback: Session.isAuthenticated() })
     );
   },
   canCreateProposalCatalogItem() {
