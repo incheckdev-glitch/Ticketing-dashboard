@@ -337,8 +337,20 @@ const Receipts = {
   async saveForm() {
     const id = String(E.receiptForm?.dataset.id || '').trim();
     if (!id) return;
+    const updates = this.collectUpdates();
+    const currentRecord = this.state.rows.find(row => String(row.receipt_id || '') === id) || {};
+    const workflowCheck = await window.WorkflowEngine?.enforceBeforeSave?.('receipts', currentRecord, {
+      receipt_id: id,
+      current_status: currentRecord?.status || '',
+      requested_status: updates.status || '',
+      requested_changes: { receipt: updates }
+    });
+    if (workflowCheck && !workflowCheck.allowed) {
+      UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Receipt save blocked.'));
+      return;
+    }
     try {
-      await Api.updateReceipt(id, this.collectUpdates());
+      await Api.updateReceipt(id, updates);
       UI.toast(`Receipt ${id} saved.`);
       this.closeForm();
       await this.refresh(true);

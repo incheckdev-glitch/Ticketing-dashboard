@@ -12,7 +12,8 @@ const RolesAdmin = {
     proposalCatalog: 'proposal_catalog',
     users: 'users',
     roles: 'roles',
-    rolePermissions: 'role_permissions'
+    rolePermissions: 'role_permissions',
+    workflow: 'workflow'
   },
   state: {
     roles: [],
