@@ -253,6 +253,7 @@ function cacheEls() {
     'receiptOneTimeItemsTbody',
     'receiptPreviewModal',
     'receiptPreviewTitle',
+    'receiptPreviewExportPdfBtn',
     'receiptPreviewFrame',
     'receiptPreviewCloseBtn',
     'usersRefreshBtn',
