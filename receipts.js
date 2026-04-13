@@ -327,6 +327,22 @@ const Receipts = {
     E.receiptPreviewModal.setAttribute('aria-hidden', 'true');
     if (E.receiptPreviewFrame) E.receiptPreviewFrame.srcdoc = '';
   },
+  exportPreviewPdf() {
+    const frame = E.receiptPreviewFrame;
+    const previewTitle = String(E.receiptPreviewTitle?.textContent || 'Receipt Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open receipt preview first to extract PDF.');
+      return;
+    }
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access receipt preview content.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
+  },
   async refresh(force = false) {
     if (this.state.loading && !force) return;
     if (!Permissions.canViewReceipts()) {
@@ -402,6 +418,7 @@ const Receipts = {
       if (event.target === E.receiptFormModal) this.closeForm();
     });
     if (E.receiptPreviewCloseBtn) E.receiptPreviewCloseBtn.addEventListener('click', () => this.closePreview());
+    if (E.receiptPreviewExportPdfBtn) E.receiptPreviewExportPdfBtn.addEventListener('click', () => this.exportPreviewPdf());
     if (E.receiptPreviewModal) E.receiptPreviewModal.addEventListener('click', event => {
       if (event.target === E.receiptPreviewModal) this.closePreview();
     });
