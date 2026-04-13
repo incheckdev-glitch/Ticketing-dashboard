@@ -625,6 +625,19 @@ const Agreements = {
       return;
     }
     const { agreement, items } = this.collectFormValues();
+    const currentRecord = this.state.rows.find(row => String(row.agreement_id || '') === id) || {};
+    const requestedDiscount = items.reduce((max, item) => Math.max(max, this.toNumberSafe(item.discount_percent)), 0);
+    const workflowCheck = await window.WorkflowEngine?.enforceBeforeSave?.('agreements', currentRecord, {
+      agreement_id: id,
+      current_status: currentRecord?.status || '',
+      requested_status: agreement.status || '',
+      discount_percent: requestedDiscount,
+      requested_changes: { agreement, items }
+    });
+    if (workflowCheck && !workflowCheck.allowed) {
+      UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Agreement save blocked.'));
+      return;
+    }
     try {
       const saveResponse = id
         ? await this.updateAgreement(id, agreement, items)

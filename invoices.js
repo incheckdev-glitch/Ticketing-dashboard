@@ -945,6 +945,19 @@ const Invoices = {
       grand_total: totals.grand_total
     });
     this.assignFormValues(payloadInvoice);
+    const currentRecord = this.state.rows.find(row => String(row.invoice_id || '') === id) || {};
+    const requestedDiscount = items.reduce((max, item) => Math.max(max, this.toNumberSafe(item.discount_percent)), 0);
+    const workflowCheck = await window.WorkflowEngine?.enforceBeforeSave?.('invoices', currentRecord, {
+      invoice_id: id,
+      current_status: currentRecord?.status || '',
+      requested_status: payloadInvoice.status || '',
+      discount_percent: requestedDiscount,
+      requested_changes: { invoice: payloadInvoice, items }
+    });
+    if (workflowCheck && !workflowCheck.allowed) {
+      UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Invoice save blocked.'));
+      return;
+    }
     try {
       if (id) {
         if (!Permissions.canUpdateInvoice()) return UI.toast('You do not have permission to update invoices.');
@@ -979,6 +992,17 @@ const Invoices = {
     if (!id) return;
     if (!Permissions.canCreateReceiptFromInvoice()) {
       UI.toast('You do not have permission to create receipts.');
+      return;
+    }
+    const currentRecord = this.state.rows.find(row => String(row.invoice_id || '') === id) || {};
+    const workflowCheck = await window.WorkflowEngine?.enforceBeforeSave?.('receipts', currentRecord, {
+      source_invoice_id: id,
+      current_status: currentRecord?.status || '',
+      requested_status: 'Issued',
+      requested_changes: { create_from_invoice: true }
+    });
+    if (workflowCheck && !workflowCheck.allowed) {
+      UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Receipt creation blocked.'));
       return;
     }
     try {

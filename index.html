@@ -342,6 +342,10 @@
                     role="tab" aria-selected="false" aria-controls="proposalCatalogView">
               <span class="icon" aria-hidden="true">📚</span> Proposal Catalog
             </button>
+            <button id="workflowTab" class="view-tab" data-view="workflow"
+                    role="tab" aria-selected="false" aria-controls="workflowView" style="display:none;">
+              <span class="icon" aria-hidden="true">⚙️</span> Workflow
+            </button>
             <button id="usersTab" class="view-tab" data-view="users"
                     role="tab" aria-selected="false" aria-controls="usersView" style="display:none;">
               <span class="icon" aria-hidden="true">👥</span> Users
@@ -1541,6 +1545,82 @@
               <tbody id="receiptsTbody"></tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+
+
+      <section id="workflowView" class="view" role="tabpanel" aria-labelledby="workflowTab">
+        <div class="card" aria-label="Workflow rules builder">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Workflow Rules Builder</strong>
+              <div class="muted">Define transition permissions, approvals, and discount thresholds by resource and role.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <select id="workflowResourceFilter" class="select" aria-label="Filter workflow resource">
+                <option value="">All resources</option>
+                <option value="proposals">proposals</option>
+                <option value="agreements">agreements</option>
+                <option value="invoices">invoices</option>
+                <option value="receipts">receipts</option>
+              </select>
+              <button id="workflowRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+            </div>
+          </div>
+          <form id="workflowRuleForm" class="grid cols-4" style="gap:10px;margin-bottom:10px;">
+            <input id="workflowRuleId" class="input" placeholder="Rule ID (for edit)" />
+            <input id="workflowResource" class="input" placeholder="Resource" required />
+            <input id="workflowCurrentStatus" class="input" placeholder="Current status" required />
+            <input id="workflowNextStatus" class="input" placeholder="Next status" required />
+            <input id="workflowAllowedRoles" class="input" placeholder="Allowed roles (csv)" required />
+            <select id="workflowRequiresApproval" class="select"><option value="false">No Approval</option><option value="true">Requires Approval</option></select>
+            <input id="workflowApprovalRole" class="input" placeholder="Approval role" />
+            <input id="workflowMaxDiscount" class="input" type="number" step="0.01" placeholder="Max discount %" />
+            <input id="workflowHardStopDiscount" class="input" type="number" step="0.01" placeholder="Hard stop discount %" />
+            <input id="workflowEditableFields" class="input" placeholder="Editable fields (csv)" />
+            <input id="workflowRequiredFields" class="input" placeholder="Required fields (csv)" />
+            <select id="workflowRequireComment" class="select"><option value="false">Comment Optional</option><option value="true">Comment Required</option></select>
+            <select id="workflowRequireAttachment" class="select"><option value="false">Attachment Optional</option><option value="true">Attachment Required</option></select>
+            <select id="workflowIsActive" class="select"><option value="true">Active</option><option value="false">Inactive</option></select>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button id="workflowRuleSaveBtn" class="btn sm" type="submit">Save Rule</button>
+              <button id="workflowRuleResetBtn" class="btn ghost sm" type="button">Reset</button>
+            </div>
+          </form>
+          <div class="table-wrap"><table><thead><tr><th>Resource</th><th>Current</th><th>Next</th><th>Allowed Roles</th><th>Approval</th><th>Discount Limit</th><th>Hard Stop</th><th>Active</th><th>Actions</th></tr></thead><tbody id="workflowRulesTbody"></tbody></table></div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:12px;gap:12px;">
+          <div class="card">
+            <strong>Discount Policy</strong>
+            <div class="muted" style="margin:8px 0;">Aggregated max/hard-stop discount by resource and role.</div>
+            <div class="table-wrap"><table><thead><tr><th>Resource</th><th>Role</th><th>Max %</th><th>Hard Stop %</th></tr></thead><tbody id="workflowDiscountPolicyTbody"></tbody></table></div>
+          </div>
+          <div class="card">
+            <strong>Transition Matrix</strong>
+            <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
+              <select id="workflowMatrixResource" class="select"><option value="proposals">proposals</option><option value="agreements">agreements</option><option value="invoices">invoices</option><option value="receipts">receipts</option></select>
+            </div>
+            <div id="workflowMatrixContainer" class="table-wrap"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <strong>Pending Approvals</strong>
+          <div class="table-wrap" style="margin-top:8px;"><table><thead><tr><th>Resource</th><th>Record #</th><th>Company</th><th>Requested By</th><th>Current</th><th>Requested</th><th>Discount</th><th>Approval Role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="workflowApprovalsTbody"></tbody></table></div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <strong>Workflow Audit Log</strong>
+            <div style="display:flex;gap:8px;">
+              <input id="workflowAuditSearch" class="input" placeholder="Search reason/user/record" />
+              <select id="workflowAuditResourceFilter" class="select"><option value="">All resources</option><option value="proposals">proposals</option><option value="agreements">agreements</option><option value="invoices">invoices</option><option value="receipts">receipts</option></select>
+              <select id="workflowAuditAllowedFilter" class="select"><option value="">All decisions</option><option value="true">Allowed</option><option value="false">Denied</option></select>
+            </div>
+          </div>
+          <div class="table-wrap" style="margin-top:8px;"><table><thead><tr><th>Date</th><th>Resource</th><th>Record</th><th>Action</th><th>Old</th><th>New</th><th>User</th><th>Allowed</th><th>Reason</th></tr></thead><tbody id="workflowAuditTbody"></tbody></table></div>
         </div>
       </section>
 
@@ -2822,6 +2902,7 @@
   <script src="receipts.js"></script>
   <script src="clients.js"></script>
   <script src="proposal-catalog.js"></script>
+  <script src="workflow.js"></script>
   <script src="roles-admin.js"></script>
   <script src="users.js"></script>
   <script src="app.js"></script>

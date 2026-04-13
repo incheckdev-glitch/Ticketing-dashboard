@@ -436,7 +436,69 @@ const Api = {
       permission_id: permissionId,
       sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
     });
-  }
+  },
+
+  async listWorkflowRules(filters = {}) {
+    return this.postAuthenticatedCached('workflow', 'list', {
+      filters,
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+    });
+  },
+  async getWorkflowRule(workflowRuleId) {
+    return this.postAuthenticated('workflow', 'get', {
+      workflow_rule_id: workflowRuleId,
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+    });
+  },
+  async saveWorkflowRule(rule = {}) {
+    return this.postAuthenticated('workflow', 'save_rule', {
+      rule,
+      ...rule,
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+    });
+  },
+  async deleteWorkflowRule(workflowRuleId) {
+    return this.postAuthenticated('workflow', 'delete_rule', {
+      workflow_rule_id: workflowRuleId,
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+    });
+  },
+  async validateWorkflowTransition(payload = {}) {
+    return this.postAuthenticated('workflow', 'validate_transition', {
+      ...payload,
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+    });
+  },
+  async requestWorkflowApproval(payload = {}) {
+    return this.postAuthenticated('workflow', 'request_approval', {
+      ...payload,
+      sheetName: CONFIG.WORKFLOW_APPROVALS_SHEET_NAME
+    });
+  },
+  async approveWorkflowRequest(payload = {}) {
+    return this.postAuthenticated('workflow', 'approve', {
+      ...payload,
+      sheetName: CONFIG.WORKFLOW_APPROVALS_SHEET_NAME
+    });
+  },
+  async rejectWorkflowRequest(payload = {}) {
+    return this.postAuthenticated('workflow', 'reject', {
+      ...payload,
+      sheetName: CONFIG.WORKFLOW_APPROVALS_SHEET_NAME
+    });
+  },
+  async listPendingWorkflowApprovals(filters = {}) {
+    return this.postAuthenticated('workflow', 'list_pending_approvals', {
+      filters,
+      sheetName: CONFIG.WORKFLOW_APPROVALS_SHEET_NAME
+    });
+  },
+  async listWorkflowAudit(filters = {}) {
+    return this.postAuthenticated('workflow', 'list_audit', {
+      filters,
+      sheetName: CONFIG.WORKFLOW_AUDIT_LOG_SHEET_NAME
+    });
+  },
 };
 
 async function apiPost(payload = {}) {

@@ -14,7 +14,8 @@ const Permissions = {
     proposalCatalog: 'proposal_catalog',
     users: 'users',
     roles: 'roles',
-    rolePermissions: 'role_permissions'
+    rolePermissions: 'role_permissions',
+    workflow: 'workflow'
   },
   state: {
     loaded: false,
@@ -189,6 +190,9 @@ const Permissions = {
       this.can('roles', 'list', { fallback: this.isAdmin() }) ||
       this.can('role_permissions', 'list', { fallback: this.isAdmin() })
     );
+  },
+  canManageWorkflow() {
+    return this.can('workflow', 'list', { fallback: this.isAdminLike() });
   },
   canEditRolesPermissions() {
     return (

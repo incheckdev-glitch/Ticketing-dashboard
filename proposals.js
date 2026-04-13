@@ -875,6 +875,19 @@ const Proposals = {
     const proposalId = String(E.proposalForm?.dataset.id || '').trim();
     const proposal = this.collectProposalFormData();
     const items = this.collectProposalItems();
+    const currentRecord = this.state.rows.find(row => String(row.proposal_id || '') === proposalId) || {};
+    const requestedDiscount = items.reduce((max, item) => Math.max(max, this.toNumberSafe(item.discount_percent)), 0);
+    const workflowCheck = await window.WorkflowEngine?.enforceBeforeSave?.('proposals', currentRecord, {
+      proposal_id: proposalId,
+      current_status: currentRecord?.status || '',
+      requested_status: proposal.status || '',
+      discount_percent: requestedDiscount,
+      requested_changes: { proposal, items }
+    });
+    if (workflowCheck && !workflowCheck.allowed) {
+      UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Proposal save blocked.'));
+      return;
+    }
 
     if (!proposal.proposal_title) {
       UI.toast('Proposal title is required.');
