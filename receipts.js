@@ -286,6 +286,23 @@ const Receipts = {
       UI.toast('Unable to delete receipt: ' + (error?.message || 'Unknown error'));
     }
   },
+  formatReceiptPreviewHtml(html) {
+    const branded = U.addIncheckDocumentLogo(html);
+    if (!branded || /data-incheck360-receipt-style/i.test(branded)) return branded;
+
+    const styleTag = `<style data-incheck360-receipt-style>
+      body{font-family:Inter,Segoe UI,Arial,sans-serif;line-height:1.45;color:#0f172a;padding:24px;}
+      h1,h2,h3,h4{margin:0 0 10px;color:#0f172a;}
+      p{margin:0 0 8px;}
+      table{width:100%;border-collapse:collapse;margin:14px 0 18px;}
+      th,td{border:1px solid #dbe2ea;padding:8px 10px;vertical-align:top;text-align:left;}
+      th{background:#f8fafc;font-weight:600;}
+      .section,.block,.panel{margin-bottom:14px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;}
+    </style>`;
+
+    if (/<\/head>/i.test(branded)) return branded.replace(/<\/head>/i, `${styleTag}</head>`);
+    return `${styleTag}${branded}`;
+  },
   async previewReceipt(receiptId) {
     const id = String(receiptId || '').trim();
     if (!id) return;
@@ -293,8 +310,9 @@ const Receipts = {
       const response = await Api.previewReceipt(id);
       const html = String(response?.html || response?.receipt_html || response?.content || response || '').trim();
       if (!html) return UI.toast('No receipt HTML was returned by backend.');
+      const formattedHtml = this.formatReceiptPreviewHtml(html);
       if (E.receiptPreviewTitle) E.receiptPreviewTitle.textContent = `RECEIPT VOUCHER · ${id}`;
-      if (E.receiptPreviewFrame) E.receiptPreviewFrame.srcdoc = html;
+      if (E.receiptPreviewFrame) E.receiptPreviewFrame.srcdoc = formattedHtml;
       if (E.receiptPreviewModal) {
         E.receiptPreviewModal.classList.add('open');
         E.receiptPreviewModal.setAttribute('aria-hidden', 'false');
