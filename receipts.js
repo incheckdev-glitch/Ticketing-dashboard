@@ -15,6 +15,10 @@ const Receipts = {
     'subtotal_locations',
     'subtotal_one_time',
     'grand_total',
+    'invoice_grand_total',
+    'received_amount',
+    'pending_amount',
+    'payment_state',
     'amount_in_words',
     'payment_notes',
     'provider_legal_name',
@@ -197,19 +201,19 @@ const Receipts = {
     if (!E.receiptsTbody || !E.receiptsState) return;
     if (this.state.loading) {
       E.receiptsState.textContent = 'Loading receipts…';
-      E.receiptsTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">Loading receipts…</td></tr>';
+      E.receiptsTbody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;">Loading receipts…</td></tr>';
       return;
     }
     if (this.state.loadError) {
       E.receiptsState.textContent = this.state.loadError;
-      E.receiptsTbody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
+      E.receiptsTbody.innerHTML = `<tr><td colspan="10" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
       return;
     }
     this.renderSummary();
     const rows = this.state.filteredRows;
     E.receiptsState.textContent = `${rows.length} of ${this.state.rows.length} receipts`;
     if (!rows.length) {
-      E.receiptsTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No receipts found.</td></tr>';
+      E.receiptsTbody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;">No receipts found.</td></tr>';
       return;
     }
     E.receiptsTbody.innerHTML = rows
@@ -221,7 +225,8 @@ const Receipts = {
           <td>${U.escapeHtml(row.customer_name || '—')}</td>
           <td>${U.escapeHtml(row.receipt_date || '—')}</td>
           <td>${U.escapeHtml(row.currency || '—')}</td>
-          <td>${this.formatMoney(row.grand_total)}</td>
+          <td>${this.formatMoney(row.received_amount || row.grand_total)}</td>
+          <td>${U.escapeHtml(row.payment_state || '—')}</td>
           <td>${U.escapeHtml(row.status || '—')}</td>
           <td>${U.escapeHtml(row.updated_at || '—')}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -268,6 +273,10 @@ const Receipts = {
     set('receiptFormCurrency', receipt.currency);
     set('receiptFormStatus', receipt.status);
     set('receiptFormAmountInWords', receipt.amount_in_words);
+    set('receiptFormInvoiceGrandTotal', receipt.invoice_grand_total);
+    set('receiptFormReceivedAmount', receipt.received_amount || receipt.grand_total);
+    set('receiptFormPendingAmount', receipt.pending_amount);
+    set('receiptFormPaymentState', receipt.payment_state);
     set('receiptFormPaymentNotes', receipt.payment_notes);
     set('receiptFormSupportEmail', receipt.support_email);
     if (E.receiptForm) E.receiptForm.dataset.id = receipt.receipt_id || '';
@@ -317,6 +326,10 @@ const Receipts = {
       currency: get('receiptFormCurrency'),
       status: get('receiptFormStatus'),
       amount_in_words: get('receiptFormAmountInWords'),
+      invoice_grand_total: get('receiptFormInvoiceGrandTotal'),
+      received_amount: get('receiptFormReceivedAmount'),
+      pending_amount: get('receiptFormPendingAmount'),
+      payment_state: get('receiptFormPaymentState'),
       payment_notes: get('receiptFormPaymentNotes'),
       support_email: get('receiptFormSupportEmail')
     };
