@@ -299,29 +299,69 @@ const Invoices = {
     const candidates = [
       response,
       response?.data,
+      response?.rows,
+      response?.items,
       response?.result,
       response?.payload,
+      response?.invoices,
       response?.invoice,
       response?.created_invoice,
+      response?.data?.rows,
+      response?.data?.items,
+      response?.data?.invoices,
       response?.data?.invoice,
+      response?.result?.rows,
+      response?.result?.items,
+      response?.result?.invoices,
       response?.result?.invoice,
+      response?.payload?.rows,
+      response?.payload?.items,
+      response?.payload?.invoices,
       response?.payload?.invoice
     ];
+    const isInvoiceLike = value =>
+      Boolean(
+        value &&
+          typeof value === 'object' &&
+          (
+            value.invoice_id ||
+            value.invoiceId ||
+            value.invoice_number ||
+            value.invoiceNumber ||
+            value.agreement_id ||
+            value.agreementId
+          )
+      );
+    const extractInvoiceFromObjectValues = value => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const nestedValues = Object.values(value).filter(item => item && typeof item === 'object');
+      return nestedValues.find(item => isInvoiceLike(item)) || null;
+    };
     let invoice = null;
     let items = [];
     for (const candidate of candidates) {
       const parsedCandidate = parseJsonIfNeeded(candidate);
-      if (!parsedCandidate || typeof parsedCandidate !== 'object') continue;
-      const candidate = parsedCandidate;
+      if (!parsedCandidate) continue;
+      if (Array.isArray(parsedCandidate)) {
+        const invoiceFromList = parsedCandidate.find(item => isInvoiceLike(item));
+        if (!invoice && invoiceFromList) invoice = invoiceFromList;
+        if (!items.length && parsedCandidate.every(item => item && typeof item === 'object' && !isInvoiceLike(item))) {
+          items = parsedCandidate;
+        }
+        continue;
+      }
+      if (typeof parsedCandidate !== 'object') continue;
+      const parsedObject = parsedCandidate;
       if (!invoice) {
-        if (candidate.invoice && typeof candidate.invoice === 'object') invoice = candidate.invoice;
-        else if (candidate.created_invoice && typeof candidate.created_invoice === 'object') invoice = candidate.created_invoice;
-        else if (candidate.invoice_id || candidate.invoice_number) invoice = candidate;
+        if (parsedObject.invoice && typeof parsedObject.invoice === 'object') invoice = parsedObject.invoice;
+        else if (parsedObject.created_invoice && typeof parsedObject.created_invoice === 'object') invoice = parsedObject.created_invoice;
+        else if (parsedObject.invoice_id || parsedObject.invoice_number) invoice = parsedObject;
+        else invoice = extractInvoiceFromObjectValues(parsedObject);
       }
       if (!items.length) {
-        if (Array.isArray(candidate.items)) items = candidate.items;
-        else if (Array.isArray(candidate.invoice_items)) items = candidate.invoice_items;
-        else if (Array.isArray(candidate.created_invoice_items)) items = candidate.created_invoice_items;
+        if (Array.isArray(parsedObject.items)) items = parsedObject.items;
+        else if (Array.isArray(parsedObject.invoice_items)) items = parsedObject.invoice_items;
+        else if (Array.isArray(parsedObject.created_invoice_items)) items = parsedObject.created_invoice_items;
       }
     }
     return {
@@ -708,28 +748,28 @@ const Invoices = {
         continue;
       }
       if (typeof parsedCandidate !== 'object') continue;
-      const candidate = parsedCandidate;
-      const nestedAgreement = readCandidate(candidate.signed_agreement) || readCandidate(candidate.agreement);
+      const parsedObject = parsedCandidate;
+      const nestedAgreement = readCandidate(parsedObject.signed_agreement) || readCandidate(parsedObject.agreement);
       if (!agreement) {
         if (nestedAgreement) agreement = nestedAgreement;
         else if (
-          candidate.agreement_id ||
-          candidate.agreementId ||
-          candidate.agreement_number ||
-          candidate.agreementNumber ||
-          candidate.customer_name ||
-          candidate.customerName
+          parsedObject.agreement_id ||
+          parsedObject.agreementId ||
+          parsedObject.agreement_number ||
+          parsedObject.agreementNumber ||
+          parsedObject.customer_name ||
+          parsedObject.customerName
         )
-          agreement = candidate;
+          agreement = parsedObject;
       }
       if (!items.length) {
-        if (Array.isArray(candidate.signed_agreement_items)) items = candidate.signed_agreement_items;
-        else if (Array.isArray(candidate.signedAgreementItems)) items = candidate.signedAgreementItems;
-        else if (Array.isArray(candidate.agreement_items)) items = candidate.agreement_items;
-        else if (Array.isArray(candidate.agreementItems)) items = candidate.agreementItems;
-        else if (Array.isArray(candidate.items)) items = candidate.items;
-        else if (Array.isArray(candidate.agreement?.items)) items = candidate.agreement.items;
-        else if (Array.isArray(candidate.signed_agreement?.items)) items = candidate.signed_agreement.items;
+        if (Array.isArray(parsedObject.signed_agreement_items)) items = parsedObject.signed_agreement_items;
+        else if (Array.isArray(parsedObject.signedAgreementItems)) items = parsedObject.signedAgreementItems;
+        else if (Array.isArray(parsedObject.agreement_items)) items = parsedObject.agreement_items;
+        else if (Array.isArray(parsedObject.agreementItems)) items = parsedObject.agreementItems;
+        else if (Array.isArray(parsedObject.items)) items = parsedObject.items;
+        else if (Array.isArray(parsedObject.agreement?.items)) items = parsedObject.agreement.items;
+        else if (Array.isArray(parsedObject.signed_agreement?.items)) items = parsedObject.signed_agreement.items;
       }
     }
     const agreementStatus = this.normalizeText(agreement?.status || '');
