@@ -979,7 +979,8 @@ const Proposals = {
         UI.toast('Backend did not return proposal HTML.');
         return;
       }
-      if (E.proposalPreviewFrame) E.proposalPreviewFrame.srcdoc = html;
+      const brandedHtml = U.addIncheckDocumentLogo(html);
+      if (E.proposalPreviewFrame) E.proposalPreviewFrame.srcdoc = brandedHtml;
       if (E.proposalPreviewTitle) E.proposalPreviewTitle.textContent = `Proposal Preview · ${proposalId}`;
       if (E.proposalPreviewModal) {
         E.proposalPreviewModal.style.display = 'flex';
