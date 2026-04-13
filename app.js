@@ -4981,10 +4981,10 @@ const CSMActivity = {
       .forEach(id => { if (E[id]) E[id].disabled = !!v; });
   },
   canCreate() {
-    return Permissions.canCreateTicket();
+    return Permissions.canCreateCsmActivity();
   },
   canEditDelete() {
-    return Permissions.canManageCsmActivity();
+    return Permissions.canUpdateCsmActivity() || Permissions.canDeleteCsmActivity();
   },
   async loadAndRefresh(options = {}) {
     const force = !!options.force;
@@ -5462,9 +5462,11 @@ const CSMActivity = {
     this.setBusySaving(true);
     try {
       if (mode === 'edit') {
+        if (!Permissions.canUpdateCsmActivity()) throw new Error('You do not have permission to update CSM activity.');
         await Api.postAuthenticated('csm', 'update', { id, updates: this.viewToBackendActivity(activity) }, { requireAuth: true });
         UI.toast('CSM activity updated.');
       } else {
+        if (!Permissions.canCreateCsmActivity()) throw new Error('You do not have permission to create CSM activity.');
         await Api.postAuthenticated('csm', 'create', { activity: this.viewToBackendActivity(activity) }, { requireAuth: true });
         UI.toast('CSM activity created.');
       }
@@ -5481,7 +5483,7 @@ const CSMActivity = {
     }
   },
   async deleteActivity(id) {
-    if (!id || !this.canEditDelete()) return;
+    if (!id || !Permissions.canDeleteCsmActivity()) return;
     const confirmed = window.confirm('Delete this CSM activity? This cannot be undone.');
     if (!confirmed) return;
     this.setBusySaving(true);

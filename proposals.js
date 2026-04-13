@@ -354,10 +354,10 @@ const Proposals = {
           <td>${textCell(row.generated_by)}</td>
           <td>
             <button class="btn ghost sm" type="button" data-proposal-view="${id}">View</button>
-            <button class="btn ghost sm" type="button" data-proposal-edit="${id}">Edit</button>
-            <button class="btn ghost sm" type="button" data-proposal-preview="${id}">Preview</button>
-            <button class="btn ghost sm" type="button" data-proposal-convert-agreement="${id}">Convert to Agreement</button>
-            <button class="btn ghost sm" type="button" data-proposal-delete="${id}">Delete</button>
+            ${Permissions.canUpdateProposal() ? `<button class="btn ghost sm" type="button" data-proposal-edit="${id}">Edit</button>` : ''}
+            ${Permissions.canGenerateProposalHtml() ? `<button class="btn ghost sm" type="button" data-proposal-preview="${id}">Preview</button>` : ''}
+            ${Permissions.canCreateAgreementFromProposal() ? `<button class="btn ghost sm" type="button" data-proposal-convert-agreement="${id}">Convert to Agreement</button>` : ''}
+            ${Permissions.canDeleteProposal() ? `<button class="btn ghost sm" type="button" data-proposal-delete="${id}">Delete</button>` : ''}
           </td>
         </tr>`;
       })
@@ -802,7 +802,11 @@ const Proposals = {
       else E.proposalFormTitle.textContent = mode === 'edit' ? 'Edit Proposal' : 'Create Proposal';
     }
     if (E.proposalFormDeleteBtn)
-      E.proposalFormDeleteBtn.style.display = mode === 'edit' && !readOnly ? '' : 'none';
+      E.proposalFormDeleteBtn.style.display = mode === 'edit' && !readOnly && Permissions.canDeleteProposal() ? '' : 'none';
+    if (E.proposalFormSaveBtn) {
+      const canSave = mode === 'edit' ? Permissions.canUpdateProposal() : Permissions.canCreateProposal();
+      E.proposalFormSaveBtn.style.display = !readOnly && canSave ? '' : 'none';
+    }
 
     this.setFormReadOnly(readOnly);
 
@@ -821,11 +825,15 @@ const Proposals = {
     if (E.proposalFormPreviewBtn) E.proposalFormPreviewBtn.disabled = busy;
   },
   async submitForm() {
-    if (!Permissions.canCreateLead()) {
+    const mode = E.proposalForm?.dataset.mode === 'edit' ? 'edit' : 'create';
+    if (mode === 'edit' && !Permissions.canUpdateProposal()) {
+      UI.toast('You do not have permission to update proposals.');
+      return;
+    }
+    if (mode !== 'edit' && !Permissions.canCreateProposal()) {
       UI.toast('Login is required to manage proposals.');
       return;
     }
-    const mode = E.proposalForm?.dataset.mode === 'edit' ? 'edit' : 'create';
     const proposalId = String(E.proposalForm?.dataset.id || '').trim();
     const proposal = this.collectProposalFormData();
     const items = this.collectProposalItems();
@@ -865,8 +873,8 @@ const Proposals = {
     }
   },
   async deleteById(proposalId) {
-    if (!Permissions.canEditDeleteLead()) {
-      UI.toast('Only admin/dev can delete proposals.');
+    if (!Permissions.canDeleteProposal()) {
+      UI.toast('You do not have permission to delete proposals.');
       return;
     }
     if (!proposalId) return;
@@ -922,6 +930,10 @@ const Proposals = {
       UI.toast('Missing proposal ID for preview.');
       return;
     }
+    if (!Permissions.canGenerateProposalHtml()) {
+      UI.toast('You do not have permission to preview proposals.');
+      return;
+    }
     try {
       const response = await this.generateProposalHtml(proposalId);
       const html = this.extractHtml(response);
@@ -961,8 +973,8 @@ const Proposals = {
     return '';
   },
   async createFromDealFlow(dealId, { openAfterCreate = true } = {}) {
-    if (!Permissions.canCreateLead()) {
-      UI.toast('Login is required to create proposals from deals.');
+    if (!Permissions.canCreateProposalFromDeal()) {
+      UI.toast('You do not have permission to create proposals from deals.');
       return;
     }
     const trimmedDealId = String(dealId || '').trim();
@@ -1026,7 +1038,10 @@ const Proposals = {
       E.proposalsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
     }
     if (E.proposalsCreateBtn) {
-      E.proposalsCreateBtn.addEventListener('click', () => this.openProposalForm());
+      E.proposalsCreateBtn.addEventListener('click', () => {
+        if (!Permissions.canCreateProposal()) return UI.toast('Login is required to manage proposals.');
+        this.openProposalForm();
+      });
     }
 
     if (E.proposalsTbody) {
@@ -1039,6 +1054,7 @@ const Proposals = {
         }
         const editId = getActionValue('data-proposal-edit');
         if (editId) {
+          if (!Permissions.canUpdateProposal()) return UI.toast('You do not have permission to edit proposals.');
           this.openProposalFormById(editId, { readOnly: false });
           return;
         }

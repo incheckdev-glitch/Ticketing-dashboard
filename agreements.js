@@ -415,9 +415,9 @@ const Agreements = {
         <td>${textCell(row.status)}</td><td>${textCell(row.updated_at)}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn ghost sm" type="button" data-agreement-view="${id}">View</button>
-        <button class="btn ghost sm" type="button" data-agreement-edit="${id}">Edit</button>
-        <button class="btn ghost sm" type="button" data-agreement-preview="${id}">View Agreement</button>
-        <button class="btn ghost sm" type="button" data-agreement-delete="${id}">Delete</button>
+        ${Permissions.canUpdateAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-edit=\"${id}\">Edit</button>` : ''}
+        ${Permissions.canGenerateAgreementHtml() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-preview=\"${id}\">View Agreement</button>` : ''}
+        ${Permissions.canDeleteAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-delete=\"${id}\">Delete</button>` : ''}
         </div></td></tr>`;
     }).join('');
   },
@@ -515,8 +515,8 @@ const Agreements = {
       if (el.id === 'agreementFormPreviewBtn') return;
       if (el.id === 'agreementFormCancelBtn') return;
       if (el.id === 'agreementFormCloseBtn') return;
-      if (el.id === 'agreementFormDeleteBtn') el.style.display = readOnly ? 'none' : '';
-      if (el.id === 'agreementFormSaveBtn') el.style.display = readOnly ? 'none' : '';
+      if (el.id === 'agreementFormDeleteBtn') return;
+      if (el.id === 'agreementFormSaveBtn') return;
       if ('disabled' in el && !/agreementForm(Delete|Save)Btn/.test(el.id)) el.disabled = readOnly;
     });
   },
@@ -531,6 +531,11 @@ const Agreements = {
       if (accountNumberEl) accountNumberEl.value = this.ensureAccountNumber(accountNumberEl.value);
     }
     if (E.agreementFormTitle) E.agreementFormTitle.textContent = agreement.agreement_id ? (readOnly ? 'View Agreement' : 'Edit Agreement') : 'Create Agreement';
+    if (E.agreementFormDeleteBtn) E.agreementFormDeleteBtn.style.display = !readOnly && agreement.agreement_id && Permissions.canDeleteAgreement() ? '' : 'none';
+    if (E.agreementFormSaveBtn) {
+      const canSave = agreement.agreement_id ? Permissions.canUpdateAgreement() : Permissions.canCreateAgreement();
+      E.agreementFormSaveBtn.style.display = !readOnly && canSave ? '' : 'none';
+    }
     this.setFormReadOnly(readOnly);
     E.agreementFormModal.classList.add('open');
     E.agreementFormModal.setAttribute('aria-hidden', 'false');
@@ -568,11 +573,15 @@ const Agreements = {
     }
   },
   async submitForm() {
-    if (!Permissions.canCreateLead()) {
+    const id = String(E.agreementForm?.dataset.id || '').trim();
+    if (id && !Permissions.canUpdateAgreement()) {
+      UI.toast('You do not have permission to update agreements.');
+      return;
+    }
+    if (!id && !Permissions.canCreateAgreement()) {
       UI.toast('Login is required to save agreements.');
       return;
     }
-    const id = String(E.agreementForm?.dataset.id || '').trim();
     const { agreement, items } = this.collectFormValues();
     try {
       const saveResponse = id
@@ -597,7 +606,7 @@ const Agreements = {
     }
   },
   async deleteById(agreementId) {
-    if (!Permissions.canEditDeleteLead()) {
+    if (!Permissions.canDeleteAgreement()) {
       UI.toast('Insufficient permissions to delete agreements.');
       return;
     }
@@ -619,6 +628,10 @@ const Agreements = {
   async previewAgreementHtml(id) {
     const agreementId = String(id || '').trim();
     if (!agreementId) return;
+    if (!Permissions.canGenerateAgreementHtml()) {
+      UI.toast('You do not have permission to preview agreements.');
+      return;
+    }
     try {
       const response = await this.generateAgreementHtml(agreementId);
       const html = String(response?.html || response?.agreement_html || response?.content || response || '').trim();
@@ -647,8 +660,8 @@ const Agreements = {
     if (E.agreementPreviewFrame) E.agreementPreviewFrame.srcdoc = '';
   },
   async createFromProposalFlow(proposalId) {
-    if (!Permissions.canCreateLead()) {
-      UI.toast('Login is required to create agreements from proposals.');
+    if (!Permissions.canCreateAgreementFromProposal()) {
+      UI.toast('You do not have permission to create agreements from proposals.');
       return;
     }
     const id = String(proposalId || '').trim();
@@ -723,15 +736,23 @@ const Agreements = {
     bindState(E.agreementsProposalDealFilter, 'proposalOrDeal');
 
     if (E.agreementsRefreshBtn) E.agreementsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
-    if (E.agreementsCreateBtn) E.agreementsCreateBtn.addEventListener('click', () => this.openAgreementForm());
-    if (E.agreementsCreateFromProposalBtn) E.agreementsCreateFromProposalBtn.addEventListener('click', () => this.createFromProposalFlow(E.agreementsCreateFromProposalInput?.value || ''));
+    if (E.agreementsCreateBtn) E.agreementsCreateBtn.addEventListener('click', () => {
+      if (!Permissions.canCreateAgreement()) return UI.toast('Login is required to save agreements.');
+      this.openAgreementForm();
+    });
+    if (E.agreementsCreateFromProposalBtn) E.agreementsCreateFromProposalBtn.addEventListener('click', () => {
+      this.createFromProposalFlow(E.agreementsCreateFromProposalInput?.value || '');
+    });
     if (E.agreementsTbody) E.agreementsTbody.addEventListener('click', event => {
       const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-delete]');
       if (!trigger) return;
       const viewId = trigger.getAttribute('data-agreement-view');
       if (viewId) return this.openAgreementFormById(viewId, { readOnly: true });
       const editId = trigger.getAttribute('data-agreement-edit');
-      if (editId) return this.openAgreementFormById(editId, { readOnly: false });
+      if (editId) {
+        if (!Permissions.canUpdateAgreement()) return UI.toast('You do not have permission to edit agreements.');
+        return this.openAgreementFormById(editId, { readOnly: false });
+      }
       const previewId = trigger.getAttribute('data-agreement-preview');
       if (previewId) return this.previewAgreementHtml(previewId);
       const deleteId = trigger.getAttribute('data-agreement-delete');
