@@ -963,6 +963,22 @@ const Proposals = {
     E.proposalPreviewModal.setAttribute('aria-hidden', 'true');
     if (E.proposalPreviewFrame) E.proposalPreviewFrame.srcdoc = '';
   },
+  exportPreviewPdf() {
+    const frame = E.proposalPreviewFrame;
+    const previewTitle = String(E.proposalPreviewTitle?.textContent || 'Proposal Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open proposal preview first to extract PDF.');
+      return;
+    }
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access proposal preview content.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
+  },
   async previewProposalHtml(proposalId) {
     if (!proposalId) {
       UI.toast('Missing proposal ID for preview.');
@@ -1205,6 +1221,9 @@ const Proposals = {
       E.proposalAddCapabilityRowBtn.addEventListener('click', () => this.addRow('capability'));
 
     if (E.proposalPreviewCloseBtn) E.proposalPreviewCloseBtn.addEventListener('click', () => this.closePreviewModal());
+    if (E.proposalPreviewExportPdfBtn) {
+      E.proposalPreviewExportPdfBtn.addEventListener('click', () => this.exportPreviewPdf());
+    }
     if (E.proposalPreviewModal) {
       E.proposalPreviewModal.addEventListener('click', event => {
         if (event.target === E.proposalPreviewModal) this.closePreviewModal();

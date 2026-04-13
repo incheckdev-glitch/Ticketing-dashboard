@@ -702,6 +702,22 @@ const Agreements = {
     E.agreementPreviewModal.setAttribute('aria-hidden', 'true');
     if (E.agreementPreviewFrame) E.agreementPreviewFrame.srcdoc = '';
   },
+  exportPreviewPdf() {
+    const frame = E.agreementPreviewFrame;
+    const previewTitle = String(E.agreementPreviewTitle?.textContent || 'Agreement Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open agreement preview first to extract PDF.');
+      return;
+    }
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access agreement preview content.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
+  },
   async createFromProposalFlow(proposalId) {
     if (!Permissions.canCreateAgreementFromProposal()) {
       UI.toast('You do not have permission to create agreements from proposals.');
@@ -858,6 +874,7 @@ const Agreements = {
     if (E.agreementAddAnnualRowBtn) E.agreementAddAnnualRowBtn.addEventListener('click', () => this.addRow('annual_saas'));
     if (E.agreementAddOneTimeRowBtn) E.agreementAddOneTimeRowBtn.addEventListener('click', () => this.addRow('one_time_fee'));
     if (E.agreementAddCapabilityRowBtn) E.agreementAddCapabilityRowBtn.addEventListener('click', () => this.addRow('capability'));
+    if (E.agreementPreviewExportPdfBtn) E.agreementPreviewExportPdfBtn.addEventListener('click', () => this.exportPreviewPdf());
     if (E.agreementPreviewCloseBtn) E.agreementPreviewCloseBtn.addEventListener('click', () => this.closePreviewModal());
     if (E.agreementPreviewModal) E.agreementPreviewModal.addEventListener('click', event => {
       if (event.target === E.agreementPreviewModal) this.closePreviewModal();
