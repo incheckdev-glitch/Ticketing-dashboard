@@ -16,6 +16,9 @@ const Invoices = {
     'subtotal_subscription',
     'subtotal_one_time',
     'grand_total',
+    'amount_paid',
+    'pending_amount',
+    'payment_state',
     'amount_in_words',
     'notes',
     'updated_at'
@@ -32,7 +35,7 @@ const Invoices = {
     items: [],
     catalogLoading: false
   },
-  statusOptions: ['Draft', 'Issued', 'Paid', 'Overdue', 'Cancelled'],
+  statusOptions: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -61,6 +64,9 @@ const Invoices = {
     normalized.invoice_number = String(normalized.invoice_number || '').trim();
     normalized.status = String(normalized.status || '').trim() || 'Draft';
     normalized.currency = String(normalized.currency || '').trim() || 'USD';
+    normalized.amount_paid = this.toNumberSafe(normalized.amount_paid);
+    normalized.pending_amount = this.toNumberSafe(normalized.pending_amount);
+    normalized.payment_state = String(normalized.payment_state || '').trim();
     return normalized;
   },
   normalizeSection(value) {
@@ -375,9 +381,59 @@ const Invoices = {
       subtotal_subscription: '',
       subtotal_one_time: '',
       grand_total: '',
+      amount_paid: 0,
+      pending_amount: 0,
+      payment_state: 'Unpaid',
       amount_in_words: '',
       notes: ''
     };
+  },
+
+  derivePaymentFields(invoice = {}) {
+    const grandTotal = this.toNumberSafe(invoice.grand_total);
+    const normalizedStatus = this.normalizeText(invoice.status);
+    let amountPaid = this.toNumberSafe(invoice.amount_paid);
+
+    amountPaid = Math.max(0, Math.min(amountPaid, grandTotal));
+    if (normalizedStatus === 'paid') amountPaid = grandTotal;
+
+    const pendingAmount = Math.max(0, grandTotal - amountPaid);
+    let paymentState = 'Unpaid';
+    if (amountPaid >= grandTotal && grandTotal > 0) paymentState = 'Fully Paid';
+    else if (amountPaid > 0) paymentState = 'Partially Paid';
+
+    return {
+      amount_paid: amountPaid,
+      pending_amount: pendingAmount,
+      payment_state: paymentState
+    };
+  },
+  syncPaymentFieldsInForm() {
+    const status = String(E.invoiceFormStatus?.value || '').trim();
+    const grandTotal = this.toNumberSafe(E.invoiceFormGrandTotal?.value);
+    const amountPaidInput = E.invoiceFormAmountPaid;
+    const wrap = E.invoiceFormAmountPaidWrap;
+    const pendingWrap = E.invoiceFormPendingAmountWrap;
+    const pendingInput = E.invoiceFormPendingAmount;
+
+    let amountPaid = this.toNumberSafe(amountPaidInput?.value);
+    if (status === 'Paid') amountPaid = grandTotal;
+    amountPaid = Math.max(0, Math.min(amountPaid, grandTotal));
+
+    const showAmountPaid = status === 'Partially Paid' || status === 'Paid' || amountPaid > 0;
+    if (wrap) wrap.style.display = showAmountPaid ? '' : 'none';
+    if (amountPaidInput) {
+      amountPaidInput.value = amountPaid;
+      amountPaidInput.readOnly = status === 'Paid';
+      amountPaidInput.required = status === 'Partially Paid';
+    }
+
+    const pendingAmount = Math.max(0, grandTotal - amountPaid);
+    if (pendingInput) pendingInput.value = pendingAmount;
+    if (pendingWrap) pendingWrap.style.display = showAmountPaid || pendingAmount > 0 ? '' : 'none';
+
+    const paymentState = amountPaid >= grandTotal && grandTotal > 0 ? 'Fully Paid' : amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+    if (E.invoiceFormPaymentState) E.invoiceFormPaymentState.value = paymentState;
   },
   applyFilters() {
     const terms = String(this.state.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -399,6 +455,7 @@ const Invoices = {
       ['Total Invoices', rows.length],
       ['Draft', count('draft')],
       ['Issued', count('issued')],
+      ['Partially Paid', count('partially paid')],
       ['Paid', count('paid')],
       ['Overdue', count('overdue')]
     ];
@@ -645,6 +702,9 @@ const Invoices = {
       invoice[field] = get(id);
     });
     const items = this.collectItems();
+    invoice.amount_paid = this.toNumberSafe(E.invoiceFormAmountPaid?.value);
+    invoice.pending_amount = this.toNumberSafe(E.invoiceFormPendingAmount?.value);
+    invoice.payment_state = String(E.invoiceFormPaymentState?.value || '').trim();
     return { invoice, items };
   },
   validateInvoice(invoice = {}) {
@@ -656,12 +716,23 @@ const Invoices = {
       ['currency', 'Currency']
     ];
     const missing = requiredFields.filter(([field]) => !String(invoice?.[field] || '').trim());
-    if (!missing.length) return true;
-    const firstFieldId = `invoiceForm${missing[0][0].replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
-    const firstFieldEl = document.getElementById(firstFieldId);
-    if (firstFieldEl) firstFieldEl.focus();
-    UI.toast(`Please fill required fields: ${missing.map(([, label]) => label).join(', ')}`);
-    return false;
+    if (missing.length) {
+      const firstFieldId = `invoiceForm${missing[0][0].replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
+      const firstFieldEl = document.getElementById(firstFieldId);
+      if (firstFieldEl) firstFieldEl.focus();
+      UI.toast(`Please fill required fields: ${missing.map(([, label]) => label).join(', ')}`);
+      return false;
+    }
+
+    const status = String(invoice?.status || '').trim();
+    const grandTotal = this.toNumberSafe(invoice?.grand_total);
+    const amountPaid = this.toNumberSafe(invoice?.amount_paid);
+    if (status === 'Partially Paid' && !(amountPaid > 0 && amountPaid < grandTotal)) {
+      UI.toast('For Partially Paid invoices, Amount Paid must be greater than 0 and less than Grand Total.');
+      E.invoiceFormAmountPaid?.focus();
+      return false;
+    }
+    return true;
   },
   openInvoice(invoice = this.emptyInvoice(), items = [], { readOnly = false } = {}) {
     if (!E.invoiceFormModal || !E.invoiceForm) return;
@@ -674,6 +745,7 @@ const Invoices = {
     if (this.state.items.length) {
       this.applyTotalsToForm(this.calculateInvoiceTotals(this.state.items));
     }
+    this.syncPaymentFieldsInForm();
     E.invoiceForm.dataset.id = this.state.selectedInvoice.invoice_id || '';
     if (E.invoiceFormTitle) {
       E.invoiceFormTitle.textContent = this.state.selectedInvoice.invoice_id
@@ -864,8 +936,10 @@ const Invoices = {
     const { invoice, items } = this.collectFormValues();
     if (!this.validateInvoice(invoice)) return;
     const totals = this.calculateInvoiceTotals(items);
+    const derivedPayment = this.derivePaymentFields({ ...invoice, grand_total: totals.grand_total });
     const payloadInvoice = this.normalizeInvoice({
       ...invoice,
+      ...derivedPayment,
       subtotal_subscription: totals.subtotal_subscription,
       subtotal_one_time: totals.subtotal_one_time,
       grand_total: totals.grand_total
@@ -1086,12 +1160,16 @@ const Invoices = {
         this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
       E.invoiceForm.addEventListener('input', event => {
+        if (['invoiceFormStatus', 'invoiceFormAmountPaid', 'invoiceFormGrandTotal'].includes(event.target?.id)) {
+          this.syncPaymentFieldsInForm();
+        }
         const field = event.target?.getAttribute('data-item-field');
         if (!field) return;
         const tr = event.target.closest('tr[data-item-row]');
         const section = tr?.getAttribute('data-item-row');
         if (!tr || !section || section === 'capability') {
           this.applyTotalsToForm(this.calculateInvoiceTotals(this.collectItems()));
+        this.syncPaymentFieldsInForm();
           return;
         }
         if (field === 'item_name') this.applyCatalogSelectionToRow(tr, section);
@@ -1106,8 +1184,12 @@ const Invoices = {
         if (discountedEl) discountedEl.textContent = this.formatMoney(computed.discounted_unit_price);
         if (lineTotalEl) lineTotalEl.textContent = this.formatMoney(computed.line_total);
         this.applyTotalsToForm(this.calculateInvoiceTotals(this.collectItems()));
+        this.syncPaymentFieldsInForm();
       });
       E.invoiceForm.addEventListener('change', event => {
+        if (['invoiceFormStatus','invoiceFormAmountPaid','invoiceFormGrandTotal'].includes(event.target?.id)) {
+          this.syncPaymentFieldsInForm();
+        }
         const field = event.target?.getAttribute('data-item-field');
         if (field !== 'item_name') return;
         const tr = event.target.closest('tr[data-item-row]');
