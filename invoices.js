@@ -296,43 +296,58 @@ const Invoices = {
         return value;
       }
     };
-    const candidates = [response, response?.data, response?.result, response?.payload].map(parseJsonIfNeeded);
-    const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
-    const looksLikeInvoice = value =>
-      isObject(value) &&
-      (value.invoice_id ||
-        value.invoiceId ||
-        value.invoice_number ||
-        value.invoiceNumber ||
-        value.agreement_id ||
-        value.agreementId);
+
+    const candidates = [
+      response,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.item,
+      response?.invoice,
+      response?.created_invoice
+    ];
+
     let invoice = null;
     let items = [];
-    for (const candidate of candidates) {
-      if (candidate === undefined || candidate === null) continue;
 
-      if (!invoice && Array.isArray(candidate) && isObject(candidate[0])) {
-        invoice = candidate[0];
+    for (const rawCandidate of candidates) {
+      const candidate = parseJsonIfNeeded(rawCandidate);
+      if (!candidate) continue;
+
+      if (Array.isArray(candidate)) {
+        const first = candidate[0];
+        if (!invoice && first && typeof first === 'object') {
+          invoice = first;
+        }
+        if (!items.length && Array.isArray(first?.items)) {
+          items = first.items;
+        }
+        continue;
       }
 
-      if (isObject(candidate)) {
-        if (!invoice) {
-          if (isObject(candidate.item)) invoice = candidate.item;
-          else if (Array.isArray(candidate.data) && isObject(candidate.data[0])) invoice = candidate.data[0];
-          else if (isObject(candidate.data)) invoice = candidate.data;
-          else if (isObject(candidate.invoice)) invoice = candidate.invoice;
-          else if (looksLikeInvoice(candidate)) invoice = candidate;
-        }
-        if (!items.length) {
-          if (Array.isArray(candidate.items)) items = candidate.items;
-          else if (Array.isArray(candidate.invoice_items)) items = candidate.invoice_items;
-          else if (Array.isArray(candidate.item?.items)) items = candidate.item.items;
-          else if (Array.isArray(candidate.data?.items)) items = candidate.data.items;
-          else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
-            items = candidate.data[0].items;
-        }
+      if (typeof candidate !== 'object') continue;
+
+      if (!invoice) {
+        if (candidate.item && typeof candidate.item === 'object') invoice = candidate.item;
+        else if (candidate.invoice && typeof candidate.invoice === 'object') invoice = candidate.invoice;
+        else if (candidate.created_invoice && typeof candidate.created_invoice === 'object') invoice = candidate.created_invoice;
+        else if (Array.isArray(candidate.data) && candidate.data[0] && typeof candidate.data[0] === 'object') invoice = candidate.data[0];
+        else if (candidate.data && typeof candidate.data === 'object' && !Array.isArray(candidate.data)) invoice = candidate.data;
+        else if (candidate.invoice_id || candidate.invoice_number) invoice = candidate;
+      }
+
+      if (!items.length) {
+        if (Array.isArray(candidate.items)) items = candidate.items;
+        else if (Array.isArray(candidate.invoice_items)) items = candidate.invoice_items;
+        else if (Array.isArray(candidate.created_invoice_items)) items = candidate.created_invoice_items;
+        else if (candidate.item && Array.isArray(candidate.item.items)) items = candidate.item.items;
+        else if (candidate.invoice && Array.isArray(candidate.invoice.items)) items = candidate.invoice.items;
+        else if (candidate.created_invoice && Array.isArray(candidate.created_invoice.items)) items = candidate.created_invoice.items;
+        else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items)) items = candidate.data[0].items;
+        else if (candidate.data && Array.isArray(candidate.data.items)) items = candidate.data.items;
       }
     }
+
     return {
       invoice: this.normalizeInvoice(invoice || { invoice_id: fallbackId }),
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
