@@ -215,8 +215,8 @@ const ProposalCatalog = {
           <td>${this.formatNumber(row.sort_order)}</td>
           <td>${textCell(row.updated_at)}</td>
           <td>
-            <button class="btn ghost sm" type="button" data-proposal-catalog-edit="${id}">Edit</button>
-            <button class="btn ghost sm" type="button" data-proposal-catalog-delete="${id}">Delete</button>
+            ${Permissions.canUpdateProposalCatalogItem() ? `<button class=\"btn ghost sm\" type=\"button\" data-proposal-catalog-edit=\"${id}\">Edit</button>` : ''}
+            ${Permissions.canDeleteProposalCatalogItem() ? `<button class=\"btn ghost sm\" type=\"button\" data-proposal-catalog-delete=\"${id}\">Delete</button>` : ''}
           </td>
         </tr>`;
       })
@@ -292,7 +292,11 @@ const ProposalCatalog = {
     if (E.proposalCatalogFormSortOrder) E.proposalCatalogFormSortOrder.value = normalized.sort_order ?? '';
     if (E.proposalCatalogFormNotes) E.proposalCatalogFormNotes.value = normalized.notes || '';
     if (E.proposalCatalogFormDeleteBtn)
-      E.proposalCatalogFormDeleteBtn.style.display = mode === 'edit' ? '' : 'none';
+      E.proposalCatalogFormDeleteBtn.style.display = mode === 'edit' && Permissions.canDeleteProposalCatalogItem() ? '' : 'none';
+    if (E.proposalCatalogFormSaveBtn) {
+      const canSave = mode === 'edit' ? Permissions.canUpdateProposalCatalogItem() : Permissions.canCreateProposalCatalogItem();
+      E.proposalCatalogFormSaveBtn.style.display = canSave ? '' : 'none';
+    }
 
     E.proposalCatalogFormModal.style.display = 'flex';
     E.proposalCatalogFormModal.setAttribute('aria-hidden', 'false');
@@ -334,11 +338,15 @@ const ProposalCatalog = {
     if (E.proposalCatalogFormDeleteBtn) E.proposalCatalogFormDeleteBtn.disabled = busy;
   },
   async submitForm() {
-    if (!Permissions.canCreateLead()) {
+    const mode = String(E.proposalCatalogForm?.dataset.mode || 'create');
+    if (mode === 'edit' && !Permissions.canUpdateProposalCatalogItem()) {
+      UI.toast('You do not have permission to update proposal catalog items.');
+      return;
+    }
+    if (mode !== 'edit' && !Permissions.canCreateProposalCatalogItem()) {
       UI.toast('Login is required to manage proposal catalog items.');
       return;
     }
-    const mode = String(E.proposalCatalogForm?.dataset.mode || 'create');
     const itemId = this.getValue(E.proposalCatalogFormItemId);
     const payload = this.sanitizePayload(this.collectFormPayload());
 
@@ -388,8 +396,8 @@ const ProposalCatalog = {
     }
   },
   async deleteById(catalogItemId) {
-    if (!Permissions.canEditDeleteLead()) {
-      UI.toast('Only admin/dev can delete catalog items.');
+    if (!Permissions.canDeleteProposalCatalogItem()) {
+      UI.toast('You do not have permission to delete catalog items.');
       return;
     }
     if (!catalogItemId) return;
@@ -439,7 +447,10 @@ const ProposalCatalog = {
 
     if (E.proposalCatalogRefreshBtn)
       E.proposalCatalogRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
-    if (E.proposalCatalogCreateBtn) E.proposalCatalogCreateBtn.addEventListener('click', () => this.openForm());
+    if (E.proposalCatalogCreateBtn) E.proposalCatalogCreateBtn.addEventListener('click', () => {
+      if (!Permissions.canCreateProposalCatalogItem()) return UI.toast('Login is required to manage proposal catalog items.');
+      this.openForm();
+    });
 
     if (E.proposalCatalogTbody) {
       E.proposalCatalogTbody.addEventListener('click', event => {

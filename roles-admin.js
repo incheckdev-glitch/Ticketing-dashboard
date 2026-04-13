@@ -61,10 +61,10 @@ const RolesAdmin = {
     if (E.rolePermissionCreateForm) {
       E.rolePermissionCreateForm.addEventListener('submit', async e => {
         e.preventDefault();
-        if (!Permissions.canManageRolesPermissions()) return UI.toast('Forbidden.');
+        if (!Permissions.canEditRolesPermissions()) return UI.toast('Forbidden.');
         const payload = {
           resource: String(E.rolePermissionCreateResource?.value || '').trim().toLowerCase(),
-          action: String(E.rolePermissionCreateAction?.value || '').trim().toLowerCase(),
+          action: this.canonicalAction(E.rolePermissionCreateAction?.value),
           allowed_roles: this.normalizeAllowedRoles(E.rolePermissionCreateAllowedRoles?.value),
           description: String(E.rolePermissionCreateDescription?.value || '').trim()
         };
@@ -107,6 +107,12 @@ const RolesAdmin = {
   },
   stringifyAllowedRoles(value) {
     return this.normalizeAllowedRoles(value).join(',');
+  },
+  canonicalAction(action) {
+    const normalized = String(action || '').trim().toLowerCase();
+    if (!normalized) return '';
+    const map = { view: 'list', edit: 'update', edit_delete: 'update', manage: 'update' };
+    return map[normalized] || normalized;
   },
   extractRows(response) {
     const parseJsonIfNeeded = value => {
@@ -372,6 +378,7 @@ const RolesAdmin = {
     });
   },
   async savePermissionRow(permission, rowEl) {
+    if (!Permissions.canEditRolesPermissions()) return UI.toast('Forbidden.');
     const allowedRoles = this.normalizeAllowedRoles(
       rowEl?.querySelector('[data-permission-field="roles"]')?.value || this.permissionAllowedRoles(permission)
     );
@@ -391,6 +398,7 @@ const RolesAdmin = {
     }
   },
   async deletePermissionRow(permission) {
+    if (!Permissions.canEditRolesPermissions()) return UI.toast('Forbidden.');
     const permissionId = this.permissionId(permission);
     if (!window.confirm(`Delete permission rule ${permission.resource}:${permission.action}?`)) return;
     try {
@@ -405,9 +413,9 @@ const RolesAdmin = {
   },
   selectedCrudActions() {
     const entries = [
-      ['view', E.tabPermissionActionView],
+      ['list', E.tabPermissionActionView],
       ['create', E.tabPermissionActionCreate],
-      ['edit', E.tabPermissionActionEdit],
+      ['update', E.tabPermissionActionEdit],
       ['delete', E.tabPermissionActionDelete]
     ];
     return entries.filter(([, input]) => Boolean(input?.checked)).map(([name]) => name);
@@ -419,6 +427,7 @@ const RolesAdmin = {
     return [];
   },
   async applyBulkTabPermissions() {
+    if (!Permissions.canEditRolesPermissions()) return UI.toast('Forbidden.');
     const roleKey = String(E.tabPermissionRole?.value || '').trim().toLowerCase();
     const target = String(E.tabPermissionTarget?.value || '').trim();
     const selectedActions = this.selectedCrudActions();

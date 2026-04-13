@@ -134,6 +134,9 @@ const Permissions = {
   isHoo() {
     return this.normalizeRole(Session.role()) === ROLES.HOO;
   },
+  isViewer() {
+    return this.normalizeRole(Session.role()) === ROLES.VIEWER;
+  },
   isAdminLike() {
     return this.isAdmin() || this.isDev();
   },
@@ -144,28 +147,93 @@ const Permissions = {
     return Session.isAuthenticated();
   },
   canViewCsmActivity() {
-    return this.can('csm', 'view', { fallback: Session.isAuthenticated() && !this.isDev() });
+    return this.can('csm', 'list', { fallback: Session.isAuthenticated() && !this.isDev() });
+  },
+  canCreateCsmActivity() {
+    return this.can('csm', 'create', {
+      fallback: Session.isAuthenticated() && (this.isAdmin() || this.isViewer() || this.isHoo())
+    });
+  },
+  canUpdateCsmActivity() {
+    return this.can('csm', 'update', { fallback: this.isAdmin() || this.isHoo() });
+  },
+  canDeleteCsmActivity() {
+    return this.can('csm', 'delete', { fallback: this.isAdmin() || this.isHoo() });
   },
   canManageCsmActivity() {
-    return this.can('csm', 'manage', { fallback: this.isAdmin() || this.isHoo() });
+    return this.canUpdateCsmActivity() || this.canDeleteCsmActivity();
   },
   canEditTicket() {
-    return this.can('tickets', 'edit', { fallback: this.isAdminLike() });
+    return this.can('tickets', 'update', { fallback: this.isAdminLike() });
+  },
+  canUpdateLead() {
+    return this.can('leads', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteLead() {
+    return this.can('leads', 'delete', { fallback: this.isAdminLike() });
   },
   canEditDeleteLead() {
-    return this.can('leads', 'edit_delete', { fallback: this.isAdminLike() });
+    return this.canUpdateLead() || this.canDeleteLead();
   },
   canManageEvents() {
-    return this.can('events', 'manage', { fallback: this.isAdminLike() });
+    return this.can('events', 'save', { fallback: this.isAdminLike() });
   },
   canManageUsers() {
-    return this.can('users', 'manage', { fallback: this.isAdmin() });
+    return this.can('users', 'list', { fallback: this.isAdmin() });
   },
   canManageRolesPermissions() {
     return (
-      this.can('roles', 'manage', { fallback: this.isAdmin() }) ||
-      this.can('role_permissions', 'manage', { fallback: this.isAdmin() })
+      this.can('roles', 'list', { fallback: this.isAdmin() }) ||
+      this.can('role_permissions', 'list', { fallback: this.isAdmin() })
     );
+  },
+  canEditRolesPermissions() {
+    return (
+      this.can('roles', 'update', { fallback: this.isAdmin() }) ||
+      this.can('role_permissions', 'update', { fallback: this.isAdmin() })
+    );
+  },
+  canCreateProposal() {
+    return this.can('proposals', 'create', { fallback: Session.isAuthenticated() });
+  },
+  canUpdateProposal() {
+    return this.can('proposals', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteProposal() {
+    return this.can('proposals', 'delete', { fallback: this.isAdminLike() });
+  },
+  canCreateProposalFromDeal() {
+    return this.can('proposals', 'create_from_deal', { fallback: this.canCreateProposal() });
+  },
+  canGenerateProposalHtml() {
+    return this.can('proposals', 'generate_proposal_html', { fallback: Session.isAuthenticated() });
+  },
+  canCreateAgreement() {
+    return this.can('agreements', 'create', { fallback: Session.isAuthenticated() });
+  },
+  canUpdateAgreement() {
+    return this.can('agreements', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteAgreement() {
+    return this.can('agreements', 'delete', { fallback: this.isAdminLike() });
+  },
+  canGenerateAgreementHtml() {
+    return this.can('agreements', 'generate_agreement_html', { fallback: Session.isAuthenticated() });
+  },
+  canCreateAgreementFromProposal() {
+    return this.can('agreements', 'create_from_proposal', { fallback: this.canCreateAgreement() });
+  },
+  canCreateProposalCatalogItem() {
+    return this.can('proposal_catalog', 'create', { fallback: Session.isAuthenticated() });
+  },
+  canUpdateProposalCatalogItem() {
+    return this.can('proposal_catalog', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteProposalCatalogItem() {
+    return this.can('proposal_catalog', 'delete', { fallback: this.isAdminLike() });
+  },
+  canViewClients() {
+    return this.can('clients', 'list', { fallback: this.isAdminLike() });
   },
   canChangePlanner() {
     return this.can('planner', 'manage', { fallback: this.isAdminLike() });
@@ -182,7 +250,7 @@ const Permissions = {
     if (key === 'issues') return Session.isAuthenticated();
     const resource = this.tabResourceMap[key];
     if (!resource) return Session.isAuthenticated();
-    return this.can(resource, 'view', { fallback: Session.isAuthenticated() });
+    return this.can(resource, 'list', { fallback: Session.isAuthenticated() });
   }
 };
 
