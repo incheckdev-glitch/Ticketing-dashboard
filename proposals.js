@@ -208,43 +208,57 @@ const Proposals = {
     return [];
   },
   extractProposalAndItems(response, fallbackId = '') {
-    const candidates = [response, response?.data, response?.result, response?.payload];
-    const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
-    const looksLikeProposal = value =>
-      isObject(value) &&
-      (value.proposal_id ||
-        value.proposalId ||
-        value.ref_number ||
-        value.refNumber ||
-        value.proposal_title ||
-        value.proposalTitle);
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return value;
+      try { return JSON.parse(trimmed); } catch { return value; }
+    };
+
+    const candidates = [
+      response,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.item,
+      response?.proposal
+    ];
 
     let proposal = null;
     let items = [];
 
-    for (const candidate of candidates) {
-      if (candidate === undefined || candidate === null) continue;
+    for (const rawCandidate of candidates) {
+      const candidate = parseJsonIfNeeded(rawCandidate);
+      if (!candidate) continue;
 
-      if (!proposal && Array.isArray(candidate) && isObject(candidate[0])) {
-        proposal = candidate[0];
+      if (Array.isArray(candidate)) {
+        const first = candidate[0];
+        if (!proposal && first && typeof first === 'object') {
+          proposal = first;
+        }
+        if (!items.length && Array.isArray(first?.items)) {
+          items = first.items;
+        }
+        continue;
       }
 
-      if (isObject(candidate)) {
-        if (!proposal) {
-          if (isObject(candidate.item)) proposal = candidate.item;
-          else if (Array.isArray(candidate.data) && isObject(candidate.data[0])) proposal = candidate.data[0];
-          else if (isObject(candidate.data)) proposal = candidate.data;
-          else if (isObject(candidate.proposal)) proposal = candidate.proposal;
-          else if (looksLikeProposal(candidate)) proposal = candidate;
-        }
-        if (!items.length) {
-          if (Array.isArray(candidate.items)) items = candidate.items;
-          else if (Array.isArray(candidate.proposal_items)) items = candidate.proposal_items;
-          else if (Array.isArray(candidate.item?.items)) items = candidate.item.items;
-          else if (Array.isArray(candidate.data?.items)) items = candidate.data.items;
-          else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
-            items = candidate.data[0].items;
-        }
+      if (typeof candidate !== 'object') continue;
+
+      if (!proposal) {
+        if (candidate.item && typeof candidate.item === 'object') proposal = candidate.item;
+        else if (candidate.proposal && typeof candidate.proposal === 'object') proposal = candidate.proposal;
+        else if (Array.isArray(candidate.data) && candidate.data[0] && typeof candidate.data[0] === 'object') proposal = candidate.data[0];
+        else if (candidate.data && typeof candidate.data === 'object' && !Array.isArray(candidate.data)) proposal = candidate.data;
+        else if (candidate.proposal_id || candidate.ref_number || candidate.proposal_title) proposal = candidate;
+      }
+
+      if (!items.length) {
+        if (Array.isArray(candidate.items)) items = candidate.items;
+        else if (Array.isArray(candidate.proposal_items)) items = candidate.proposal_items;
+        else if (candidate.item && Array.isArray(candidate.item.items)) items = candidate.item.items;
+        else if (candidate.proposal && Array.isArray(candidate.proposal.items)) items = candidate.proposal.items;
+        else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items)) items = candidate.data[0].items;
+        else if (candidate.data && Array.isArray(candidate.data.items)) items = candidate.data.items;
       }
     }
 
