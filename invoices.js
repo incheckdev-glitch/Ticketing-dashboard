@@ -64,8 +64,8 @@ const Invoices = {
       .trim()
       .toLowerCase();
     if (!raw) return '';
-    if (['subscription', 'annual_saas', 'annual saas'].includes(raw)) return 'annual_saas';
-    if (['one_time', 'one_time_fee', 'one-time', 'one-time fee', 'one time fee'].includes(raw))
+    if (['subscription', 'annual', 'annual_saas', 'annual saas', 'saas'].includes(raw)) return 'annual_saas';
+    if (['one_time', 'one-time_fee', 'one_time_fee', 'one-time', 'one-time fee', 'one time fee', 'onetime'].includes(raw))
       return 'one_time_fee';
     if (raw === 'capability') return 'capability';
     return raw;
@@ -78,7 +78,9 @@ const Invoices = {
       }
       return '';
     };
-    const section = this.normalizeSection(pick(source.section));
+    const section = this.normalizeSection(
+      pick(source.section, source.item_section, source.itemSection, source.type, source.item_type, source.itemType)
+    );
     return {
       catalog_item_id: String(pick(source.catalog_item_id, source.catalogItemId)).trim(),
       section,
@@ -644,25 +646,46 @@ const Invoices = {
     const candidates = [
       response,
       response?.data,
+      response?.rows,
+      response?.items,
       response?.result,
       response?.payload,
       response?.agreement,
       response?.signed_agreement,
       response?.data?.agreement,
-      response?.data?.signed_agreement
+      response?.data?.signed_agreement,
+      response?.result?.agreement,
+      response?.result?.signed_agreement,
+      response?.payload?.agreement,
+      response?.payload?.signed_agreement
     ];
     let agreement = null;
     let items = [];
     for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== 'object') continue;
+      if (!candidate) continue;
+      if (Array.isArray(candidate)) {
+        if (!items.length) items = candidate;
+        continue;
+      }
+      if (typeof candidate !== 'object') continue;
       if (!agreement) {
         if (candidate.signed_agreement && typeof candidate.signed_agreement === 'object') agreement = candidate.signed_agreement;
         else if (candidate.agreement && typeof candidate.agreement === 'object') agreement = candidate.agreement;
-        else if (candidate.agreement_id || candidate.agreement_number || candidate.customer_name) agreement = candidate;
+        else if (
+          candidate.agreement_id ||
+          candidate.agreementId ||
+          candidate.agreement_number ||
+          candidate.agreementNumber ||
+          candidate.customer_name ||
+          candidate.customerName
+        )
+          agreement = candidate;
       }
       if (!items.length) {
         if (Array.isArray(candidate.signed_agreement_items)) items = candidate.signed_agreement_items;
+        else if (Array.isArray(candidate.signedAgreementItems)) items = candidate.signedAgreementItems;
         else if (Array.isArray(candidate.agreement_items)) items = candidate.agreement_items;
+        else if (Array.isArray(candidate.agreementItems)) items = candidate.agreementItems;
         else if (Array.isArray(candidate.items)) items = candidate.items;
         else if (Array.isArray(candidate.agreement?.items)) items = candidate.agreement.items;
         else if (Array.isArray(candidate.signed_agreement?.items)) items = candidate.signed_agreement.items;
@@ -690,16 +713,50 @@ const Invoices = {
       const mappedInvoice = this.normalizeInvoice({
         ...this.collectFormValues().invoice,
         agreement_id: id,
-        customer_name: pickAgreementValue(agreement.customer_name, agreement.customer?.name),
-        customer_legal_name: pickAgreementValue(agreement.customer_legal_name, agreement.customer?.legal_name),
-        customer_address: pickAgreementValue(agreement.customer_address, agreement.customer?.address),
-        customer_contact_name: pickAgreementValue(agreement.customer_contact_name, agreement.customer?.contact_name),
-        customer_contact_email: pickAgreementValue(agreement.customer_contact_email, agreement.customer?.contact_email),
-        payment_term: pickAgreementValue(agreement.payment_term, agreement.payment_terms),
+        customer_name: pickAgreementValue(agreement.customer_name, agreement.customerName, agreement.customer?.name),
+        customer_legal_name: pickAgreementValue(
+          agreement.customer_legal_name,
+          agreement.customerLegalName,
+          agreement.customer?.legal_name,
+          agreement.customer?.legalName
+        ),
+        customer_address: pickAgreementValue(
+          agreement.customer_address,
+          agreement.customerAddress,
+          agreement.customer?.address
+        ),
+        customer_contact_name: pickAgreementValue(
+          agreement.customer_contact_name,
+          agreement.customerContactName,
+          agreement.customer?.contact_name,
+          agreement.customer?.contactName
+        ),
+        customer_contact_email: pickAgreementValue(
+          agreement.customer_contact_email,
+          agreement.customerContactEmail,
+          agreement.customer?.contact_email,
+          agreement.customer?.contactEmail
+        ),
+        payment_term: pickAgreementValue(
+          agreement.payment_term,
+          agreement.payment_terms,
+          agreement.paymentTerm,
+          agreement.paymentTerms
+        ),
         currency: pickAgreementValue(agreement.currency, agreement.customer?.currency),
-        subtotal_subscription: pickAgreementValue(agreement.saas_total, agreement.subtotal_subscription),
-        subtotal_one_time: pickAgreementValue(agreement.one_time_total, agreement.subtotal_one_time),
-        grand_total: agreement.grand_total,
+        subtotal_subscription: pickAgreementValue(
+          agreement.saas_total,
+          agreement.saasTotal,
+          agreement.subtotal_subscription,
+          agreement.subtotalSubscription
+        ),
+        subtotal_one_time: pickAgreementValue(
+          agreement.one_time_total,
+          agreement.oneTimeTotal,
+          agreement.subtotal_one_time,
+          agreement.subtotalOneTime
+        ),
+        grand_total: pickAgreementValue(agreement.grand_total, agreement.grandTotal),
         notes: agreement.notes
       });
       mappedInvoice.invoice_number = this.ensureInvoiceNumber(mappedInvoice.invoice_number);
