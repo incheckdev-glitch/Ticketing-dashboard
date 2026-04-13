@@ -656,22 +656,12 @@ const Invoices = {
       ['due_date', 'Due Date'],
       ['currency', 'Currency']
     ];
-    const missing = [];
-    requiredFields.forEach(([field, label]) => {
-      const fieldId = `invoiceForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
-      const fieldEl = document.getElementById(fieldId);
-      const hasValue = String(invoice?.[field] || '').trim() !== '';
-      if (fieldEl) {
-        fieldEl.required = true;
-        fieldEl.setCustomValidity(hasValue ? '' : `${label} is required.`);
-      }
-      if (!hasValue) missing.push({ field, label, fieldEl });
-    });
+    const missing = requiredFields.filter(([field]) => !String(invoice?.[field] || '').trim());
     if (!missing.length) return true;
-    const firstFieldEl = missing[0]?.fieldEl;
+    const firstFieldId = `invoiceForm${missing[0][0].replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
+    const firstFieldEl = document.getElementById(firstFieldId);
     if (firstFieldEl) firstFieldEl.focus();
-    if (E.invoiceForm && typeof E.invoiceForm.reportValidity === 'function') E.invoiceForm.reportValidity();
-    UI.toast(`Please fill required fields: ${missing.map(item => item.label).join(', ')}`);
+    UI.toast(`Please fill required fields: ${missing.map(([, label]) => label).join(', ')}`);
     return false;
   },
   openInvoice(invoice = this.emptyInvoice(), items = [], { readOnly = false } = {}) {
