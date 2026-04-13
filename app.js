@@ -1905,7 +1905,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'clients', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'clients', 'proposalCatalog', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1924,6 +1924,8 @@ function setActiveView(view) {
         ? E.proposalsTab
         : name === 'agreements'
         ? E.agreementsTab
+        : name === 'invoices'
+        ? E.invoicesTab
         : name === 'clients'
         ? E.clientsTab
         : name === 'proposalCatalog'
@@ -1950,6 +1952,8 @@ function setActiveView(view) {
         ? E.proposalsView
         : name === 'agreements'
         ? E.agreementsView
+        : name === 'invoices'
+        ? E.invoicesView
         : name === 'clients'
         ? E.clientsView
         : name === 'proposalCatalog'
@@ -1972,7 +1976,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'clients' || view === 'proposalCatalog' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'clients' || view === 'proposalCatalog' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -1986,6 +1990,7 @@ function setActiveView(view) {
   if (view === 'deals' && window.Deals?.loadAndRefresh) Deals.loadAndRefresh();
   if (view === 'proposals' && window.Proposals?.loadAndRefresh) Proposals.loadAndRefresh();
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
+  if (view === 'invoices' && window.Invoices?.refresh) Invoices.refresh();
   if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
@@ -1998,16 +2003,19 @@ function updatePrimaryActionButton(activeView) {
   const isCsm = activeView === 'csm';
   const isLeads = activeView === 'leads';
   const isAgreements = activeView === 'agreements';
+  const isInvoices = activeView === 'invoices';
   E.createTicketBtn.innerHTML = isCsm
     ? '<span class="icon" aria-hidden="true">➕</span> Add activity'
     : isLeads
     ? '<span class="icon" aria-hidden="true">➕</span> Create Lead'
     : isAgreements
     ? '<span class="icon" aria-hidden="true">➕</span> Create Agreement'
+    : isInvoices
+    ? '<span class="icon" aria-hidden="true">➕</span> Create Invoice'
     : '<span class="icon" aria-hidden="true">➕</span> Create Ticket';
   E.createTicketBtn.setAttribute(
     'aria-label',
-    isCsm ? 'Add activity' : isLeads ? 'Create lead' : isAgreements ? 'Create agreement' : 'Create new ticket'
+    isCsm ? 'Add activity' : isLeads ? 'Create lead' : isAgreements ? 'Create agreement' : isInvoices ? 'Create invoice' : 'Create new ticket'
   );
 }
 
@@ -3991,7 +3999,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.clientsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.clientsTab, E.proposalCatalogTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4070,6 +4078,8 @@ function wireCore() {
         Proposals.loadAndRefresh({ force: true });
       if (E.agreementsView?.classList.contains('active') && window.Agreements?.loadAndRefresh)
         Agreements.loadAndRefresh({ force: true });
+      if (E.invoicesView?.classList.contains('active') && window.Invoices?.refresh)
+        Invoices.refresh(true);
       if (E.clientsView?.classList.contains('active') && window.Clients?.loadAndRefresh)
         Clients.loadAndRefresh({ force: true });
       if (E.proposalCatalogView?.classList.contains('active') && window.ProposalCatalog?.loadAndRefresh)
@@ -4086,6 +4096,7 @@ function wireCore() {
       const isCsmView = E.csmView?.classList.contains('active');
       const isLeadsView = E.leadsView?.classList.contains('active');
       const isAgreementsView = E.agreementsView?.classList.contains('active');
+      const isInvoicesView = E.invoicesView?.classList.contains('active');
       if (isLeadsView && window.Leads?.openForm) {
         if (!Permissions.canCreateLead()) {
           UI.toast('Login is required to create leads.');
@@ -4095,11 +4106,19 @@ function wireCore() {
         return;
       }
       if (isAgreementsView && window.Agreements?.openAgreementForm) {
-        if (!Permissions.canCreateLead()) {
+        if (!Permissions.canCreateAgreement()) {
           UI.toast('Login is required to create agreements.');
           return;
         }
         Agreements.openAgreementForm();
+        return;
+      }
+      if (isInvoicesView && window.Invoices?.openInvoice) {
+        if (!Permissions.canCreateInvoice()) {
+          UI.toast('You do not have permission to create invoices.');
+          return;
+        }
+        Invoices.openInvoice(Invoices.emptyInvoice(), [], { readOnly: false });
         return;
       }
       window.open(
@@ -5677,6 +5696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.Deals?.wire) Deals.wire();
   if (window.Proposals?.wire) Proposals.wire();
   if (window.Agreements?.wire) Agreements.wire();
+  if (window.Invoices?.init) Invoices.init();
   if (window.Clients?.wire) Clients.wire();
   if (window.ProposalCatalog?.wire) ProposalCatalog.wire();
   wireKeyboardShortcuts();
@@ -5709,6 +5729,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         view === 'deals' ||
         view === 'proposals' ||
         view === 'agreements' ||
+        view === 'invoices' ||
         view === 'proposalCatalog' ||
         view === 'users' ||
         view === 'roles' ||

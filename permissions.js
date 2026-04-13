@@ -8,6 +8,7 @@ const Permissions = {
     deals: 'deals',
     proposals: 'proposals',
     agreements: 'agreements',
+    invoices: 'invoices',
     clients: 'clients',
     proposalCatalog: 'proposal_catalog',
     users: 'users',
@@ -223,6 +224,31 @@ const Permissions = {
   },
   canCreateAgreementFromProposal() {
     return this.can('agreements', 'create_from_proposal', { fallback: this.canCreateAgreement() });
+  },
+
+  canViewInvoices() {
+    return this.can('invoices', 'list', { fallback: Session.isAuthenticated() });
+  },
+  canCreateInvoice() {
+    return (
+      this.can('invoices', 'create', { fallback: Session.isAuthenticated() }) ||
+      this.can('invoices', 'save', { fallback: Session.isAuthenticated() })
+    );
+  },
+  canUpdateInvoice() {
+    return this.can('invoices', 'update', { fallback: this.isAdminLike() });
+  },
+  canDeleteInvoice() {
+    return this.can('invoices', 'delete', { fallback: this.isAdminLike() });
+  },
+  canCreateInvoiceFromAgreement() {
+    return this.can('invoices', 'create_from_agreement', { fallback: this.canCreateInvoice() });
+  },
+  canPreviewInvoice() {
+    return (
+      this.can('invoices', 'generate_invoice_html', { fallback: Session.isAuthenticated() }) ||
+      this.can('invoices', 'get', { fallback: Session.isAuthenticated() })
+    );
   },
   canCreateProposalCatalogItem() {
     return this.can('proposal_catalog', 'create', { fallback: Session.isAuthenticated() });
