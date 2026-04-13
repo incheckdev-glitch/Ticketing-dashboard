@@ -2545,7 +2545,7 @@
           <div class="filter-row"><label class="muted" for="invoiceFormInvoiceDate">Invoice Date</label><input id="invoiceFormInvoiceDate" class="input" type="date" /></div>
           <div class="filter-row"><label class="muted" for="invoiceFormDueDate">Due Date</label><input id="invoiceFormDueDate" class="input" type="date" /></div>
           <div class="filter-row"><label class="muted" for="invoiceFormCurrency">Currency</label><input id="invoiceFormCurrency" class="input" type="text" /></div>
-          <div class="filter-row"><label class="muted" for="invoiceFormPaymentTerm">Payment Term</label><input id="invoiceFormPaymentTerm" class="input" type="text" /></div>
+          <div class="filter-row"><label class="muted" for="invoiceFormPaymentTerm">Payment Term</label><input id="invoiceFormPaymentTerm" class="input" type="text" list="agreementPaymentTermOptions" /></div>
         </div>
         <div class="divider" style="margin:12px 0;"></div>
         <strong style="display:block;margin-bottom:8px;">Customer</strong>
@@ -2559,6 +2559,7 @@
         <div class="divider" style="margin:12px 0;"></div>
         <strong style="display:block;margin-bottom:8px;">Invoice Items</strong>
         <div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="invoiceAddItemRowBtn" type="button" class="btn ghost sm">Add Row</button></div>
+        <datalist id="invoiceItemNameOptions"></datalist>
         <div class="table-wrap"><table><thead><tr><th>Section</th><th>Location</th><th>Location Address</th><th>Service Start</th><th>Service End</th><th>Item Name</th><th>Unit Price</th><th>Discount %</th><th>Discounted Unit Price</th><th>Qty</th><th>Line Total</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="invoiceItemsTbody"></tbody></table></div>
         <div class="divider" style="margin:12px 0;"></div>
         <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
