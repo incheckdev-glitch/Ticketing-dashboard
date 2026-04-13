@@ -326,6 +326,10 @@
                     role="tab" aria-selected="false" aria-controls="agreementsView">
               <span class="icon" aria-hidden="true">📄</span> Agreements
             </button>
+            <button id="clientsTab" class="view-tab" data-view="clients"
+                    role="tab" aria-selected="false" aria-controls="clientsView">
+              <span class="icon" aria-hidden="true">🏢</span> Clients
+            </button>
             <button id="proposalCatalogTab" class="view-tab" data-view="proposalCatalog"
                     role="tab" aria-selected="false" aria-controls="proposalCatalogView">
               <span class="icon" aria-hidden="true">📚</span> Proposal Catalog
@@ -1265,6 +1269,39 @@
                 </tr>
               </thead>
               <tbody id="dealsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="clientsView" class="view" role="tabpanel" aria-labelledby="clientsTab">
+        <div class="card" aria-label="Clients list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Clients</strong>
+              <div class="muted">Customer records synced from backend clients resource.</div>
+            </div>
+            <button id="clientsRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+          </div>
+          <div id="clientsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Clients table">
+            <table id="clientsTable">
+              <thead>
+                <tr>
+                  <th>Client ID</th>
+                  <th>Customer Name</th>
+                  <th>Legal Name</th>
+                  <th>Contact Name</th>
+                  <th>Contact Email</th>
+                  <th>Account Status</th>
+                  <th>Contract Term</th>
+                  <th>Billing Frequency</th>
+                  <th>Currency</th>
+                  <th>Latest Signed</th>
+                  <th>Total Signed Value</th>
+                </tr>
+              </thead>
+              <tbody id="clientsTbody"></tbody>
             </table>
           </div>
         </div>
@@ -2512,6 +2549,7 @@
   <script src="deals.js"></script>
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
+  <script src="clients.js"></script>
   <script src="proposal-catalog.js"></script>
   <script src="roles-admin.js"></script>
   <script src="users.js"></script>
