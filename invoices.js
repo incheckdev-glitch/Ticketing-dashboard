@@ -648,6 +648,32 @@ const Invoices = {
     const items = this.collectItems();
     return { invoice, items };
   },
+  validateInvoice(invoice = {}) {
+    const requiredFields = [
+      ['invoice_number', 'Invoice Number'],
+      ['agreement_id', 'Agreement ID'],
+      ['invoice_date', 'Invoice Date'],
+      ['due_date', 'Due Date'],
+      ['currency', 'Currency']
+    ];
+    const missing = [];
+    requiredFields.forEach(([field, label]) => {
+      const fieldId = `invoiceForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
+      const fieldEl = document.getElementById(fieldId);
+      const hasValue = String(invoice?.[field] || '').trim() !== '';
+      if (fieldEl) {
+        fieldEl.required = true;
+        fieldEl.setCustomValidity(hasValue ? '' : `${label} is required.`);
+      }
+      if (!hasValue) missing.push({ field, label, fieldEl });
+    });
+    if (!missing.length) return true;
+    const firstFieldEl = missing[0]?.fieldEl;
+    if (firstFieldEl) firstFieldEl.focus();
+    if (E.invoiceForm && typeof E.invoiceForm.reportValidity === 'function') E.invoiceForm.reportValidity();
+    UI.toast(`Please fill required fields: ${missing.map(item => item.label).join(', ')}`);
+    return false;
+  },
   openInvoice(invoice = this.emptyInvoice(), items = [], { readOnly = false } = {}) {
     if (!E.invoiceFormModal || !E.invoiceForm) return;
     this.state.selectedInvoice = this.normalizeInvoice(invoice);
@@ -855,6 +881,7 @@ const Invoices = {
   async saveForm() {
     const id = String(E.invoiceForm?.dataset.id || '').trim();
     const { invoice, items } = this.collectFormValues();
+    if (!this.validateInvoice(invoice)) return;
     const totals = this.calculateInvoiceTotals(items);
     const payloadInvoice = this.normalizeInvoice({
       ...invoice,
