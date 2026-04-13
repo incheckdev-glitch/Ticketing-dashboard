@@ -45,6 +45,10 @@ const Invoices = {
   normalizeText(value) {
     return String(value ?? '').trim().toLowerCase();
   },
+  canCreateReceiptFromInvoice(invoice = {}) {
+    const status = this.normalizeText(invoice?.status || '');
+    return ['paid', 'partially paid', 'received'].includes(status);
+  },
   normalizeInvoice(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const normalized = {};
@@ -452,6 +456,7 @@ const Invoices = {
             <button class="btn ghost sm" type="button" data-invoice-view="${id}">Open</button>
             ${Permissions.canUpdateInvoice() ? `<button class="btn ghost sm" type="button" data-invoice-edit="${id}">Edit</button>` : ''}
             ${Permissions.canPreviewInvoice() ? `<button class="btn ghost sm" type="button" data-invoice-preview="${id}">Preview</button>` : ''}
+            ${Permissions.canCreateReceiptFromInvoice() && this.canCreateReceiptFromInvoice(row) ? `<button class="btn ghost sm" type="button" data-invoice-create-receipt="${id}">Create Receipt</button>` : ''}
             ${Permissions.canDeleteInvoice() ? `<button class="btn ghost sm" type="button" data-invoice-delete="${id}">Delete</button>` : ''}
           </div></td>
         </tr>`;
@@ -895,6 +900,30 @@ const Invoices = {
       UI.toast('Unable to delete invoice: ' + (error?.message || 'Unknown error'));
     }
   },
+  async createReceiptFromInvoice(invoiceId) {
+    const id = String(invoiceId || '').trim();
+    if (!id) return;
+    if (!Permissions.canCreateReceiptFromInvoice()) {
+      UI.toast('You do not have permission to create receipts.');
+      return;
+    }
+    try {
+      const response = await Api.createReceiptFromInvoice(id);
+      const receipt =
+        response?.receipt ||
+        response?.data?.receipt ||
+        response?.result?.receipt ||
+        response?.payload?.receipt ||
+        response?.item ||
+        response;
+      const receiptId = String(receipt?.receipt_id || response?.receipt_id || response?.id || '').trim();
+      UI.toast(receiptId ? `Receipt ${receiptId} created.` : 'Receipt created from invoice.');
+      if (window.Receipts?.refresh) await window.Receipts.refresh(true);
+      if (receiptId && window.Receipts?.previewReceipt) await window.Receipts.previewReceipt(receiptId);
+    } catch (error) {
+      UI.toast('Unable to create receipt: ' + (error?.message || 'Unknown error'));
+    }
+  },
   async previewInvoice(invoiceId) {
     const id = String(invoiceId || '').trim();
     if (!id) return;
@@ -1024,7 +1053,7 @@ const Invoices = {
     }
     if (E.invoicesTbody) {
       E.invoicesTbody.addEventListener('click', event => {
-        const trigger = event.target?.closest?.('button[data-invoice-view], button[data-invoice-edit], button[data-invoice-preview], button[data-invoice-delete]');
+        const trigger = event.target?.closest?.('button[data-invoice-view], button[data-invoice-edit], button[data-invoice-preview], button[data-invoice-create-receipt], button[data-invoice-delete]');
         if (!trigger) return;
         const viewId = trigger.getAttribute('data-invoice-view');
         if (viewId) return this.openInvoiceById(viewId, { readOnly: true });
@@ -1032,6 +1061,8 @@ const Invoices = {
         if (editId) return this.openInvoiceById(editId, { readOnly: false });
         const previewId = trigger.getAttribute('data-invoice-preview');
         if (previewId) return this.previewInvoice(previewId);
+        const createReceiptId = trigger.getAttribute('data-invoice-create-receipt');
+        if (createReceiptId) return this.createReceiptFromInvoice(createReceiptId);
         const deleteId = trigger.getAttribute('data-invoice-delete');
         if (deleteId) return this.deleteInvoice(deleteId);
       });
