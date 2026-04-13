@@ -30,7 +30,7 @@ const Invoices = {
     status: 'All',
     selectedInvoice: null,
     items: [],
-    availableItemNames: []
+    catalogLoading: false
   },
   statusOptions: ['Draft', 'Issued', 'Paid', 'Overdue', 'Cancelled'],
   toNumberSafe(value) {
@@ -82,6 +82,7 @@ const Invoices = {
     return {
       catalog_item_id: String(pick(source.catalog_item_id, source.catalogItemId)).trim(),
       section,
+      line_no: this.toNumberSafe(pick(source.line_no, source.lineNo, source.line)) || 0,
       location_name: String(pick(source.location_name, source.locationName)).trim(),
       location_address: String(pick(source.location_address, source.locationAddress)).trim(),
       service_start_date: String(pick(source.service_start_date, source.serviceStartDate)).trim(),
@@ -92,6 +93,8 @@ const Invoices = {
       discounted_unit_price: this.toNumberSafe(pick(source.discounted_unit_price, source.discountedUnitPrice)),
       quantity: this.toNumberSafe(pick(source.quantity, source.qty)),
       line_total: this.toNumberSafe(pick(source.line_total, source.lineTotal)),
+      capability_name: String(pick(source.capability_name, source.capabilityName)).trim(),
+      capability_value: String(pick(source.capability_value, source.capabilityValue)).trim(),
       notes: String(pick(source.notes)).trim()
     };
   },
@@ -187,19 +190,52 @@ const Invoices = {
     const existing = String(value || '').trim();
     return existing || this.generateInvoiceNumber();
   },
-  renderItemNameOptions() {
-    const list = document.getElementById('invoiceItemNameOptions');
+  getCatalogRowsForSection(section) {
+    const rows = Array.isArray(window.ProposalCatalog?.state?.rows)
+      ? window.ProposalCatalog.state.rows
+      : [];
+    return rows
+      .filter(row => row?.is_active !== false && String(row?.section || '').trim().toLowerCase() === section)
+      .sort((a, b) => {
+        const aSort = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+        const bSort = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a?.item_name || '').localeCompare(String(b?.item_name || ''));
+      });
+  },
+  renderCatalogOptionList(section) {
+    const list = document.getElementById(`invoiceCatalogOptions-${section}`);
     if (!list) return;
-    list.innerHTML = this.state.availableItemNames
-      .map(name => `<option value="${U.escapeAttr(name)}"></option>`)
+    const seen = new Set();
+    list.innerHTML = this.getCatalogRowsForSection(section)
+      .filter(row => {
+        const key = String(row?.item_name || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(row => `<option value="${U.escapeAttr(String(row?.item_name || '').trim())}"></option>`)
       .join('');
   },
-  setAvailableItemNames(items = []) {
-    const names = Array.isArray(items)
-      ? items.map(item => String(item?.item_name || '').trim()).filter(Boolean)
-      : [];
-    this.state.availableItemNames = [...new Set(names)];
-    this.renderItemNameOptions();
+  renderCatalogOptionLists() {
+    this.renderCatalogOptionList('annual_saas');
+    this.renderCatalogOptionList('one_time_fee');
+  },
+  async ensureCatalogLoaded() {
+    this.renderCatalogOptionLists();
+    const hasRows =
+      this.getCatalogRowsForSection('annual_saas').length || this.getCatalogRowsForSection('one_time_fee').length;
+    if (hasRows) return;
+    if (this.state.catalogLoading || typeof window.ProposalCatalog?.loadAndRefresh !== 'function') return;
+    this.state.catalogLoading = true;
+    try {
+      await window.ProposalCatalog.loadAndRefresh();
+      this.renderCatalogOptionLists();
+    } catch (_) {
+      // Non-blocking: invoice form still allows manual item entry when catalog load fails.
+    } finally {
+      this.state.catalogLoading = false;
+    }
   },
   extractRows(response) {
     const parseJsonIfNeeded = value => {
@@ -372,30 +408,120 @@ const Invoices = {
       })
       .join('');
   },
-  renderItems(items = []) {
-    if (!E.invoiceItemsTbody) return;
-    E.invoiceItemsTbody.innerHTML = items
-      .map(
-        (item, idx) => `<tr data-item-index="${idx}">
-        <td>
-          <input type="hidden" data-item-field="catalog_item_id" value="${U.escapeAttr(item.catalog_item_id || '')}" />
-          <input class="input" data-item-field="section" value="${U.escapeAttr(item.section || '')}" />
-        </td>
-        <td><input class="input" data-item-field="location_name" value="${U.escapeAttr(item.location_name || '')}" /></td>
-        <td><input class="input" data-item-field="location_address" value="${U.escapeAttr(item.location_address || '')}" /></td>
-        <td><input class="input" type="date" data-item-field="service_start_date" value="${U.escapeAttr(item.service_start_date || '')}" /></td>
-        <td><input class="input" type="date" data-item-field="service_end_date" value="${U.escapeAttr(item.service_end_date || '')}" /></td>
-        <td><input class="input" data-item-field="item_name" list="invoiceItemNameOptions" value="${U.escapeAttr(item.item_name || '')}" /></td>
-        <td><input class="input" type="number" step="0.01" data-item-field="unit_price" value="${U.escapeAttr(item.unit_price || '')}" /></td>
-        <td><input class="input" type="number" step="0.01" data-item-field="discount_percent" value="${U.escapeAttr(item.discount_percent || '')}" /></td>
-        <td><input class="input" type="number" step="0.01" data-item-field="discounted_unit_price" value="${U.escapeAttr(item.discounted_unit_price || '')}" /></td>
-        <td><input class="input" type="number" step="0.01" data-item-field="quantity" value="${U.escapeAttr(item.quantity || '')}" /></td>
-        <td><input class="input" type="number" step="0.01" data-item-field="line_total" value="${U.escapeAttr(item.line_total || '')}" /></td>
-        <td><input class="input" data-item-field="notes" value="${U.escapeAttr(item.notes || '')}" /></td>
-        <td><button type="button" class="btn ghost sm" data-item-remove="${idx}">Remove</button></td>
-      </tr>`
-      )
+  computeCommercialRow(item = {}) {
+    const unit = this.toNumberSafe(item.unit_price);
+    const discount = this.toNumberSafe(item.discount_percent);
+    const qty = this.toNumberSafe(item.quantity);
+    const discountRatio = discount > 1 ? discount / 100 : Math.max(0, discount);
+    const discounted = unit * (1 - discountRatio);
+    const lineTotal = discounted * qty;
+    return {
+      ...item,
+      discounted_unit_price: discounted,
+      line_total: lineTotal
+    };
+  },
+  groupedItems(items = []) {
+    const groups = { annual_saas: [], one_time_fee: [], capability: [] };
+    (Array.isArray(items) ? items : []).forEach((item, idx) => {
+      const normalized = this.normalizeItem(item);
+      const section = ['annual_saas', 'one_time_fee', 'capability'].includes(normalized.section)
+        ? normalized.section
+        : 'annual_saas';
+      normalized.line_no = normalized.line_no || idx + 1;
+      groups[section].push(normalized);
+    });
+    return groups;
+  },
+  getCatalogItemByName(section, itemName) {
+    const target = this.normalizeText(itemName);
+    if (!target) return null;
+    return (
+      this.getCatalogRowsForSection(section).find(row => this.normalizeText(row?.item_name) === target) || null
+    );
+  },
+  applyCatalogSelectionToRow(tr, section) {
+    if (!tr || section === 'capability') return;
+    const itemInput = tr.querySelector('[data-item-field="item_name"]');
+    const unitPriceInput = tr.querySelector('[data-item-field="unit_price"]');
+    const locationInput = tr.querySelector('[data-item-field="location_name"]');
+    if (!itemInput || !unitPriceInput) return;
+
+    const selected = this.getCatalogItemByName(section, itemInput.value);
+    if (!selected) {
+      unitPriceInput.readOnly = false;
+      unitPriceInput.removeAttribute('title');
+      tr.dataset.priceLocked = 'false';
+      return;
+    }
+
+    if (selected.unit_price !== null && selected.unit_price !== undefined) {
+      unitPriceInput.value = String(selected.unit_price);
+    }
+    unitPriceInput.readOnly = true;
+    unitPriceInput.title = 'Unit price is set from the proposal catalog.';
+    tr.dataset.priceLocked = 'true';
+    if (locationInput && !String(locationInput.value || '').trim() && selected.default_location_name) {
+      locationInput.value = String(selected.default_location_name);
+    }
+  },
+  renderSectionRows(section, rows = []) {
+    const tbody =
+      section === 'annual_saas'
+        ? E.invoiceAnnualItemsTbody
+        : section === 'one_time_fee'
+        ? E.invoiceOneTimeItemsTbody
+        : E.invoiceCapabilityItemsTbody;
+    if (!tbody) return;
+
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if (!safeRows.length) {
+      const colspan = section === 'capability' ? 4 : 12;
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="muted" style="text-align:center;">No rows yet.</td></tr>`;
+      return;
+    }
+
+    if (section === 'capability') {
+      tbody.innerHTML = safeRows
+        .map(
+          (row, index) => `<tr data-item-row="${section}">
+          <td><input class="input" data-item-field="capability_name" value="${U.escapeAttr(row.capability_name || '')}" /></td>
+          <td><input class="input" data-item-field="capability_value" value="${U.escapeAttr(row.capability_value || '')}" /></td>
+          <td><input class="input" data-item-field="notes" value="${U.escapeAttr(row.notes || '')}" /></td>
+          <td><button class="btn ghost sm" type="button" data-item-remove="${section}" data-item-index="${index}">Remove</button></td>
+        </tr>`
+        )
+        .join('');
+      return;
+    }
+
+    tbody.innerHTML = safeRows
+      .map((row, index) => {
+        const computed = this.computeCommercialRow(row);
+        return `<tr data-item-row="${section}">
+          <td><input class="input" data-item-field="location_name" value="${U.escapeAttr(computed.location_name || '')}" /></td>
+          <td><input class="input" data-item-field="location_address" value="${U.escapeAttr(computed.location_address || '')}" /></td>
+          <td><input class="input" type="date" data-item-field="service_start_date" value="${U.escapeAttr(computed.service_start_date || '')}" /></td>
+          <td><input class="input" type="date" data-item-field="service_end_date" value="${U.escapeAttr(computed.service_end_date || '')}" /></td>
+          <td><input class="input" data-item-field="item_name" list="invoiceCatalogOptions-${section}" value="${U.escapeAttr(computed.item_name || '')}" /></td>
+          <td><input class="input" type="number" step="0.01" data-item-field="unit_price" value="${U.escapeAttr(computed.unit_price || '')}" /></td>
+          <td><input class="input" type="number" step="0.01" data-item-field="discount_percent" value="${U.escapeAttr(computed.discount_percent || '')}" /></td>
+          <td><input class="input" type="number" step="0.01" data-item-field="quantity" value="${U.escapeAttr(computed.quantity || '')}" /></td>
+          <td><span data-item-display="discounted_unit_price">${this.formatMoney(computed.discounted_unit_price)}</span></td>
+          <td><span data-item-display="line_total">${this.formatMoney(computed.line_total)}</span></td>
+          <td><input class="input" data-item-field="notes" value="${U.escapeAttr(computed.notes || '')}" /></td>
+          <td><button class="btn ghost sm" type="button" data-item-remove="${section}" data-item-index="${index}">Remove</button></td>
+        </tr>`;
+      })
       .join('');
+    [...tbody.querySelectorAll('tr[data-item-row]')].forEach(tr => this.applyCatalogSelectionToRow(tr, section));
+  },
+  renderItems(items = []) {
+    this.renderCatalogOptionLists();
+    const groups = this.groupedItems(items);
+    this.renderSectionRows('annual_saas', groups.annual_saas);
+    this.renderSectionRows('one_time_fee', groups.one_time_fee);
+    this.renderSectionRows('capability', groups.capability);
   },
   assignFormValues(invoice = {}) {
     const set = (id, value) => {
@@ -407,30 +533,54 @@ const Invoices = {
       set(id, invoice[field] || '');
     });
   },
+  collectSectionItems(section) {
+    const tbody =
+      section === 'annual_saas'
+        ? E.invoiceAnnualItemsTbody
+        : section === 'one_time_fee'
+        ? E.invoiceOneTimeItemsTbody
+        : E.invoiceCapabilityItemsTbody;
+    if (!tbody) return [];
+    const rows = [...tbody.querySelectorAll('tr[data-item-row]')];
+    return rows
+      .map((tr, idx) => {
+        const get = field => tr.querySelector(`[data-item-field="${field}"]`)?.value ?? '';
+        if (section === 'capability') {
+          const capabilityName = String(get('capability_name')).trim();
+          const capabilityValue = String(get('capability_value')).trim();
+          const notes = String(get('notes')).trim();
+          if (!capabilityName && !capabilityValue && !notes) return null;
+          return { section, line_no: idx + 1, capability_name: capabilityName, capability_value: capabilityValue, notes };
+        }
+        const unitPrice = this.toNumberSafe(get('unit_price'));
+        const discountPercent = this.toNumberSafe(get('discount_percent'));
+        const quantity = this.toNumberSafe(get('quantity'));
+        const computed = this.computeCommercialRow({ unit_price: unitPrice, discount_percent: discountPercent, quantity });
+        if (!get('item_name') && !get('location_name') && !unitPrice && !quantity && !get('notes')) return null;
+        return this.normalizeItem({
+          section,
+          line_no: idx + 1,
+          location_name: String(get('location_name')).trim(),
+          location_address: String(get('location_address')).trim(),
+          service_start_date: String(get('service_start_date')).trim(),
+          service_end_date: String(get('service_end_date')).trim(),
+          item_name: String(get('item_name')).trim(),
+          unit_price: unitPrice,
+          discount_percent: discountPercent,
+          quantity,
+          discounted_unit_price: computed.discounted_unit_price,
+          line_total: computed.line_total,
+          notes: String(get('notes')).trim()
+        });
+      })
+      .filter(Boolean);
+  },
   collectItems() {
-    const rows = Array.from(E.invoiceItemsTbody?.querySelectorAll('tr') || []);
-    return rows.map(row => {
-      const get = key => String(row.querySelector(`[data-item-field="${key}"]`)?.value || '').trim();
-      const item = this.normalizeItem({
-        catalog_item_id: get('catalog_item_id'),
-        section: get('section'),
-        location_name: get('location_name'),
-        location_address: get('location_address'),
-        service_start_date: get('service_start_date'),
-        service_end_date: get('service_end_date'),
-        item_name: get('item_name'),
-        unit_price: get('unit_price'),
-        discount_percent: get('discount_percent'),
-        discounted_unit_price: get('discounted_unit_price'),
-        quantity: get('quantity'),
-        line_total: get('line_total'),
-        notes: get('notes')
-      });
-      const discount = item.discount_percent > 1 ? item.discount_percent / 100 : item.discount_percent;
-      if (!item.discounted_unit_price) item.discounted_unit_price = item.unit_price * (1 - Math.max(0, discount));
-      if (!item.line_total) item.line_total = item.discounted_unit_price * (item.quantity || 0);
-      return item;
-    });
+    return [
+      ...this.collectSectionItems('annual_saas'),
+      ...this.collectSectionItems('one_time_fee'),
+      ...this.collectSectionItems('capability')
+    ];
   },
   collectFormValues() {
     const get = id => String(document.getElementById(id)?.value || '').trim();
@@ -448,7 +598,6 @@ const Invoices = {
     this.state.selectedInvoice.invoice_number = this.ensureInvoiceNumber(this.state.selectedInvoice.invoice_number);
     if (!this.state.selectedInvoice.invoice_date) this.state.selectedInvoice.invoice_date = this.todayIso();
     this.state.items = Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [];
-    this.setAvailableItemNames(this.state.items);
     this.assignFormValues(this.state.selectedInvoice);
     this.renderItems(this.state.items);
     if (this.state.items.length) {
@@ -474,7 +623,10 @@ const Invoices = {
       }
       el.disabled = readOnly;
     });
-    if (E.invoiceAddItemRowBtn) E.invoiceAddItemRowBtn.style.display = readOnly ? 'none' : '';
+    if (E.invoiceAddAnnualRowBtn) E.invoiceAddAnnualRowBtn.style.display = readOnly ? 'none' : '';
+    if (E.invoiceAddOneTimeRowBtn) E.invoiceAddOneTimeRowBtn.style.display = readOnly ? 'none' : '';
+    if (E.invoiceAddCapabilityRowBtn) E.invoiceAddCapabilityRowBtn.style.display = readOnly ? 'none' : '';
+    this.ensureCatalogLoaded();
     E.invoiceFormModal.classList.add('open');
     E.invoiceFormModal.setAttribute('aria-hidden', 'false');
   },
@@ -486,8 +638,6 @@ const Invoices = {
     E.invoiceForm.dataset.id = '';
     this.state.selectedInvoice = null;
     this.state.items = [];
-    this.state.availableItemNames = [];
-    this.renderItemNameOptions();
     this.renderItems([]);
   },
   extractAgreementAndItems(response, fallbackId = '') {
@@ -532,10 +682,6 @@ const Invoices = {
       this.assignFormValues(mappedInvoice);
       const catalogLookup = await this.getProposalCatalogLookup();
       const normalizedItems = items.map(item => this.mergeCatalogItem(item, catalogLookup));
-      this.setAvailableItemNames([
-        ...normalizedItems,
-        ...catalogLookup.names.map(name => ({ item_name: name }))
-      ]);
       this.renderItems(normalizedItems);
       const totals = this.calculateInvoiceTotals(normalizedItems);
       this.applyTotalsToForm(totals);
@@ -699,25 +845,68 @@ const Invoices = {
       E.invoiceForm.addEventListener('click', event => {
         const removeBtn = event.target?.closest?.('button[data-item-remove]');
         if (!removeBtn) return;
-        const index = Number(removeBtn.getAttribute('data-item-remove'));
-        if (!Number.isInteger(index) || index < 0) return;
-        const items = this.collectItems().filter((_, idx) => idx !== index);
+        const section = removeBtn.getAttribute('data-item-remove');
+        const index = Number(removeBtn.getAttribute('data-item-index'));
+        if (!section || !Number.isInteger(index) || index < 0) return;
+        const groups = this.groupedItems(this.collectItems());
+        if (!groups[section]) return;
+        groups[section] = groups[section].filter((_, idx) => idx !== index);
+        const items = [...groups.annual_saas, ...groups.one_time_fee, ...groups.capability];
         this.renderItems(items);
         this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
+      E.invoiceForm.addEventListener('input', event => {
+        const field = event.target?.getAttribute('data-item-field');
+        if (!field) return;
+        const tr = event.target.closest('tr[data-item-row]');
+        const section = tr?.getAttribute('data-item-row');
+        if (!tr || !section || section === 'capability') {
+          this.applyTotalsToForm(this.calculateInvoiceTotals(this.collectItems()));
+          return;
+        }
+        if (field === 'item_name') this.applyCatalogSelectionToRow(tr, section);
+        const get = key => tr.querySelector(`[data-item-field="${key}"]`)?.value ?? '';
+        const computed = this.computeCommercialRow({
+          unit_price: get('unit_price'),
+          discount_percent: get('discount_percent'),
+          quantity: get('quantity')
+        });
+        const discountedEl = tr.querySelector('[data-item-display="discounted_unit_price"]');
+        const lineTotalEl = tr.querySelector('[data-item-display="line_total"]');
+        if (discountedEl) discountedEl.textContent = this.formatMoney(computed.discounted_unit_price);
+        if (lineTotalEl) lineTotalEl.textContent = this.formatMoney(computed.line_total);
+        this.applyTotalsToForm(this.calculateInvoiceTotals(this.collectItems()));
+      });
+      E.invoiceForm.addEventListener('change', event => {
+        const field = event.target?.getAttribute('data-item-field');
+        if (field !== 'item_name') return;
+        const tr = event.target.closest('tr[data-item-row]');
+        const section = tr?.getAttribute('data-item-row');
+        if (!tr || !section || section === 'capability') return;
+        this.applyCatalogSelectionToRow(tr, section);
+      });
     }
-    if (E.invoiceAddItemRowBtn) {
-      E.invoiceAddItemRowBtn.addEventListener('click', () => {
+    if (E.invoiceAddAnnualRowBtn) {
+      E.invoiceAddAnnualRowBtn.addEventListener('click', () => {
         const items = this.collectItems();
         items.push(this.normalizeItem({ section: 'annual_saas', quantity: 1 }));
-        this.setAvailableItemNames(items);
         this.renderItems(items);
         this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
     }
-    if (E.invoiceItemsTbody) {
-      E.invoiceItemsTbody.addEventListener('input', () => {
+    if (E.invoiceAddOneTimeRowBtn) {
+      E.invoiceAddOneTimeRowBtn.addEventListener('click', () => {
         const items = this.collectItems();
+        items.push(this.normalizeItem({ section: 'one_time_fee', quantity: 1 }));
+        this.renderItems(items);
+        this.applyTotalsToForm(this.calculateInvoiceTotals(items));
+      });
+    }
+    if (E.invoiceAddCapabilityRowBtn) {
+      E.invoiceAddCapabilityRowBtn.addEventListener('click', () => {
+        const items = this.collectItems();
+        items.push(this.normalizeItem({ section: 'capability', capability_name: '', capability_value: '' }));
+        this.renderItems(items);
         this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
     }
@@ -742,7 +931,7 @@ const Invoices = {
     });
 
     this.state.initialized = true;
-    this.renderItemNameOptions();
+    this.renderCatalogOptionLists();
   }
 };
 
