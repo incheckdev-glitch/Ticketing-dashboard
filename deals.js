@@ -150,11 +150,11 @@ const Deals = {
     }
     return [];
   },
-  async listDeals() {
-    return Api.postAuthenticated('deals', 'list', {
+  async listDeals(options = {}) {
+    return Api.postAuthenticatedCached('deals', 'list', {
       sheetName: CONFIG.DEALS_SHEET_NAME,
       tabName: CONFIG.DEALS_SHEET_NAME
-    });
+    }, { forceRefresh: options.forceRefresh === true });
   },
   async getDeal(id) {
     return Api.postAuthenticated('deals', 'get', { id });
@@ -606,7 +606,7 @@ const Deals = {
     this.render();
 
     try {
-      const response = await this.listDeals();
+      const response = await this.listDeals({ forceRefresh: force });
       this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
       this.syncDealFormDropdowns();
       this.renderFilters();

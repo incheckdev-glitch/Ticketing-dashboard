@@ -105,10 +105,10 @@ const Leads = {
     if (this.state.search) filters.search = this.state.search;
     return filters;
   },
-  async listLeads() {
-    return Api.postAuthenticated('leads', 'list', {
+  async listLeads(options = {}) {
+    return Api.postAuthenticatedCached('leads', 'list', {
       filters: this.collectServerFilters()
-    });
+    }, { forceRefresh: options.forceRefresh === true });
   },
   async getLead(id) {
     return Api.postAuthenticated('leads', 'get', { id });
@@ -495,7 +495,7 @@ const Leads = {
     this.render();
 
     try {
-      const response = await this.listLeads();
+      const response = await this.listLeads({ forceRefresh: force });
       this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
       this.renderFilters();
       this.applyFilters();
