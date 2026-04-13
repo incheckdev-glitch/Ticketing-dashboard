@@ -333,9 +333,13 @@ const Invoices = {
     }
     this.renderSummary();
     const rows = this.state.filteredRows;
-    E.invoicesState.textContent = `${rows.length} invoice${rows.length === 1 ? '' : 's'}`;
+    const totalRows = this.state.rows.length;
+    E.invoicesState.textContent = `${rows.length} of ${totalRows} invoice${totalRows === 1 ? '' : 's'}`;
     if (!rows.length) {
-      E.invoicesTbody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;">No invoices found.</td></tr>';
+      const emptyMessage = totalRows
+        ? 'No invoices match the current search or filters.'
+        : 'No invoices found. Create your first invoice to get started.';
+      E.invoicesTbody.innerHTML = `<tr><td colspan="10" class="muted" style="text-align:center;">${U.escapeHtml(emptyMessage)}</td></tr>`;
       return;
     }
     const textCell = value => U.escapeHtml(String(value ?? '').trim() || '—');
