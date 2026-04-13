@@ -59,6 +59,17 @@ const Invoices = {
     normalized.currency = String(normalized.currency || '').trim() || 'USD';
     return normalized;
   },
+  normalizeSection(value) {
+    const raw = String(value ?? '')
+      .trim()
+      .toLowerCase();
+    if (!raw) return '';
+    if (['subscription', 'annual_saas', 'annual saas'].includes(raw)) return 'annual_saas';
+    if (['one_time', 'one_time_fee', 'one-time', 'one-time fee', 'one time fee'].includes(raw))
+      return 'one_time_fee';
+    if (raw === 'capability') return 'capability';
+    return raw;
+  },
   normalizeItem(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const pick = (...values) => {
@@ -67,8 +78,10 @@ const Invoices = {
       }
       return '';
     };
+    const section = this.normalizeSection(pick(source.section));
     return {
-      section: String(pick(source.section)).trim(),
+      catalog_item_id: String(pick(source.catalog_item_id, source.catalogItemId)).trim(),
+      section,
       location_name: String(pick(source.location_name, source.locationName)).trim(),
       location_address: String(pick(source.location_address, source.locationAddress)).trim(),
       service_start_date: String(pick(source.service_start_date, source.serviceStartDate)).trim(),
@@ -81,6 +94,85 @@ const Invoices = {
       line_total: this.toNumberSafe(pick(source.line_total, source.lineTotal)),
       notes: String(pick(source.notes)).trim()
     };
+  },
+  normalizeCatalogItem(raw = {}) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    return {
+      catalog_item_id: String(pick(source.catalog_item_id, source.catalogItemId, source.id)).trim(),
+      section: this.normalizeSection(pick(source.section, source.item_section, source.type)),
+      item_name: String(pick(source.item_name, source.itemName, source.name)).trim(),
+      unit_price: this.toNumberSafe(pick(source.unit_price, source.unitPrice)),
+      discount_percent: this.toNumberSafe(pick(source.discount_percent, source.discountPercent)),
+      quantity: this.toNumberSafe(pick(source.quantity, source.qty)),
+      notes: String(pick(source.notes)).trim()
+    };
+  },
+  async getProposalCatalogLookup() {
+    try {
+      const response = await Api.listProposalCatalogItems();
+      const rows = Array.isArray(response)
+        ? response
+        : response?.items || response?.rows || response?.data || response?.result || [];
+      const normalized = (Array.isArray(rows) ? rows : []).map(item => this.normalizeCatalogItem(item));
+      const byId = new Map();
+      const byName = new Map();
+      normalized.forEach(item => {
+        if (item.catalog_item_id) byId.set(item.catalog_item_id, item);
+        if (item.item_name) byName.set(item.item_name.toLowerCase(), item);
+      });
+      return { byId, byName, names: normalized.map(item => item.item_name).filter(Boolean) };
+    } catch (_error) {
+      return { byId: new Map(), byName: new Map(), names: [] };
+    }
+  },
+  mergeCatalogItem(invoiceItem = {}, catalogLookup = { byId: new Map(), byName: new Map() }) {
+    const byId = catalogLookup?.byId instanceof Map ? catalogLookup.byId : new Map();
+    const byName = catalogLookup?.byName instanceof Map ? catalogLookup.byName : new Map();
+    const catalogItemId = String(invoiceItem.catalog_item_id || '').trim();
+    const itemName = String(invoiceItem.item_name || '').trim().toLowerCase();
+    const catalogMatch = (catalogItemId && byId.get(catalogItemId)) || (itemName && byName.get(itemName)) || null;
+    const base = this.normalizeItem(invoiceItem);
+    const merged = this.normalizeItem({
+      ...base,
+      ...(catalogMatch || {}),
+      catalog_item_id: catalogItemId || catalogMatch?.catalog_item_id || '',
+      section: this.normalizeSection(base.section || catalogMatch?.section),
+      item_name: base.item_name || catalogMatch?.item_name || '',
+      notes: base.notes || catalogMatch?.notes || ''
+    });
+    const discountRatio =
+      merged.discount_percent > 1 ? merged.discount_percent / 100 : Math.max(0, merged.discount_percent);
+    merged.discounted_unit_price = merged.unit_price * (1 - discountRatio);
+    merged.line_total = merged.discounted_unit_price * (merged.quantity || 0);
+    return merged;
+  },
+  calculateInvoiceTotals(items = []) {
+    return (Array.isArray(items) ? items : []).reduce(
+      (acc, rawItem) => {
+        const item = this.normalizeItem(rawItem);
+        const lineTotal = this.toNumberSafe(item.line_total);
+        if (this.normalizeSection(item.section) === 'annual_saas') acc.subtotal_subscription += lineTotal;
+        else if (this.normalizeSection(item.section) === 'one_time_fee') acc.subtotal_one_time += lineTotal;
+        acc.grand_total += lineTotal;
+        return acc;
+      },
+      { subtotal_subscription: 0, subtotal_one_time: 0, grand_total: 0 }
+    );
+  },
+  applyTotalsToForm(totals = {}) {
+    const set = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = this.toNumberSafe(value);
+    };
+    set('invoiceFormSubtotalSubscription', totals.subtotal_subscription);
+    set('invoiceFormSubtotalOneTime', totals.subtotal_one_time);
+    set('invoiceFormGrandTotal', totals.grand_total);
   },
   todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -275,7 +367,10 @@ const Invoices = {
     E.invoiceItemsTbody.innerHTML = items
       .map(
         (item, idx) => `<tr data-item-index="${idx}">
-        <td><input class="input" data-item-field="section" value="${U.escapeAttr(item.section || '')}" /></td>
+        <td>
+          <input type="hidden" data-item-field="catalog_item_id" value="${U.escapeAttr(item.catalog_item_id || '')}" />
+          <input class="input" data-item-field="section" value="${U.escapeAttr(item.section || '')}" />
+        </td>
         <td><input class="input" data-item-field="location_name" value="${U.escapeAttr(item.location_name || '')}" /></td>
         <td><input class="input" data-item-field="location_address" value="${U.escapeAttr(item.location_address || '')}" /></td>
         <td><input class="input" type="date" data-item-field="service_start_date" value="${U.escapeAttr(item.service_start_date || '')}" /></td>
@@ -307,6 +402,7 @@ const Invoices = {
     return rows.map(row => {
       const get = key => String(row.querySelector(`[data-item-field="${key}"]`)?.value || '').trim();
       const item = this.normalizeItem({
+        catalog_item_id: get('catalog_item_id'),
         section: get('section'),
         location_name: get('location_name'),
         location_address: get('location_address'),
@@ -345,6 +441,9 @@ const Invoices = {
     this.setAvailableItemNames(this.state.items);
     this.assignFormValues(this.state.selectedInvoice);
     this.renderItems(this.state.items);
+    if (this.state.items.length) {
+      this.applyTotalsToForm(this.calculateInvoiceTotals(this.state.items));
+    }
     E.invoiceForm.dataset.id = this.state.selectedInvoice.invoice_id || '';
     if (E.invoiceFormTitle) {
       E.invoiceFormTitle.textContent = this.state.selectedInvoice.invoice_id
@@ -421,9 +520,15 @@ const Invoices = {
       });
       mappedInvoice.invoice_number = this.ensureInvoiceNumber(mappedInvoice.invoice_number);
       this.assignFormValues(mappedInvoice);
-      const normalizedItems = items.map(item => this.normalizeItem(item));
-      this.setAvailableItemNames(normalizedItems);
+      const catalogLookup = await this.getProposalCatalogLookup();
+      const normalizedItems = items.map(item => this.mergeCatalogItem(item, catalogLookup));
+      this.setAvailableItemNames([
+        ...normalizedItems,
+        ...catalogLookup.names.map(name => ({ item_name: name }))
+      ]);
       this.renderItems(normalizedItems);
+      const totals = this.calculateInvoiceTotals(normalizedItems);
+      this.applyTotalsToForm(totals);
     } catch (error) {
       UI.toast('Unable to auto-fill from agreement: ' + (error?.message || 'Unknown error'));
     }
@@ -442,14 +547,22 @@ const Invoices = {
   async saveForm() {
     const id = String(E.invoiceForm?.dataset.id || '').trim();
     const { invoice, items } = this.collectFormValues();
+    const totals = this.calculateInvoiceTotals(items);
+    const payloadInvoice = this.normalizeInvoice({
+      ...invoice,
+      subtotal_subscription: totals.subtotal_subscription,
+      subtotal_one_time: totals.subtotal_one_time,
+      grand_total: totals.grand_total
+    });
+    this.assignFormValues(payloadInvoice);
     try {
       if (id) {
         if (!Permissions.canUpdateInvoice()) return UI.toast('You do not have permission to update invoices.');
-        await Api.updateInvoice(id, invoice, items);
+        await Api.updateInvoice(id, payloadInvoice, items);
         UI.toast('Invoice updated.');
       } else {
         if (!Permissions.canCreateInvoice()) return UI.toast('You do not have permission to create invoices.');
-        await Api.createInvoice(invoice, items);
+        await Api.createInvoice(payloadInvoice, items);
         UI.toast('Invoice created.');
       }
       this.closeForm();
@@ -575,14 +688,22 @@ const Invoices = {
         if (!Number.isInteger(index) || index < 0) return;
         const items = this.collectItems().filter((_, idx) => idx !== index);
         this.renderItems(items);
+        this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
     }
     if (E.invoiceAddItemRowBtn) {
       E.invoiceAddItemRowBtn.addEventListener('click', () => {
         const items = this.collectItems();
-        items.push(this.normalizeItem({ section: 'subscription', quantity: 1 }));
+        items.push(this.normalizeItem({ section: 'annual_saas', quantity: 1 }));
         this.setAvailableItemNames(items);
         this.renderItems(items);
+        this.applyTotalsToForm(this.calculateInvoiceTotals(items));
+      });
+    }
+    if (E.invoiceItemsTbody) {
+      E.invoiceItemsTbody.addEventListener('input', () => {
+        const items = this.collectItems();
+        this.applyTotalsToForm(this.calculateInvoiceTotals(items));
       });
     }
     if (E.invoiceFormAgreementId) {
