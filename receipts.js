@@ -92,12 +92,72 @@ const Receipts = {
     }
     return [];
   },
-  extractReceiptAndItems(response) {
-    const candidate = response?.receipt || response?.data?.receipt || response?.result?.receipt || response?.payload?.receipt || response || {};
-    const items = response?.items || candidate?.items || response?.data?.items || response?.result?.items || [];
+  extractReceiptAndItems(response, fallbackId = '') {
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+
+    const candidates = [
+      response,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.item,
+      response?.receipt,
+      response?.created_receipt
+    ];
+
+    let receipt = null;
+    let items = [];
+
+    for (const rawCandidate of candidates) {
+      const candidate = parseJsonIfNeeded(rawCandidate);
+      if (!candidate) continue;
+
+      if (Array.isArray(candidate)) {
+        const first = candidate[0];
+        if (!receipt && first && typeof first === 'object') {
+          receipt = first;
+        }
+        if (!items.length && Array.isArray(first?.items)) {
+          items = first.items;
+        }
+        continue;
+      }
+
+      if (typeof candidate !== 'object') continue;
+
+      if (!receipt) {
+        if (candidate.item && typeof candidate.item === 'object') receipt = candidate.item;
+        else if (candidate.receipt && typeof candidate.receipt === 'object') receipt = candidate.receipt;
+        else if (candidate.created_receipt && typeof candidate.created_receipt === 'object') receipt = candidate.created_receipt;
+        else if (Array.isArray(candidate.data) && candidate.data[0] && typeof candidate.data[0] === 'object') receipt = candidate.data[0];
+        else if (candidate.data && typeof candidate.data === 'object' && !Array.isArray(candidate.data)) receipt = candidate.data;
+        else if (candidate.receipt_id || candidate.receipt_number || candidate.invoice_id) receipt = candidate;
+      }
+
+      if (!items.length) {
+        if (Array.isArray(candidate.items)) items = candidate.items;
+        else if (Array.isArray(candidate.receipt_items)) items = candidate.receipt_items;
+        else if (Array.isArray(candidate.created_receipt_items)) items = candidate.created_receipt_items;
+        else if (candidate.item && Array.isArray(candidate.item.items)) items = candidate.item.items;
+        else if (candidate.receipt && Array.isArray(candidate.receipt.items)) items = candidate.receipt.items;
+        else if (candidate.created_receipt && Array.isArray(candidate.created_receipt.items)) items = candidate.created_receipt.items;
+        else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items)) items = candidate.data[0].items;
+        else if (candidate.data && Array.isArray(candidate.data.items)) items = candidate.data.items;
+      }
+    }
+
     return {
-      receipt: this.normalizeReceipt(candidate),
-      items: (Array.isArray(items) ? items : []).map(item => this.normalizeItem(item))
+      receipt: this.normalizeReceipt(receipt || { receipt_id: fallbackId }),
+      items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
   },
   applyFilters() {
@@ -236,7 +296,7 @@ const Receipts = {
     if (!receiptId) return;
     try {
       const response = await Api.getReceipt(receiptId);
-      const { receipt, items } = this.extractReceiptAndItems(response);
+      const { receipt, items } = this.extractReceiptAndItems(response, receiptId);
       this.state.selectedReceipt = receipt;
       this.state.items = items;
       this.populateForm(receipt, items, readOnly);
