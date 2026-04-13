@@ -920,6 +920,22 @@ const Invoices = {
     E.invoicePreviewModal.setAttribute('aria-hidden', 'true');
     if (E.invoicePreviewFrame) E.invoicePreviewFrame.srcdoc = '';
   },
+  exportPreviewPdf() {
+    const frame = E.invoicePreviewFrame;
+    const previewTitle = String(E.invoicePreviewTitle?.textContent || 'Invoice Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open invoice preview first to extract PDF.');
+      return;
+    }
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access invoice preview content.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
+  },
   async openCreateFromAgreementResult(invoice) {
     const normalized = this.normalizeInvoice(invoice || {});
     if (typeof setActiveView === 'function') setActiveView('invoices');
@@ -1116,6 +1132,7 @@ const Invoices = {
     if (E.invoiceFormModal) E.invoiceFormModal.addEventListener('click', event => {
       if (event.target === E.invoiceFormModal) this.closeForm();
     });
+    if (E.invoicePreviewExportPdfBtn) E.invoicePreviewExportPdfBtn.addEventListener('click', () => this.exportPreviewPdf());
     if (E.invoicePreviewCloseBtn) E.invoicePreviewCloseBtn.addEventListener('click', () => this.closePreview());
     if (E.invoicePreviewModal) E.invoicePreviewModal.addEventListener('click', event => {
       if (event.target === E.invoicePreviewModal) this.closePreview();
