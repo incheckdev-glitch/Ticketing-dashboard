@@ -296,72 +296,41 @@ const Invoices = {
         return value;
       }
     };
-    const candidates = [
-      response,
-      response?.result,
-      response?.payload,
-      response?.item,
-      response?.data,
-      Array.isArray(response?.data) ? response.data[0] : null,
-      response?.rows,
-      response?.items,
-      response?.invoices,
-      response?.invoice,
-      response?.created_invoice,
-      response?.data?.rows,
-      response?.data?.items,
-      response?.data?.invoices,
-      response?.data?.invoice,
-      response?.result?.rows,
-      response?.result?.items,
-      response?.result?.invoices,
-      response?.result?.invoice,
-      response?.payload?.rows,
-      response?.payload?.items,
-      response?.payload?.invoices,
-      response?.payload?.invoice
-    ];
-    const isInvoiceLike = value =>
-      Boolean(
-        value &&
-          typeof value === 'object' &&
-          (
-            value.invoice_id ||
-            value.invoiceId ||
-            value.invoice_number ||
-            value.invoiceNumber ||
-            value.agreement_id ||
-            value.agreementId
-          )
-      );
-    const extractInvoiceFromObjectValues = value => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-      const nestedValues = Object.values(value).filter(item => item && typeof item === 'object');
-      return nestedValues.find(item => isInvoiceLike(item)) || null;
-    };
+    const candidates = [response, response?.data, response?.result, response?.payload].map(parseJsonIfNeeded);
+    const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+    const looksLikeInvoice = value =>
+      isObject(value) &&
+      (value.invoice_id ||
+        value.invoiceId ||
+        value.invoice_number ||
+        value.invoiceNumber ||
+        value.agreement_id ||
+        value.agreementId);
     let invoice = null;
     let items = [];
     for (const candidate of candidates) {
-      const parsedCandidate = parseJsonIfNeeded(candidate);
-      if (!parsedCandidate || typeof parsedCandidate !== 'object') continue;
-      const parsedObject = parsedCandidate;
-      if (!invoice) {
-        if (parsedObject.item && typeof parsedObject.item === 'object') invoice = parsedObject.item;
-        else if (Array.isArray(parsedObject.data) && parsedObject.data[0] && typeof parsedObject.data[0] === 'object')
-          invoice = parsedObject.data[0];
-        else if (parsedObject.data && typeof parsedObject.data === 'object') invoice = parsedObject.data;
-        else if (parsedObject.invoice && typeof parsedObject.invoice === 'object') invoice = parsedObject.invoice;
-        else if (parsedObject.created_invoice && typeof parsedObject.created_invoice === 'object') invoice = parsedObject.created_invoice;
-        else if (parsedObject.invoice_id || parsedObject.invoice_number) invoice = parsedObject;
+      if (candidate === undefined || candidate === null) continue;
+
+      if (!invoice && Array.isArray(candidate) && isObject(candidate[0])) {
+        invoice = candidate[0];
       }
-      if (!items.length) {
-        if (Array.isArray(parsedObject.items)) items = parsedObject.items;
-        else if (Array.isArray(parsedObject.invoice_items)) items = parsedObject.invoice_items;
-        else if (Array.isArray(parsedObject.created_invoice_items)) items = parsedObject.created_invoice_items;
-        else if (parsedObject.item && Array.isArray(parsedObject.item.items)) items = parsedObject.item.items;
-        else if (Array.isArray(parsedObject.data) && Array.isArray(parsedObject.data[0]?.items))
-          items = parsedObject.data[0].items;
-        else if (parsedObject.data && Array.isArray(parsedObject.data.items)) items = parsedObject.data.items;
+
+      if (isObject(candidate)) {
+        if (!invoice) {
+          if (isObject(candidate.item)) invoice = candidate.item;
+          else if (Array.isArray(candidate.data) && isObject(candidate.data[0])) invoice = candidate.data[0];
+          else if (isObject(candidate.data)) invoice = candidate.data;
+          else if (isObject(candidate.invoice)) invoice = candidate.invoice;
+          else if (looksLikeInvoice(candidate)) invoice = candidate;
+        }
+        if (!items.length) {
+          if (Array.isArray(candidate.items)) items = candidate.items;
+          else if (Array.isArray(candidate.invoice_items)) items = candidate.invoice_items;
+          else if (Array.isArray(candidate.item?.items)) items = candidate.item.items;
+          else if (Array.isArray(candidate.data?.items)) items = candidate.data.items;
+          else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
+            items = candidate.data[0].items;
+        }
       }
     }
     return {
@@ -733,59 +702,41 @@ const Invoices = {
         return value;
       }
     };
-    const readCandidate = value => {
-      const parsed = parseJsonIfNeeded(value);
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed;
-    };
-    const candidates = [
-      response,
-      response?.data,
-      response?.rows,
-      response?.items,
-      response?.result,
-      response?.payload,
-      response?.agreement,
-      response?.signed_agreement,
-      response?.data?.agreement,
-      response?.data?.signed_agreement,
-      response?.result?.agreement,
-      response?.result?.signed_agreement,
-      response?.payload?.agreement,
-      response?.payload?.signed_agreement
-    ];
+    const candidates = [response, response?.data, response?.result, response?.payload].map(parseJsonIfNeeded);
+    const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+    const looksLikeAgreement = value =>
+      isObject(value) &&
+      (value.agreement_id ||
+        value.agreementId ||
+        value.agreement_number ||
+        value.agreementNumber ||
+        value.agreement_title ||
+        value.agreementTitle);
     let agreement = null;
     let items = [];
     for (const candidate of candidates) {
-      const parsedCandidate = parseJsonIfNeeded(candidate);
-      if (!parsedCandidate) continue;
-      if (Array.isArray(parsedCandidate)) {
-        if (!items.length) items = parsedCandidate;
-        continue;
+      if (candidate === undefined || candidate === null) continue;
+
+      if (!agreement && Array.isArray(candidate) && isObject(candidate[0])) {
+        agreement = candidate[0];
       }
-      if (typeof parsedCandidate !== 'object') continue;
-      const parsedObject = parsedCandidate;
-      const nestedAgreement = readCandidate(parsedObject.signed_agreement) || readCandidate(parsedObject.agreement);
-      if (!agreement) {
-        if (nestedAgreement) agreement = nestedAgreement;
-        else if (
-          parsedObject.agreement_id ||
-          parsedObject.agreementId ||
-          parsedObject.agreement_number ||
-          parsedObject.agreementNumber ||
-          parsedObject.customer_name ||
-          parsedObject.customerName
-        )
-          agreement = parsedObject;
-      }
-      if (!items.length) {
-        if (Array.isArray(parsedObject.signed_agreement_items)) items = parsedObject.signed_agreement_items;
-        else if (Array.isArray(parsedObject.signedAgreementItems)) items = parsedObject.signedAgreementItems;
-        else if (Array.isArray(parsedObject.agreement_items)) items = parsedObject.agreement_items;
-        else if (Array.isArray(parsedObject.agreementItems)) items = parsedObject.agreementItems;
-        else if (Array.isArray(parsedObject.items)) items = parsedObject.items;
-        else if (Array.isArray(parsedObject.agreement?.items)) items = parsedObject.agreement.items;
-        else if (Array.isArray(parsedObject.signed_agreement?.items)) items = parsedObject.signed_agreement.items;
+
+      if (isObject(candidate)) {
+        if (!agreement) {
+          if (isObject(candidate.item)) agreement = candidate.item;
+          else if (Array.isArray(candidate.data) && isObject(candidate.data[0])) agreement = candidate.data[0];
+          else if (isObject(candidate.data)) agreement = candidate.data;
+          else if (isObject(candidate.agreement)) agreement = candidate.agreement;
+          else if (looksLikeAgreement(candidate)) agreement = candidate;
+        }
+        if (!items.length) {
+          if (Array.isArray(candidate.items)) items = candidate.items;
+          else if (Array.isArray(candidate.agreement_items)) items = candidate.agreement_items;
+          else if (Array.isArray(candidate.item?.items)) items = candidate.item.items;
+          else if (Array.isArray(candidate.data?.items)) items = candidate.data.items;
+          else if (Array.isArray(candidate.data) && Array.isArray(candidate.data[0]?.items))
+            items = candidate.data[0].items;
+        }
       }
     }
     const agreementStatus = this.normalizeText(agreement?.status || '');

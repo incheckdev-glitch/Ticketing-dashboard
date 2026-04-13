@@ -16,6 +16,32 @@ const Api = {
     });
     return url.toString();
   },
+  unwrapApiPayload(response) {
+    let payload = response;
+    const seen = new Set();
+    while (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      if (seen.has(payload)) break;
+      seen.add(payload);
+      if ('data' in payload && payload.data !== undefined) {
+        payload = payload.data;
+        continue;
+      }
+      if ('result' in payload && payload.result !== undefined) {
+        payload = payload.result;
+        continue;
+      }
+      if ('payload' in payload && payload.payload !== undefined) {
+        payload = payload.payload;
+        continue;
+      }
+      if ('item' in payload && payload.item !== undefined) {
+        payload = payload.item;
+        continue;
+      }
+      break;
+    }
+    return payload;
+  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
@@ -35,10 +61,7 @@ const Api = {
     if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
       throw new Error(data.error || data.message || 'Backend rejected request.');
     }
-    if (data && typeof data === 'object' && 'data' in data && data.data !== undefined) {
-      return data.data;
-    }
-    return data;
+    return this.unwrapApiPayload(data);
   },
   async post(resource, action, payload = {}) {
     return apiPost({
