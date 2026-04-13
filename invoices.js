@@ -643,6 +643,21 @@ const Invoices = {
     this.renderItems([]);
   },
   extractAgreementAndItems(response, fallbackId = '') {
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const readCandidate = value => {
+      const parsed = parseJsonIfNeeded(value);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    };
     const candidates = [
       response,
       response?.data,
@@ -662,15 +677,17 @@ const Invoices = {
     let agreement = null;
     let items = [];
     for (const candidate of candidates) {
-      if (!candidate) continue;
-      if (Array.isArray(candidate)) {
-        if (!items.length) items = candidate;
+      const parsedCandidate = parseJsonIfNeeded(candidate);
+      if (!parsedCandidate) continue;
+      if (Array.isArray(parsedCandidate)) {
+        if (!items.length) items = parsedCandidate;
         continue;
       }
-      if (typeof candidate !== 'object') continue;
+      if (typeof parsedCandidate !== 'object') continue;
+      const candidate = parsedCandidate;
+      const nestedAgreement = readCandidate(candidate.signed_agreement) || readCandidate(candidate.agreement);
       if (!agreement) {
-        if (candidate.signed_agreement && typeof candidate.signed_agreement === 'object') agreement = candidate.signed_agreement;
-        else if (candidate.agreement && typeof candidate.agreement === 'object') agreement = candidate.agreement;
+        if (nestedAgreement) agreement = nestedAgreement;
         else if (
           candidate.agreement_id ||
           candidate.agreementId ||
@@ -998,6 +1015,14 @@ const Invoices = {
       });
     }
     if (E.invoiceFormAgreementId) {
+      let agreementHydrateTimer = null;
+      const hydrateAgreement = () => {
+        if (agreementHydrateTimer) window.clearTimeout(agreementHydrateTimer);
+        agreementHydrateTimer = window.setTimeout(() => {
+          this.hydrateFromAgreement(E.invoiceFormAgreementId?.value || '');
+        }, 250);
+      };
+      E.invoiceFormAgreementId.addEventListener('input', hydrateAgreement);
       E.invoiceFormAgreementId.addEventListener('change', () => {
         this.hydrateFromAgreement(E.invoiceFormAgreementId?.value || '');
       });
