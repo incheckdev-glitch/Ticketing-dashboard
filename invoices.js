@@ -299,14 +299,44 @@ const Invoices = {
     const candidates = [
       response,
       response?.data,
+      response?.rows,
+      response?.items,
       response?.result,
       response?.payload,
+      response?.invoices,
       response?.invoice,
       response?.created_invoice,
+      response?.data?.rows,
+      response?.data?.items,
+      response?.data?.invoices,
       response?.data?.invoice,
+      response?.result?.rows,
+      response?.result?.items,
+      response?.result?.invoices,
       response?.result?.invoice,
+      response?.payload?.rows,
+      response?.payload?.items,
+      response?.payload?.invoices,
       response?.payload?.invoice
     ];
+    const isInvoiceLike = value =>
+      Boolean(
+        value &&
+          typeof value === 'object' &&
+          (
+            value.invoice_id ||
+            value.invoiceId ||
+            value.invoice_number ||
+            value.invoiceNumber ||
+            value.agreement_id ||
+            value.agreementId
+          )
+      );
+    const extractInvoiceFromObjectValues = value => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const nestedValues = Object.values(value).filter(item => item && typeof item === 'object');
+      return nestedValues.find(item => isInvoiceLike(item)) || null;
+    };
     let invoice = null;
     let items = [];
     for (const candidate of candidates) {
