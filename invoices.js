@@ -110,6 +110,27 @@ const Invoices = {
     this.renderItemNameOptions();
   },
   extractRows(response) {
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const coerceRows = value => {
+      const parsed = parseJsonIfNeeded(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (!parsed || typeof parsed !== 'object') return [];
+      const values = Object.values(parsed).filter(Boolean);
+      if (!values.length || !values.every(item => item && typeof item === 'object')) return [];
+      const hasInvoiceLikeShape = values.some(
+        item => 'invoice_id' in item || 'invoice_number' in item || 'agreement_id' in item
+      );
+      return hasInvoiceLikeShape ? values : [];
+    };
     const candidates = [
       response,
       response?.invoices,
@@ -122,7 +143,10 @@ const Invoices = {
       response?.result?.invoices,
       response?.payload?.invoices
     ];
-    for (const candidate of candidates) if (Array.isArray(candidate)) return candidate;
+    for (const candidate of candidates) {
+      const rows = coerceRows(candidate);
+      if (rows.length) return rows;
+    }
     return [];
   },
   extractInvoiceAndItems(response, fallbackId = '') {
