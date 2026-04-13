@@ -320,6 +320,9 @@ const Api = {
   async createClient(client) {
     return this.postAuthenticated('clients', 'create', { client });
   },
+  async createClientFromPayload(client) {
+    return this.postAuthenticated('clients', 'create', { client });
+  },
   async updateClient(clientId, updates) {
     return this.postAuthenticated('clients', 'update', {
       client_id: clientId,
@@ -328,6 +331,37 @@ const Api = {
   },
   async deleteClient(clientId) {
     return this.postAuthenticated('clients', 'delete', { client_id: clientId });
+  },
+  async getClientAnalytics(clientId) {
+    return this.postAuthenticated('clients', 'get_analytics', { client_id: clientId });
+  },
+  async getClientTimeline(clientId) {
+    return this.postAuthenticated('clients', 'get_timeline', { client_id: clientId });
+  },
+  async createProposalFromClient(clientId, payload = {}) {
+    return this.postAuthenticated('clients', 'create_proposal', {
+      client_id: clientId,
+      ...payload
+    });
+  },
+  async createAgreementFromClient(clientId, payload = {}) {
+    return this.postAuthenticated('clients', 'create_agreement', {
+      client_id: clientId,
+      ...payload
+    });
+  },
+  async createInvoiceFromClient(clientId, payload = {}) {
+    return this.postAuthenticated('clients', 'create_invoice', {
+      client_id: clientId,
+      ...payload
+    });
+  },
+  async createFromPreviousAgreement(clientId, agreementId, flow = 'agreement') {
+    return this.postAuthenticated('clients', 'create_from_previous_agreement', {
+      client_id: clientId,
+      agreement_id: agreementId,
+      flow
+    });
   },
   async listRoles() {
     return this.postAuthenticatedCached('roles', 'list', {
