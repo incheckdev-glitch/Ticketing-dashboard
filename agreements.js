@@ -193,6 +193,7 @@ const Agreements = {
   async updateClient(clientId, updates) { return Api.updateClient(clientId, updates); },
   async createAgreementFromProposal(proposalId) { return Api.createAgreementFromProposal(proposalId); },
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
+  async createInvoiceFromAgreement(agreementId) { return Api.createInvoiceFromAgreement(agreementId); },
   isSignedStatus(status) {
     return this.normalizeText(status).includes('signed');
   },
@@ -417,6 +418,7 @@ const Agreements = {
         <button class="btn ghost sm" type="button" data-agreement-view="${id}">View</button>
         ${Permissions.canUpdateAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-edit=\"${id}\">Edit</button>` : ''}
         ${Permissions.canGenerateAgreementHtml() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-preview=\"${id}\">View Agreement</button>` : ''}
+        ${this.isSignedStatus(row.status) && Permissions.canCreateInvoiceFromAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-create-invoice=\"${id}\">Create Invoice</button>` : ''}
         ${Permissions.canDeleteAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-delete=\"${id}\">Delete</button>` : ''}
         </div></td></tr>`;
     }).join('');
@@ -697,6 +699,35 @@ const Agreements = {
       UI.toast('Unable to create from proposal: ' + (error?.message || 'Unknown error'));
     }
   },
+
+  async createInvoiceFromAgreementFlow(agreementId) {
+    if (!Permissions.canCreateInvoiceFromAgreement()) {
+      UI.toast('You do not have permission to create invoices from agreements.');
+      return;
+    }
+    const id = String(agreementId || '').trim();
+    if (!id) {
+      UI.toast('Agreement ID is required.');
+      return;
+    }
+    try {
+      const response = await this.createInvoiceFromAgreement(id);
+      const payload = response?.invoice || response?.data?.invoice || response?.result?.invoice || response;
+      const invoice = payload && typeof payload === 'object' ? payload : {};
+      const existing = Boolean(response?.existing || invoice?.existing);
+      if (existing) UI.toast('Invoice already exists. Opening it.');
+      if (typeof setActiveView === 'function') setActiveView('invoices');
+      if (window.Invoices?.openCreateFromAgreementResult) {
+        window.Invoices.openCreateFromAgreementResult({ ...invoice, existing });
+      }
+    } catch (error) {
+      if (typeof isAuthError === 'function' && isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      UI.toast('Unable to create invoice from agreement: ' + (error?.message || 'Unknown error'));
+    }
+  },
   async loadAndRefresh({ force = false } = {}) {
     if (this.state.loading && !force) return;
     this.state.loading = true;
@@ -744,7 +775,7 @@ const Agreements = {
       this.createFromProposalFlow(E.agreementsCreateFromProposalInput?.value || '');
     });
     if (E.agreementsTbody) E.agreementsTbody.addEventListener('click', event => {
-      const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-delete]');
+      const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-create-invoice], button[data-agreement-delete]');
       if (!trigger) return;
       const viewId = trigger.getAttribute('data-agreement-view');
       if (viewId) return this.openAgreementFormById(viewId, { readOnly: true });
@@ -755,6 +786,8 @@ const Agreements = {
       }
       const previewId = trigger.getAttribute('data-agreement-preview');
       if (previewId) return this.previewAgreementHtml(previewId);
+      const createInvoiceId = trigger.getAttribute('data-agreement-create-invoice');
+      if (createInvoiceId) return this.createInvoiceFromAgreementFlow(createInvoiceId);
       const deleteId = trigger.getAttribute('data-agreement-delete');
       if (deleteId) return this.deleteById(deleteId);
     });

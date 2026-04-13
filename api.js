@@ -118,6 +118,33 @@ const Api = {
       agreement_id: agreementId
     });
   },
+
+  async listInvoices(filters = {}) {
+    return this.postAuthenticated('invoices', 'list', { filters });
+  },
+  async getInvoice(invoiceId) {
+    return this.postAuthenticated('invoices', 'get', { invoice_id: invoiceId });
+  },
+  async createInvoice(invoice, items = []) {
+    return this.postAuthenticated('invoices', 'create', { invoice, items });
+  },
+  async updateInvoice(invoiceId, updates = {}, items) {
+    const payload = {
+      invoice_id: invoiceId,
+      updates
+    };
+    if (items !== undefined) payload.items = items;
+    return this.postAuthenticated('invoices', 'update', payload);
+  },
+  async deleteInvoice(invoiceId) {
+    return this.postAuthenticated('invoices', 'delete', { invoice_id: invoiceId });
+  },
+  async createInvoiceFromAgreement(agreementId) {
+    return this.postAuthenticated('invoices', 'create_from_agreement', { agreement_id: agreementId });
+  },
+  async generateInvoiceHtml(invoiceId) {
+    return this.postAuthenticated('invoices', 'generate_invoice_html', { invoice_id: invoiceId });
+  },
   async listClients() {
     return this.postAuthenticated('clients', 'list', {});
   },
