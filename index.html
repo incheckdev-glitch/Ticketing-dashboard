@@ -1570,12 +1570,26 @@
           </div>
           <form id="workflowRuleForm" class="grid cols-4" style="gap:10px;margin-bottom:10px;">
             <input id="workflowRuleId" class="input" placeholder="Rule ID (for edit)" />
-            <input id="workflowResource" class="input" placeholder="Resource" required />
-            <input id="workflowCurrentStatus" class="input" placeholder="Current status" required />
-            <input id="workflowNextStatus" class="input" placeholder="Next status" required />
-            <input id="workflowAllowedRoles" class="input" placeholder="Allowed roles (csv)" required />
+            <select id="workflowResource" class="select" required>
+              <option value="">Select resource</option>
+              <option value="proposals">proposals</option>
+              <option value="agreements">agreements</option>
+              <option value="invoices">invoices</option>
+              <option value="receipts">receipts</option>
+            </select>
+            <select id="workflowCurrentStatus" class="select" required>
+              <option value="">Select current status</option>
+            </select>
+            <select id="workflowNextStatus" class="select" required>
+              <option value="">Select next status</option>
+            </select>
+            <select id="workflowAllowedRoles" class="select" required>
+              <option value="">Select allowed role</option>
+            </select>
             <select id="workflowRequiresApproval" class="select"><option value="false">No Approval</option><option value="true">Requires Approval</option></select>
-            <input id="workflowApprovalRole" class="input" placeholder="Approval role" />
+            <select id="workflowApprovalRole" class="select">
+              <option value="">Select approval role</option>
+            </select>
             <input id="workflowMaxDiscount" class="input" type="number" step="0.01" placeholder="Max discount %" />
             <input id="workflowHardStopDiscount" class="input" type="number" step="0.01" placeholder="Hard stop discount %" />
             <input id="workflowEditableFields" class="input" placeholder="Editable fields (csv)" />
