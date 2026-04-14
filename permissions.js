@@ -96,7 +96,10 @@ const Permissions = {
         const resource = String(row.resource || '').trim().toLowerCase();
         const action = String(row.action || '').trim().toLowerCase();
         if (!resource || !action) return;
-        matrix.set(`${resource}:${action}`, this.normalizeAllowedRoles(row));
+        const key = `${resource}:${action}`;
+        const existing = matrix.get(key) || [];
+        const merged = [...new Set([...existing, ...this.normalizeAllowedRoles(row)])];
+        matrix.set(key, merged);
       });
       this.state.rows = rows;
       this.state.matrix = matrix;
