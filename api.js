@@ -640,23 +640,10 @@ async function apiPost(payload = {}) {
   if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
     throw new Error(data.error || data.message || 'Backend rejected request.');
   }
-  if (shouldUnwrapDataEnvelope(data)) {
+  if (data && typeof data === 'object' && 'data' in data && data.data !== undefined) {
     return data.data;
   }
   return data;
-}
-
-function shouldUnwrapDataEnvelope(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
-  if (!Object.prototype.hasOwnProperty.call(data, 'data') || data.data === undefined) return false;
-
-  // Keep paginated envelopes intact so callers can read `count`, `page_size`,
-  // and `total_pages`. Some backends cap page size (e.g., 50 rows), so dropping
-  // pagination metadata would prevent the frontend from fetching remaining pages.
-  const paginationKeys = ['count', 'total_count', 'page', 'page_size', 'pageSize', 'total_pages'];
-  if (paginationKeys.some(key => Object.prototype.hasOwnProperty.call(data, key))) return false;
-
-  return true;
 }
 
 function buildNetworkRequestError(url, originalError) {
