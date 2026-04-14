@@ -461,7 +461,8 @@ const Api = {
       return await this.postAuthenticated('workflow', 'save_rule', body);
     } catch (error) {
       const message = String(error?.message || '').toLowerCase();
-      if (!message || !/proposal/.test(message) || !/required/.test(message)) throw error;
+      const looksLikeAliasMismatch = /unknown workflow action|unknown action|not found|unsupported/.test(message);
+      if (!looksLikeAliasMismatch) throw error;
       return this.postAuthenticated('workflow', 'save', body);
     }
   },
@@ -474,7 +475,8 @@ const Api = {
       return await this.postAuthenticated('workflow', 'delete_rule', body);
     } catch (error) {
       const message = String(error?.message || '').toLowerCase();
-      if (!message || !/proposal/.test(message) || !/required/.test(message)) throw error;
+      const looksLikeAliasMismatch = /unknown workflow action|unknown action|not found|unsupported/.test(message);
+      if (!looksLikeAliasMismatch) throw error;
       return this.postAuthenticated('workflow', 'delete', body);
     }
   },

@@ -170,44 +170,11 @@ const Workflow = {
     receipts: ['status', 'customer_name', 'receipt_date', 'payment_method', 'reference_number', 'amount', 'notes']
   },
   normalizeRows(response) {
-    const unwrap = value => {
-      if (Array.isArray(value)) return value;
-      if (typeof value === 'string') {
-        const raw = value.trim();
-        if (!raw) return null;
-        try {
-          return unwrap(JSON.parse(raw));
-        } catch {
-          return null;
-        }
-      }
-      if (!value || typeof value !== 'object') return null;
-
-      const keysToTry = [
-        'items',
-        'rows',
-        'data',
-        'result',
-        'payload',
-        'rules',
-        'workflow_rules',
-        'approvals',
-        'pending_approvals',
-        'audit',
-        'audit_log',
-        'records'
-      ];
-
-      for (const key of keysToTry) {
-        if (!(key in value)) continue;
-        const extracted = unwrap(value[key]);
-        if (Array.isArray(extracted)) return extracted;
-      }
-      return null;
-    };
-
-    const rows = unwrap(response);
-    return Array.isArray(rows) ? rows : [];
+    const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
+    for (const item of candidates) {
+      if (Array.isArray(item)) return item;
+    }
+    return [];
   },
   getRulePayloadFromForm() {
     const get = id => String(E[id]?.value || '').trim();
