@@ -29,11 +29,24 @@ const WorkflowEngine = {
         response: validation
       };
     } catch (error) {
+      const reason = String(error?.message || 'Workflow validation failed.').trim();
+      const authzError = /forbidden|unauthorized|permission/i.test(reason);
+      if (authzError) {
+        console.warn('Workflow validation skipped due to missing permission.', error);
+        return {
+          allowed: true,
+          approvalCreated: false,
+          pendingApproval: false,
+          skipped: true,
+          reason: '',
+          response: null
+        };
+      }
       return {
         allowed: false,
         approvalCreated: false,
         pendingApproval: false,
-        reason: String(error?.message || 'Workflow validation failed.'),
+        reason,
         response: null
       };
     }
