@@ -186,20 +186,7 @@ const U = {
 };
 
 /** Filters persisted */
-function getCurrentMonthDateRange() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10)
-  };
-}
-
 function getDefaultTicketFilters() {
-  const monthRange = getCurrentMonthDateRange();
   return {
     search: '',
     module: 'All',
@@ -208,8 +195,8 @@ function getDefaultTicketFilters() {
     status: 'All',
     devTeamStatus: 'All',
     issueRelated: 'All',
-    start: monthRange.start,
-    end: monthRange.end
+    start: '',
+    end: ''
   };
 }
 
@@ -225,11 +212,6 @@ const Filters = {
           ...this.state,
           ...JSON.parse(raw)
         };
-      if (!this.state.start && !this.state.end) {
-        const monthRange = getCurrentMonthDateRange();
-        this.state.start = monthRange.start;
-        this.state.end = monthRange.end;
-      }
     } catch {}
   },
   save() {
