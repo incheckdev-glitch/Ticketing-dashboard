@@ -21,10 +21,11 @@ const Leads = {
     createdTo: '',
     initialized: false,
     currentPage: 1,
-    pageSize: 25,
+    pageSize: 50,
     totalCount: 0,
     totalPages: 1,
-    hasMore: false
+    hasMore: false,
+    activeFilters: {}
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -108,6 +109,10 @@ const Leads = {
     if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
     if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
     if (this.state.search) filters.search = this.state.search;
+    this.state.activeFilters = { ...filters };
+    if (window.ServerPagingState?.leads) {
+      window.ServerPagingState.leads.activeFilters = { ...filters };
+    }
     return filters;
   },
   extractPagedPayload(response) {
@@ -116,7 +121,7 @@ const Leads = {
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      pageSize: Number(container.page_size) || this.state.pageSize || 50,
       totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
       hasMore:
@@ -127,10 +132,16 @@ const Leads = {
   },
   updatePaginationState(meta = {}) {
     this.state.currentPage = Math.max(1, Number(meta.page) || 1);
-    this.state.pageSize = Math.max(1, Number(meta.pageSize) || this.state.pageSize || 25);
+    this.state.pageSize = Math.max(1, Number(meta.pageSize) || this.state.pageSize || 50);
     this.state.totalCount = Math.max(0, Number(meta.totalCount) || 0);
     this.state.totalPages = Math.max(1, Number(meta.totalPages) || 1);
     this.state.hasMore = Boolean(meta.hasMore);
+    if (window.ServerPagingState?.leads) {
+      window.ServerPagingState.leads.currentPage = this.state.currentPage;
+      window.ServerPagingState.leads.pageSize = this.state.pageSize;
+      window.ServerPagingState.leads.totalCount = this.state.totalCount;
+      window.ServerPagingState.leads.totalPages = this.state.totalPages;
+    }
   },
   ensurePaginationControls() {
     if (!E.leadsState || this._paginationWired) return;
