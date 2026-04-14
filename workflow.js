@@ -66,6 +66,12 @@ const Workflow = {
     loading: false
   },
   resourceOptions: ['proposals', 'agreements', 'invoices', 'receipts'],
+  resourceStatusOptions: {
+    proposals: ['Draft', 'Pending Approval', 'Sent', 'Viewed', 'Under Discussion', 'Accepted', 'Rejected', 'Expired'],
+    agreements: ['Draft', 'Sent', 'Under Review', 'Revision Required', 'Approved', 'Signed', 'Rejected', 'Expired', 'Cancelled'],
+    invoices: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
+    receipts: ['Issued', 'Partially Paid', 'Paid', 'Cancelled']
+  },
   normalizeRows(response) {
     const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
     for (const item of candidates) {
@@ -131,6 +137,10 @@ const Workflow = {
   getStatusesForResource(resourceValue = '') {
     const resource = String(resourceValue || '').trim().toLowerCase();
     const statuses = new Set();
+    (this.resourceStatusOptions[resource] || []).forEach(status => statuses.add(status));
+    if (resource === 'invoices' && Array.isArray(window.Invoices?.statusOptions)) {
+      window.Invoices.statusOptions.forEach(status => statuses.add(String(status || '').trim()));
+    }
     this.state.rules
       .filter(rule => String(rule.resource || '').trim().toLowerCase() === resource)
       .forEach(rule => {
