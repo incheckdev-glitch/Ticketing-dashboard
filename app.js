@@ -2554,12 +2554,11 @@ async function loadIssues(force = false) {
   try {
     UI.spinner(true);
     UI.skeleton(true);
-    const response = await Api.postAuthenticated(
-      'tickets',
-      'list',
-      { filters: buildTicketListFiltersPayload() },
-      { requireAuth: true }
-    );
+    const response = await Api.listTickets(buildTicketListFiltersPayload(), {
+      page: 1,
+      page_size: 50,
+      forceRefresh: force
+    });
     const rawRows = extractEventsPayload(response);
     const rows = rawRows.map(raw => DataStore.normalizeRow(raw));
     DataStore.hydrateFromRows(rows.filter(r => r.id && String(r.id).trim() !== ''));
@@ -4962,7 +4961,12 @@ const CSMActivity = {
     minMinutes: '',
     maxMinutes: '',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    currentPage: 1,
+    pageSize: 25,
+    totalCount: 0,
+    totalPages: 1,
+    hasMore: false
   },
   charts: {
     weekdayWorkload: null,
@@ -5006,6 +5010,16 @@ const CSMActivity = {
     if (payload && Array.isArray(payload.data)) return payload.data;
     return [];
   },
+  collectServerFilters() {
+    const filters = {};
+    if (this.state.search) filters.search = this.state.search;
+    if (this.state.csmName !== 'All') filters.csm_name = this.state.csmName;
+    if (this.state.client !== 'All') filters.client = this.state.client;
+    if (this.state.supportType !== 'All') filters.type_of_support = this.state.supportType;
+    if (this.state.effort !== 'All') filters.effort_requirement = this.state.effort;
+    if (this.state.channel !== 'All') filters.support_channel = this.state.channel;
+    return filters;
+  },
   setBusySaving(v) {
     this.isSaving = !!v;
     const saveBtn = E.csmFormSaveBtn;
@@ -5035,8 +5049,15 @@ const CSMActivity = {
     this.loadError = '';
     this.refresh();
     try {
-      const response = await Api.postAuthenticatedCached('csm', 'list', {}, { requireAuth: true, forceRefresh: force });
+      const response = await Api.listCsmActivities(this.collectServerFilters(), {
+        page: this.state.currentPage,
+        page_size: this.state.pageSize,
+        forceRefresh: force
+      });
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
+      this.state.totalCount = Number(response?.total_count) || rows.length;
+      this.state.totalPages = Number(response?.total_pages) || 1;
+      this.state.hasMore = Boolean(response?.has_more);
       this.rows = rows.filter(row => row.id || row.csmName || row.client || row.timestamp);
       this.loaded = true;
       this.hydrateOptions();
@@ -5502,10 +5523,12 @@ const CSMActivity = {
       if (mode === 'edit') {
         if (!Permissions.canUpdateCsmActivity()) throw new Error('You do not have permission to update CSM activity.');
         await Api.postAuthenticated('csm', 'update', { id, updates: this.viewToBackendActivity(activity) }, { requireAuth: true });
+        Api.invalidateResourceCache('csm', 'list');
         UI.toast('CSM activity updated.');
       } else {
         if (!Permissions.canCreateCsmActivity()) throw new Error('You do not have permission to create CSM activity.');
         await Api.postAuthenticated('csm', 'create', { activity: this.viewToBackendActivity(activity) }, { requireAuth: true });
+        Api.invalidateResourceCache('csm', 'list');
         UI.toast('CSM activity created.');
       }
       this.closeForm();
@@ -5527,6 +5550,7 @@ const CSMActivity = {
     this.setBusySaving(true);
     try {
       await Api.postAuthenticated('csm', 'delete', { id }, { requireAuth: true });
+      Api.invalidateResourceCache('csm', 'list');
       UI.toast('CSM activity deleted.');
       this.closeForm();
       await this.loadAndRefresh({ force: true });
