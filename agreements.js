@@ -57,10 +57,11 @@ const Agreements = {
     formReadOnly: false,
     currentItems: [],
     currentPage: 1,
-    pageSize: 25,
+    pageSize: 50,
     totalCount: 0,
     totalPages: 1,
-    hasMore: false
+    hasMore: false,
+    activeFilters: {}
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -241,6 +242,8 @@ const Agreements = {
     if (this.state.search) filters.search = this.state.search;
     if (this.state.proposalOrDeal) filters.proposal_or_deal = this.state.proposalOrDeal;
     if (this.state.status !== 'All') filters.status = this.state.status;
+    this.state.activeFilters = { ...filters };
+    if (window.ServerPagingState?.agreements) window.ServerPagingState.agreements.activeFilters = { ...filters };
     return filters;
   },
   extractPagedPayload(response) {
@@ -249,7 +252,7 @@ const Agreements = {
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      pageSize: Number(container.page_size) || this.state.pageSize || 50,
       totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
       hasMore:
@@ -898,6 +901,12 @@ const Agreements = {
       this.state.totalCount = paged.totalCount;
       this.state.totalPages = paged.totalPages;
       this.state.hasMore = paged.hasMore;
+      if (window.ServerPagingState?.agreements) {
+        window.ServerPagingState.agreements.currentPage = this.state.currentPage;
+        window.ServerPagingState.agreements.pageSize = this.state.pageSize;
+        window.ServerPagingState.agreements.totalCount = this.state.totalCount;
+        window.ServerPagingState.agreements.totalPages = this.state.totalPages;
+      }
       this.state.rows = paged.rows.map(row => this.normalizeAgreement(row));
       UI.saveViewState('agreements', {
         page: this.state.currentPage,

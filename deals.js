@@ -47,10 +47,11 @@ const Deals = {
     convertedFrom: '',
     convertedTo: '',
     currentPage: 1,
-    pageSize: 25,
+    pageSize: 50,
     totalCount: 0,
     totalPages: 1,
-    hasMore: false
+    hasMore: false,
+    activeFilters: {}
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -161,7 +162,7 @@ const Deals = {
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      pageSize: Number(container.page_size) || this.state.pageSize || 50,
       totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
       hasMore:
@@ -181,6 +182,8 @@ const Deals = {
     if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
     if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
     if (this.state.search) filters.search = this.state.search;
+    this.state.activeFilters = { ...filters };
+    if (window.ServerPagingState?.deals) window.ServerPagingState.deals.activeFilters = { ...filters };
     return filters;
   },
   async listDeals(options = {}) {
@@ -690,6 +693,12 @@ const Deals = {
       this.state.totalCount = paged.totalCount;
       this.state.totalPages = paged.totalPages;
       this.state.hasMore = paged.hasMore;
+      if (window.ServerPagingState?.deals) {
+        window.ServerPagingState.deals.currentPage = this.state.currentPage;
+        window.ServerPagingState.deals.pageSize = this.state.pageSize;
+        window.ServerPagingState.deals.totalCount = this.state.totalCount;
+        window.ServerPagingState.deals.totalPages = this.state.totalPages;
+      }
       this.state.rows = paged.rows.map(item => this.normalizeDeal(item));
       UI.saveViewState('deals', {
         page: this.state.currentPage,

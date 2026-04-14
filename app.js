@@ -36,10 +36,19 @@
 const TicketPagination = {
   hasServerMeta: false,
   page: 1,
-  pageSize: 100,
+  pageSize: 50,
   totalCount: 0,
   totalPages: 1
 };
+const ServerPagingState = {
+  tickets: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} },
+  csm: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} },
+  leads: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} },
+  deals: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} },
+  proposals: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} },
+  agreements: { currentPage: 1, pageSize: 50, totalPages: 1, totalCount: 0, activeFilters: {} }
+};
+window.ServerPagingState = ServerPagingState;
 /** Issues UI */
 UI.Issues = {
   renderFilters() {
@@ -175,7 +184,7 @@ UI.Issues = {
       d.setAttribute('role', 'button');
       d.setAttribute('aria-label', `${label}: ${val} (${pct} percent)`);
       d.innerHTML = `<div class="label">${label}</div><div class="value">${val}</div><div class="sub">${pct}%</div>`;
-      d.onclick = () => {
+      d.onclick = async () => {
         if (label === 'Total Issues') {
           Filters.state = getDefaultTicketFilters();
         } else {
@@ -183,7 +192,7 @@ UI.Issues = {
           Filters.state.search = '';
         }
         Filters.save();
-        UI.refreshAll();
+        await refetchTicketsForServerPaging();
       };
       d.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -335,7 +344,7 @@ UI.Issues = {
         </tr>`;
       const clearBtn = document.getElementById('clearFiltersBtn');
       if (clearBtn)
-        clearBtn.addEventListener('click', () => {
+        clearBtn.addEventListener('click', async () => {
           Filters.state = getDefaultTicketFilters();
           Filters.save();
           if (E.searchInput) E.searchInput.value = '';
@@ -343,7 +352,7 @@ UI.Issues = {
           if (E.startDateFilter) E.startDateFilter.value = Filters.state.start || '';
           if (E.endDateFilter) E.endDateFilter.value = Filters.state.end || '';
           UI.Issues.renderFilters();
-          UI.refreshAll();
+          await refetchTicketsForServerPaging();
         });
     }
 ColumnManager.apply();
@@ -508,7 +517,7 @@ UI.Issues.renderFilterChips = function () {
   }
 
   E.activeFiltersChips.querySelectorAll('[data-filter-key]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const key = btn.getAttribute('data-filter-key');
       if (!key) return;
       if (key === 'search') Filters.state.search = '';
@@ -532,7 +541,7 @@ UI.Issues.renderFilterChips = function () {
       if (E.startDateFilter && key === 'start') E.startDateFilter.value = '';
       if (E.endDateFilter && key === 'end') E.endDateFilter.value = '';
 
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
   });
 };
@@ -2553,6 +2562,9 @@ async function loadIssues(force = false) {
     UI.spinner(true);
     UI.skeleton(true);
     const filtersPayload = buildTicketListFiltersPayload();
+    ServerPagingState.tickets.activeFilters = { ...filtersPayload };
+    ServerPagingState.tickets.currentPage = GridState.page;
+    ServerPagingState.tickets.pageSize = GridState.pageSize;
     const response = await Api.listTickets(filtersPayload, {
       page: GridState.page,
       page_size: GridState.pageSize,
@@ -2583,12 +2595,20 @@ async function loadIssues(force = false) {
       );
       GridState.page = TicketPagination.page;
       GridState.pageSize = TicketPagination.pageSize;
+      ServerPagingState.tickets.currentPage = TicketPagination.page;
+      ServerPagingState.tickets.pageSize = TicketPagination.pageSize;
+      ServerPagingState.tickets.totalCount = TicketPagination.totalCount;
+      ServerPagingState.tickets.totalPages = TicketPagination.totalPages;
     } else {
       TicketPagination.hasServerMeta = false;
       TicketPagination.page = GridState.page;
       TicketPagination.pageSize = GridState.pageSize;
       TicketPagination.totalCount = rows.length;
       TicketPagination.totalPages = Math.max(1, Math.ceil(rows.length / Math.max(1, GridState.pageSize)));
+      ServerPagingState.tickets.currentPage = TicketPagination.page;
+      ServerPagingState.tickets.pageSize = TicketPagination.pageSize;
+      ServerPagingState.tickets.totalCount = TicketPagination.totalCount;
+      ServerPagingState.tickets.totalPages = TicketPagination.totalPages;
     }
     UI.Issues.renderFilters();
     setIfOptionExists(E.moduleFilter, Filters.state.module);
@@ -2889,6 +2909,15 @@ function buildTicketListFiltersPayload() {
       payload.issueRelated = state.issueRelated;
   }
   return payload;
+}
+
+async function refetchTicketsForServerPaging() {
+  GridState.page = 1;
+  TicketPagination.page = 1;
+  ServerPagingState.tickets.currentPage = 1;
+  ServerPagingState.tickets.pageSize = GridState.pageSize;
+  ServerPagingState.tickets.activeFilters = buildTicketListFiltersPayload();
+  await loadIssues(true);
 }
 
 /* ---------- Save/Delete via backend proxy ---------- */
@@ -4050,10 +4079,10 @@ function wireCore() {
   if (E.searchInput)
     E.searchInput.addEventListener(
       'input',
-      debounce(() => {
+      debounce(async () => {
         Filters.state.search = E.searchInput.value || '';
         Filters.save();
-        UI.refreshAll();
+        await refetchTicketsForServerPaging();
       }, 250)
     );
 
@@ -4290,73 +4319,73 @@ function wirePaging() {
 
 function wireFilters() {
   if (E.moduleFilter) {
-    E.moduleFilter.addEventListener('change', () => {
+    E.moduleFilter.addEventListener('change', async () => {
       Filters.state.module = E.moduleFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
     setIfOptionExists(E.moduleFilter, Filters.state.module);
   }
-   if (E.categoryFilter) {
-    E.categoryFilter.addEventListener('change', () => {
+  if (E.categoryFilter) {
+    E.categoryFilter.addEventListener('change', async () => {
       Filters.state.category = E.categoryFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
     setIfOptionExists(E.categoryFilter, Filters.state.category);
   }
   if (E.priorityFilter) {
-    E.priorityFilter.addEventListener('change', () => {
+    E.priorityFilter.addEventListener('change', async () => {
       Filters.state.priority = E.priorityFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
      setIfOptionExists(E.priorityFilter, Filters.state.priority);
   }
   if (E.statusFilter) {
-    E.statusFilter.addEventListener('change', () => {
+    E.statusFilter.addEventListener('change', async () => {
       Filters.state.status = E.statusFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
     setIfOptionExists(E.statusFilter, Filters.state.status);
   }
   if (E.devTeamStatusFilter) {
-    E.devTeamStatusFilter.addEventListener('change', () => {
+    E.devTeamStatusFilter.addEventListener('change', async () => {
       Filters.state.devTeamStatus = E.devTeamStatusFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
     setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
   }
   if (E.issueRelatedFilter) {
-    E.issueRelatedFilter.addEventListener('change', () => {
+    E.issueRelatedFilter.addEventListener('change', async () => {
       Filters.state.issueRelated = E.issueRelatedFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
     setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
   }
   if (E.startDateFilter) {
     E.startDateFilter.value = Filters.state.start || '';
-    E.startDateFilter.addEventListener('change', () => {
+    E.startDateFilter.addEventListener('change', async () => {
       Filters.state.start = E.startDateFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
   }
   if (E.endDateFilter) {
     E.endDateFilter.value = Filters.state.end || '';
-    E.endDateFilter.addEventListener('change', () => {
+    E.endDateFilter.addEventListener('change', async () => {
       Filters.state.end = E.endDateFilter.value;
       Filters.save();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
   }
   if (E.searchInput) E.searchInput.value = Filters.state.search || '';
 
   if (E.resetBtn)
-    E.resetBtn.addEventListener('click', () => {
+    E.resetBtn.addEventListener('click', async () => {
       Filters.state = getDefaultTicketFilters();
       Filters.save();
       if (E.searchInput) E.searchInput.value = '';
@@ -4364,7 +4393,7 @@ function wireFilters() {
       if (E.startDateFilter) E.startDateFilter.value = Filters.state.start || '';
       if (E.endDateFilter) E.endDateFilter.value = Filters.state.end || '';
       UI.Issues.renderFilters();
-      UI.refreshAll();
+      await refetchTicketsForServerPaging();
     });
 }
 
@@ -4986,7 +5015,7 @@ const CSMActivity = {
     startDate: '',
     endDate: '',
     currentPage: 1,
-    pageSize: 25,
+    pageSize: 50,
     totalCount: 0,
     totalPages: 1,
     hasMore: false
@@ -5041,7 +5070,36 @@ const CSMActivity = {
     if (this.state.supportType !== 'All') filters.type_of_support = this.state.supportType;
     if (this.state.effort !== 'All') filters.effort_requirement = this.state.effort;
     if (this.state.channel !== 'All') filters.support_channel = this.state.channel;
+    ServerPagingState.csm.activeFilters = { ...filters };
     return filters;
+  },
+  ensurePaginationControls() {
+    if (!E.csmRowCount || this._paginationWired) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'chip';
+    wrap.style.marginLeft = '8px';
+    wrap.innerHTML = `
+      <button class="btn ghost sm" type="button" data-csm-page-prev>Previous</button>
+      <span class="muted" data-csm-page-label>Page 1 of 1</span>
+      <button class="btn ghost sm" type="button" data-csm-page-next>Next</button>
+    `;
+    E.csmRowCount.insertAdjacentElement('afterend', wrap);
+    wrap.addEventListener('click', event => {
+      if (event.target?.closest?.('[data-csm-page-prev]')) this.goToPage(this.state.currentPage - 1);
+      if (event.target?.closest?.('[data-csm-page-next]')) this.goToPage(this.state.currentPage + 1);
+    });
+    this._paginationWrap = wrap;
+    this._paginationWired = true;
+  },
+  renderPaginationControls() {
+    this.ensurePaginationControls();
+    if (!this._paginationWrap) return;
+    const prevBtn = this._paginationWrap.querySelector('[data-csm-page-prev]');
+    const nextBtn = this._paginationWrap.querySelector('[data-csm-page-next]');
+    const label = this._paginationWrap.querySelector('[data-csm-page-label]');
+    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
+    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.isLoading;
+    if (nextBtn) nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.isLoading;
   },
   setBusySaving(v) {
     this.isSaving = !!v;
@@ -5084,6 +5142,10 @@ const CSMActivity = {
       this.state.totalCount = Number(response?.total_count) || rows.length;
       this.state.totalPages = Number(response?.total_pages) || 1;
       this.state.hasMore = Boolean(response?.has_more);
+      ServerPagingState.csm.currentPage = this.state.currentPage;
+      ServerPagingState.csm.pageSize = this.state.pageSize;
+      ServerPagingState.csm.totalCount = this.state.totalCount;
+      ServerPagingState.csm.totalPages = this.state.totalPages;
       this.rows = rows.filter(row => row.id || row.csmName || row.client || row.timestamp);
       this.loaded = true;
       this.hydrateOptions();
@@ -5103,6 +5165,12 @@ const CSMActivity = {
       this.isLoading = false;
       this.refresh();
     }
+  },
+  async goToPage(page) {
+    const nextPage = Math.max(1, Number(page) || 1);
+    if (nextPage === this.state.currentPage) return;
+    this.state.currentPage = nextPage;
+    await this.loadAndRefresh({ force: true });
   },
   hydrateOptions() {
     const uniq = values =>
@@ -5328,11 +5396,13 @@ const CSMActivity = {
     if (this.isLoading) {
       E.csmTableBody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">Loading CSM activity…</td></tr>';
       if (E.csmRowCount) E.csmRowCount.textContent = 'Loading…';
+      this.renderPaginationControls();
       return;
     }
     if (this.loadError) {
       E.csmTableBody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.loadError)}</td></tr>`;
       if (E.csmRowCount) E.csmRowCount.textContent = 'Error';
+      this.renderPaginationControls();
       return;
     }
     if (!list.length) {
@@ -5341,6 +5411,7 @@ const CSMActivity = {
         : 'No CSM activities found in backend yet.';
       E.csmTableBody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;">${U.escapeHtml(msg)}</td></tr>`;
       if (E.csmRowCount) E.csmRowCount.textContent = '0 rows';
+      this.renderPaginationControls();
       return;
     }
     E.csmTableBody.innerHTML = list
@@ -5358,7 +5429,8 @@ const CSMActivity = {
         </tr>`
       )
       .join('');
-    if (E.csmRowCount) E.csmRowCount.textContent = `${list.length} row${list.length === 1 ? '' : 's'}`;
+    if (E.csmRowCount) E.csmRowCount.textContent = `${list.length} row${list.length === 1 ? '' : 's'} · ${this.state.totalCount} total`;
+    this.renderPaginationControls();
   },
   renderKPIs(list) {
     const totalActivities = list.length;

@@ -51,10 +51,11 @@ const Proposals = {
     currentItems: [],
     catalogLoading: false,
     currentPage: 1,
-    pageSize: 25,
+    pageSize: 50,
     totalCount: 0,
     totalPages: 1,
-    hasMore: false
+    hasMore: false,
+    activeFilters: {}
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -285,6 +286,8 @@ const Proposals = {
     if (this.state.search) filters.search = this.state.search;
     if (this.state.customer) filters.customer = this.state.customer;
     if (this.state.status !== 'All') filters.status = this.state.status;
+    this.state.activeFilters = { ...filters };
+    if (window.ServerPagingState?.proposals) window.ServerPagingState.proposals.activeFilters = { ...filters };
     return filters;
   },
   extractPagedPayload(response) {
@@ -293,7 +296,7 @@ const Proposals = {
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      pageSize: Number(container.page_size) || this.state.pageSize || 50,
       totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
       hasMore:
@@ -485,6 +488,12 @@ const Proposals = {
       this.state.totalCount = paged.totalCount;
       this.state.totalPages = paged.totalPages;
       this.state.hasMore = paged.hasMore;
+      if (window.ServerPagingState?.proposals) {
+        window.ServerPagingState.proposals.currentPage = this.state.currentPage;
+        window.ServerPagingState.proposals.pageSize = this.state.pageSize;
+        window.ServerPagingState.proposals.totalCount = this.state.totalCount;
+        window.ServerPagingState.proposals.totalPages = this.state.totalPages;
+      }
       this.state.rows = paged.rows.map(raw => this.normalizeProposal(raw));
       UI.saveViewState('proposals', {
         page: this.state.currentPage,
