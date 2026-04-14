@@ -10,6 +10,77 @@ const WorkflowEngine = {
     const num = Number(value);
     return Number.isFinite(num) ? num : 0;
   },
+  normalizeRole(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ');
+  },
+  roleMatches(allowedRoles = [], userRole = '') {
+    const normalizedUserRole = this.normalizeRole(userRole);
+    if (!normalizedUserRole) return false;
+    return allowedRoles.some(role => this.normalizeRole(role) === normalizedUserRole);
+  },
+  parseAllowedRoles(rule = {}) {
+    if (Array.isArray(rule.allowed_roles)) return rule.allowed_roles;
+    return String(rule.allowed_roles || rule.allowed_roles_csv || '')
+      .split(',')
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+  },
+  evaluateLocalRule(resource, record, requestedChanges = {}) {
+    const rules = Array.isArray(window.Workflow?.state?.rules) ? window.Workflow.state.rules : [];
+    const normalizedResource = String(resource || '').trim().toLowerCase();
+    const currentStatus = String(requestedChanges?.current_status || record?.status || '').trim().toLowerCase();
+    const requestedStatus = String(requestedChanges?.requested_status || '').trim().toLowerCase();
+    const requestedDiscount = this.toNumber(requestedChanges?.discount_percent);
+    const userRole = Session?.role?.() || '';
+
+    const matchingRule = rules.find(rule => {
+      if (rule?.is_active === false) return false;
+      if (String(rule?.resource || '').trim().toLowerCase() !== normalizedResource) return false;
+      const ruleCurrent = String(rule?.current_status || '').trim().toLowerCase();
+      const ruleNext = String(rule?.next_status || '').trim().toLowerCase();
+      if (ruleCurrent && currentStatus && ruleCurrent !== currentStatus) return false;
+      if (ruleNext && requestedStatus && ruleNext !== requestedStatus) return false;
+      const allowedRoles = this.parseAllowedRoles(rule);
+      if (allowedRoles.length && !this.roleMatches(allowedRoles, userRole)) return false;
+      return true;
+    });
+
+    if (!matchingRule) return null;
+
+    const hardStopLimit = this.toNumber(matchingRule?.hard_stop_discount_percent);
+    if (hardStopLimit > 0 && requestedDiscount > hardStopLimit) {
+      return {
+        allowed: false,
+        reason: `Requested discount ${requestedDiscount}% exceeds hard stop limit ${hardStopLimit}%.`,
+        requestedDiscount,
+        userDiscountLimit: this.toNumber(matchingRule?.max_discount_percent),
+        hardStopDiscountLimit: hardStopLimit
+      };
+    }
+
+    const maxDiscount = this.toNumber(matchingRule?.max_discount_percent);
+    const requiresApprovalFlag = this.toBool(matchingRule?.requires_approval);
+    if ((maxDiscount > 0 && requestedDiscount > maxDiscount) || requiresApprovalFlag) {
+      const approvalRole = String(matchingRule?.approval_role || '').trim();
+      return {
+        allowed: false,
+        approvalCreated: false,
+        pendingApproval: true,
+        reason: approvalRole
+          ? `Approval from ${approvalRole} is required before this transition.`
+          : 'Approval is required before this transition.',
+        requestedDiscount,
+        userDiscountLimit: maxDiscount || null,
+        hardStopDiscountLimit: hardStopLimit || null
+      };
+    }
+
+    return null;
+  },
   async validateWorkflowTransition(resource, record, requestedChanges = {}) {
     return Api.validateWorkflowTransition({ resource, record, requested_changes: requestedChanges });
   },
@@ -18,7 +89,7 @@ const WorkflowEngine = {
       const validation = await this.validateWorkflowTransition(resource, record, requestedChanges);
       const allowed = this.toBool(validation?.allowed ?? validation?.is_allowed ?? true);
       const approvalCreated = this.toBool(validation?.approval_created);
-      return {
+      const baseResult = {
         allowed,
         approvalCreated,
         pendingApproval: this.toBool(validation?.pending_approval),
@@ -28,12 +99,32 @@ const WorkflowEngine = {
         hardStopDiscountLimit: validation?.hard_stop_discount_percent,
         response: validation
       };
+      if (baseResult.allowed && !baseResult.approvalCreated) {
+        const localRuleResult = this.evaluateLocalRule(resource, record, requestedChanges);
+        if (localRuleResult && localRuleResult.allowed === false) {
+          return { ...baseResult, ...localRuleResult };
+        }
+      }
+      return baseResult;
     } catch (error) {
+      const reason = String(error?.message || 'Workflow validation failed.').trim();
+      const authzError = /forbidden|unauthorized|permission/i.test(reason);
+      if (authzError) {
+        console.warn('Workflow validation skipped due to missing permission.', error);
+        return {
+          allowed: true,
+          approvalCreated: false,
+          pendingApproval: false,
+          skipped: true,
+          reason: '',
+          response: null
+        };
+      }
       return {
         allowed: false,
         approvalCreated: false,
         pendingApproval: false,
-        reason: String(error?.message || 'Workflow validation failed.'),
+        reason,
         response: null
       };
     }
