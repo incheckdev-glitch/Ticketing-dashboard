@@ -26,7 +26,9 @@ const Permissions = {
   normalizeRole(value) {
     return String(value || '')
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ');
   },
   extractRows(response) {
     const parseJsonIfNeeded = value => {
