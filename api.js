@@ -64,10 +64,11 @@ const Api = {
     return this.unwrapApiPayload(data);
   },
   async post(resource, action, payload = {}) {
+    const safePayload = payload && typeof payload === 'object' ? payload : {};
     return apiPost({
+      ...safePayload,
       resource,
-      action,
-      ...payload
+      action
     });
   },
   async postAuthenticated(resource, action, payload = {}, options = {}) {
@@ -451,17 +452,31 @@ const Api = {
     });
   },
   async saveWorkflowRule(rule = {}) {
-    return this.postAuthenticated('workflow', 'save_rule', {
+    const body = {
       rule,
       ...rule,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
-    });
+    };
+    try {
+      return await this.postAuthenticated('workflow', 'save_rule', body);
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (!message || !/proposal/.test(message) || !/required/.test(message)) throw error;
+      return this.postAuthenticated('workflow', 'save', body);
+    }
   },
   async deleteWorkflowRule(workflowRuleId) {
-    return this.postAuthenticated('workflow', 'delete_rule', {
+    const body = {
       workflow_rule_id: workflowRuleId,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
-    });
+    };
+    try {
+      return await this.postAuthenticated('workflow', 'delete_rule', body);
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (!message || !/proposal/.test(message) || !/required/.test(message)) throw error;
+      return this.postAuthenticated('workflow', 'delete', body);
+    }
   },
   async validateWorkflowTransition(payload = {}) {
     return this.postAuthenticated('workflow', 'validate_transition', {
