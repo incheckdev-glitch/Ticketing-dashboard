@@ -209,7 +209,9 @@ const Permissions = {
     return this.can('proposals', 'create', { fallback: Session.isAuthenticated() });
   },
   canUpdateProposal() {
-    return this.can('proposals', 'update', { fallback: this.isAdminLike() });
+    return this.can('proposals', 'update', {
+      fallback: this.can('proposals', 'save', { fallback: this.canCreateProposal() })
+    });
   },
   canDeleteProposal() {
     return this.can('proposals', 'delete', { fallback: this.isAdminLike() });
