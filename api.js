@@ -64,10 +64,11 @@ const Api = {
     return this.unwrapApiPayload(data);
   },
   async post(resource, action, payload = {}) {
+    const safePayload = payload && typeof payload === 'object' ? payload : {};
     return apiPost({
+      ...safePayload,
       resource,
-      action,
-      ...payload
+      action
     });
   },
   async postAuthenticated(resource, action, payload = {}, options = {}) {
