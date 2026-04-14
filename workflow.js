@@ -162,20 +162,44 @@ const Workflow = {
     return [...statuses].sort((a, b) => a.localeCompare(b));
   },
   getSystemRoles() {
-    const roleSet = new Set();
+    const roleMap = new Map();
     (window.RolesAdmin?.state?.roles || []).forEach(role => {
       const key = String(role?.role_key || role?.key || role?.role || '').trim().toLowerCase();
-      if (key) roleSet.add(key);
+      if (!key) return;
+      const display = String(role?.display_name || role?.name || '').trim();
+      roleMap.set(key, display || key);
     });
     this.state.rules.forEach(rule => {
       const roles = Array.isArray(rule.allowed_roles)
         ? rule.allowed_roles
         : String(rule.allowed_roles || rule.allowed_roles_csv || '').split(',');
-      roles.map(v => String(v || '').trim().toLowerCase()).filter(Boolean).forEach(role => roleSet.add(role));
+      roles.map(v => String(v || '').trim().toLowerCase()).filter(Boolean).forEach(role => {
+        if (!roleMap.has(role)) roleMap.set(role, role);
+      });
       const approvalRole = String(rule.approval_role || '').trim().toLowerCase();
-      if (approvalRole) roleSet.add(approvalRole);
+      if (approvalRole && !roleMap.has(approvalRole)) roleMap.set(approvalRole, approvalRole);
     });
-    return [...roleSet].sort((a, b) => a.localeCompare(b));
+    return [...roleMap.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => String(a.label || a.value).localeCompare(String(b.label || b.value)));
+  },
+  setRoleSelectOptions(selectEl, roles = [], placeholder = '') {
+    if (!selectEl) return;
+    const currentValue = String(selectEl.value || '').trim().toLowerCase();
+    const options = roles
+      .map(item => ({
+        value: String(item?.value || '').trim().toLowerCase(),
+        label: String(item?.label || item?.value || '').trim()
+      }))
+      .filter(item => item.value)
+      .filter((item, idx, arr) => arr.findIndex(candidate => candidate.value === item.value) === idx);
+    selectEl.innerHTML = [
+      placeholder ? `<option value="">${U.escapeHtml(placeholder)}</option>` : '',
+      ...options.map(({ value, label }) => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(label)}</option>`)
+    ]
+      .filter(Boolean)
+      .join('');
+    if (currentValue && options.some(option => option.value === currentValue)) selectEl.value = currentValue;
   },
   populateRuleSelects() {
     this.setSelectOptions(E.workflowResource, this.resourceOptions, 'Select resource');
@@ -184,8 +208,8 @@ const Workflow = {
     this.setSelectOptions(E.workflowCurrentStatus, statusOptions, 'Select current status');
     this.setSelectOptions(E.workflowNextStatus, statusOptions, 'Select next status');
     const roles = this.getSystemRoles();
-    this.setSelectOptions(E.workflowAllowedRoles, roles, 'Select allowed role');
-    this.setSelectOptions(E.workflowApprovalRole, roles, 'Select approval role');
+    this.setRoleSelectOptions(E.workflowAllowedRoles, roles, 'Select allowed role');
+    this.setRoleSelectOptions(E.workflowApprovalRole, roles, 'Select approval role');
   },
   renderRules() {
     if (!E.workflowRulesTbody) return;
@@ -257,6 +281,7 @@ const Workflow = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     try {
+      if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
       const [rulesRes, approvalsRes, auditRes] = await Promise.all([
         Api.listWorkflowRules(),
         Api.listPendingWorkflowApprovals(),
