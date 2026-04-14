@@ -157,14 +157,17 @@ const Deals = {
   },
   extractPagedPayload(response) {
     const container = response && typeof response === 'object' ? response : {};
-    const rows = this.extractRows(response);
+    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
       pageSize: Number(container.page_size) || this.state.pageSize || 25,
-      totalCount: Number(container.total_count) || rows.length,
+      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
-      hasMore: Boolean(container.has_more)
+      hasMore:
+        Boolean(container.has_more) ||
+        (Number(container.page) || this.state.currentPage || 1) <
+          (Number(container.total_pages) || this.state.totalPages || 1)
     };
   },
   collectServerFilters() {
@@ -184,6 +187,7 @@ const Deals = {
     return Api.listDeals(this.collectServerFilters(), {
       page: options.page || this.state.currentPage,
       page_size: options.pageSize || this.state.pageSize,
+      summary_only: options.summaryOnly !== false,
       forceRefresh: options.forceRefresh === true
     });
   },
@@ -574,13 +578,48 @@ const Deals = {
     this.applyFilters();
     this.render();
   },
+  ensurePaginationControls() {
+    if (!E.dealsState || this._paginationWired) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'table-pagination-controls';
+    wrap.innerHTML = `
+      <button class="btn ghost sm" type="button" data-deals-page-prev>Previous</button>
+      <span class="muted" data-deals-page-label>Page 1 of 1</span>
+      <button class="btn ghost sm" type="button" data-deals-page-next>Next</button>
+    `;
+    E.dealsState.insertAdjacentElement('afterend', wrap);
+    wrap.addEventListener('click', event => {
+      if (event.target?.closest?.('[data-deals-page-prev]')) this.goToPage(this.state.currentPage - 1);
+      if (event.target?.closest?.('[data-deals-page-next]')) this.goToPage(this.state.currentPage + 1);
+    });
+    this._paginationWrap = wrap;
+    this._paginationWired = true;
+  },
+  renderPaginationControls() {
+    this.ensurePaginationControls();
+    if (!this._paginationWrap) return;
+    const prevBtn = this._paginationWrap.querySelector('[data-deals-page-prev]');
+    const nextBtn = this._paginationWrap.querySelector('[data-deals-page-next]');
+    const label = this._paginationWrap.querySelector('[data-deals-page-label]');
+    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
+    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
+    if (nextBtn)
+      nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
+  },
+  async goToPage(page) {
+    const nextPage = Math.max(1, Number(page) || 1);
+    if (nextPage === this.state.currentPage) return;
+    this.state.currentPage = nextPage;
+    await this.loadAndRefresh({ force: true });
+  },
   render() {
     if (!E.dealsState || !E.dealsTbody) return;
 
     if (this.state.loading) {
       E.dealsState.textContent = 'Loading deals…';
       this.renderDealAnalytics(this.computeDealAnalytics([]));
-      E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading deals…</td></tr>';
+      UI.renderTableSkeleton(E.dealsTbody, 21, 8);
+      this.renderPaginationControls();
       return;
     }
 
@@ -596,6 +635,7 @@ const Deals = {
     const rows = this.state.filteredRows;
     this.renderDealAnalytics(this.computeDealAnalytics(rows));
     E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
+    this.renderPaginationControls();
 
     if (!rows.length) {
       E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No deals found.</td></tr>';
@@ -639,6 +679,7 @@ const Deals = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
+    E.dealsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
@@ -650,6 +691,13 @@ const Deals = {
       this.state.totalPages = paged.totalPages;
       this.state.hasMore = paged.hasMore;
       this.state.rows = paged.rows.map(item => this.normalizeDeal(item));
+      UI.saveViewState('deals', {
+        page: this.state.currentPage,
+        pageSize: this.state.pageSize,
+        search: this.state.search,
+        status: this.state.status,
+        stage: this.state.stage
+      });
       this.syncDealFormDropdowns();
       this.renderFilters();
       this.applyFilters();
@@ -674,8 +722,8 @@ const Deals = {
     }
   },
   setFormBusy(v) {
-    if (E.dealFormSaveBtn) E.dealFormSaveBtn.disabled = !!v;
-    if (E.dealFormDeleteBtn) E.dealFormDeleteBtn.disabled = !!v;
+    UI.setButtonBusy(E.dealFormSaveBtn, v, 'Saving changes…');
+    UI.setButtonBusy(E.dealFormDeleteBtn, v, 'Deleting…');
   },
   resetForm() {
     if (!E.dealForm) return;
@@ -792,14 +840,20 @@ const Deals = {
         const resolved = this.normalizeDeal(latest?.deal || latest?.data?.deal || latest || { deal_id: dealId });
         const id = resolved.deal_id || dealId;
         await this.updateDeal(id, deal);
+        const index = this.state.rows.findIndex(row => row.deal_id === id);
+        if (index >= 0) this.state.rows[index] = this.normalizeDeal({ ...this.state.rows[index], ...deal, deal_id: id });
         UI.toast('Deal updated.');
       } else {
-        await this.createDeal(deal);
+        const created = await this.createDeal(deal);
+        const normalized = this.normalizeDeal(created?.deal || created?.data?.deal || deal);
+        this.state.rows.unshift(normalized);
+        this.state.totalCount += 1;
         UI.toast('Deal created.');
       }
       Api.invalidateResourceCache('deals', 'list');
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
+      this.applyFilters();
+      this.render();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -822,9 +876,12 @@ const Deals = {
     try {
       await this.deleteDeal(dealId);
       Api.invalidateResourceCache('deals', 'list');
+      this.state.rows = this.state.rows.filter(row => row.deal_id !== dealId);
+      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
+      this.applyFilters();
+      this.render();
       UI.toast('Deal deleted.');
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -837,6 +894,14 @@ const Deals = {
   },
   wire() {
     if (this.state.initialized) return;
+    const persisted = UI.readViewState('deals');
+    if (persisted) {
+      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
+      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
+      this.state.search = String(persisted.search || this.state.search);
+      this.state.status = String(persisted.status || this.state.status);
+      this.state.stage = String(persisted.stage || this.state.stage);
+    }
 
     const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
       if (!el) return;

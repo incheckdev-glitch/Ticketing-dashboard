@@ -895,6 +895,45 @@ const UI = {
     if (!E.issuesTbody || !E.tbodySkeleton) return;
     E.tbodySkeleton.style.display = show ? '' : 'none';
     E.issuesTbody.style.display = show ? 'none' : '';
+  },
+  renderTableSkeleton(tbody, colspan = 1, rowCount = 6) {
+    if (!tbody) return;
+    const rows = Math.max(1, Number(rowCount) || 6);
+    tbody.innerHTML = Array.from({ length: rows })
+      .map(
+        () => `<tr class="skeleton-row"><td colspan="${Math.max(1, Number(colspan) || 1)}">
+          <div class="skeleton-line" style="height:12px;border-radius:6px;opacity:.75;"></div>
+        </td></tr>`
+      )
+      .join('');
+  },
+  setButtonBusy(button, busy, busyLabel = 'Saving changes…') {
+    if (!button) return;
+    const isBusy = !!busy;
+    if (!button.dataset.defaultLabel) {
+      button.dataset.defaultLabel = button.textContent || '';
+    }
+    button.disabled = isBusy;
+    button.textContent = isBusy ? `⏳ ${busyLabel}` : button.dataset.defaultLabel;
+  },
+  saveViewState(key, value) {
+    if (!key) return;
+    try {
+      sessionStorage.setItem(`td_state_${key}`, JSON.stringify(value || {}));
+    } catch (_) {
+      // Ignore storage limits/sandbox limitations.
+    }
+  },
+  readViewState(key) {
+    if (!key) return null;
+    try {
+      const raw = sessionStorage.getItem(`td_state_${key}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_) {
+      return null;
+    }
   }
 };
 
