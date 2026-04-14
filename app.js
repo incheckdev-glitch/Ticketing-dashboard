@@ -170,17 +170,7 @@ UI.Issues = {
       d.innerHTML = `<div class="label">${label}</div><div class="value">${val}</div><div class="sub">${pct}%</div>`;
       d.onclick = () => {
         if (label === 'Total Issues') {
-          Filters.state = {
-            search: '',
-            module: 'All',
-            category: 'All',
-            priority: 'All',
-            status: 'All',
-            devTeamStatus: 'All',
-            issueRelated: 'All',
-            start: '',
-            end: ''
-          };
+          Filters.state = getDefaultTicketFilters();
         } else {
           Filters.state.status = label;
           Filters.state.search = '';
@@ -329,22 +319,12 @@ UI.Issues = {
       const clearBtn = document.getElementById('clearFiltersBtn');
       if (clearBtn)
         clearBtn.addEventListener('click', () => {
-          Filters.state = {
-            search: '',
-            module: 'All',
-            category: 'All',
-            priority: 'All',
-            status: 'All',
-            devTeamStatus: 'All',
-            issueRelated: 'All',
-            start: '',
-            end: ''
-          };
+          Filters.state = getDefaultTicketFilters();
           Filters.save();
           if (E.searchInput) E.searchInput.value = '';
           if (E.categoryFilter) E.categoryFilter.value = 'All';
-          if (E.startDateFilter) E.startDateFilter.value = '';
-          if (E.endDateFilter) E.endDateFilter.value = '';
+          if (E.startDateFilter) E.startDateFilter.value = Filters.state.start || '';
+          if (E.endDateFilter) E.endDateFilter.value = Filters.state.end || '';
           UI.Issues.renderFilters();
           UI.refreshAll();
         });
@@ -2554,12 +2534,30 @@ async function loadIssues(force = false) {
   try {
     UI.spinner(true);
     UI.skeleton(true);
-    const response = await Api.listTickets(buildTicketListFiltersPayload(), {
+    const filtersPayload = buildTicketListFiltersPayload();
+    const response = await Api.listTickets(filtersPayload, {
       page: 1,
-      page_size: 50,
+      page_size: 200,
       forceRefresh: force
     });
-    const rawRows = extractEventsPayload(response);
+    const totalPages = Math.max(1, Number(response?.total_pages) || 1);
+    let rawRows = extractEventsPayload(response);
+    if (totalPages > 1) {
+      const requests = [];
+      for (let page = 2; page <= totalPages; page++) {
+        requests.push(
+          Api.listTickets(filtersPayload, {
+            page,
+            page_size: 200,
+            forceRefresh: force
+          })
+        );
+      }
+      const additionalPages = await Promise.all(requests);
+      additionalPages.forEach(pageResponse => {
+        rawRows = rawRows.concat(extractEventsPayload(pageResponse));
+      });
+    }
     const rows = rawRows.map(raw => DataStore.normalizeRow(raw));
     DataStore.hydrateFromRows(rows.filter(r => r.id && String(r.id).trim() !== ''));
     IssuesCache.save(rawRows);
@@ -4316,22 +4314,12 @@ function wireFilters() {
 
   if (E.resetBtn)
     E.resetBtn.addEventListener('click', () => {
-      Filters.state = {
-        search: '',
-        module: 'All',
-        category: 'All',
-        priority: 'All',
-        status: 'All',
-        devTeamStatus: 'All',
-        issueRelated: 'All',
-        start: '',
-        end: ''
-      };
+      Filters.state = getDefaultTicketFilters();
       Filters.save();
       if (E.searchInput) E.searchInput.value = '';
       if (E.categoryFilter) E.categoryFilter.value = 'All';
-      if (E.startDateFilter) E.startDateFilter.value = '';
-      if (E.endDateFilter) E.endDateFilter.value = '';
+      if (E.startDateFilter) E.startDateFilter.value = Filters.state.start || '';
+      if (E.endDateFilter) E.endDateFilter.value = Filters.state.end || '';
       UI.Issues.renderFilters();
       UI.refreshAll();
     });
@@ -4746,15 +4734,7 @@ let LAST_AI_QUERY = null;
 
 function applyDSLToFilters(q) {
   if (!q) return;
-  const next = {
-    search: '',
-    module: 'All',
-    category: 'All',
-    priority: 'All',
-    status: 'All',
-    start: '',
-    end: ''
-  };
+  const next = getDefaultTicketFilters();
 
   if (q.words && q.words.length) {
     next.search = q.words.join(' ');
