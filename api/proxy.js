@@ -24,6 +24,27 @@ export default async function handler(req, res) {
           }
         })();
 
+  if (String(payload?.resource || '').trim().toLowerCase() === 'workflow' && String(payload?.action || '').trim().toLowerCase() === 'validate_transition') {
+    const targetResource =
+      payload?.target_resource ??
+      payload?.targetResource ??
+      payload?.workflow_target_resource ??
+      payload?.resource_target ??
+      payload?.validated_resource ??
+      payload?.validatedResource ??
+      payload?.resource_name ??
+      '';
+    if (!String(targetResource || '').trim()) {
+      return res.status(400).json({
+        allowed: false,
+        reason: 'Missing target workflow resource.',
+        code: 'MISSING_TARGET_RESOURCE',
+        http_status: 400
+      });
+    }
+    payload.target_resource = String(targetResource).trim();
+  }
+
   let upstream;
   try {
     upstream = await fetch(targetUrl, {

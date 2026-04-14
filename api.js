@@ -129,6 +129,14 @@ const Api = {
       // Ignore storage quota/sandbox failures.
     }
   },
+  clearCachedValue(cacheKey) {
+    if (!cacheKey) return;
+    try {
+      localStorage.removeItem(cacheKey);
+    } catch {
+      // Ignore storage quota/sandbox failures.
+    }
+  },
   mergeIncrementalRows(cachedRows = [], freshRows = []) {
     if (!Array.isArray(cachedRows)) return Array.isArray(freshRows) ? freshRows : [];
     if (!Array.isArray(freshRows) || !freshRows.length) return cachedRows;
@@ -479,8 +487,19 @@ const Api = {
     }
   },
   async validateWorkflowTransition(payload = {}) {
+    const targetResource =
+      payload?.target_resource ??
+      payload?.targetResource ??
+      payload?.workflow_target_resource ??
+      payload?.resource_target ??
+      payload?.validated_resource ??
+      payload?.validatedResource ??
+      payload?.resource_name ??
+      payload?.resource ??
+      '';
     return this.postAuthenticated('workflow', 'validate_transition', {
       ...payload,
+      target_resource: targetResource,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     });
   },
