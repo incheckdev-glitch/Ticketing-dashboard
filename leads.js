@@ -19,7 +19,12 @@ const Leads = {
     agreementNeeded: 'All',
     createdFrom: '',
     createdTo: '',
-    initialized: false
+    initialized: false,
+    currentPage: 1,
+    pageSize: 25,
+    totalCount: 0,
+    totalPages: 1,
+    hasMore: false
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -105,10 +110,60 @@ const Leads = {
     if (this.state.search) filters.search = this.state.search;
     return filters;
   },
+  extractPagedPayload(response) {
+    const container = response && typeof response === 'object' ? response : {};
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      page: Number(container.page) || this.state.currentPage || 1,
+      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      totalCount: Number(container.total_count) || rows.length,
+      totalPages: Number(container.total_pages) || 1,
+      hasMore: Boolean(container.has_more)
+    };
+  },
+  updatePaginationState(meta = {}) {
+    this.state.currentPage = Math.max(1, Number(meta.page) || 1);
+    this.state.pageSize = Math.max(1, Number(meta.pageSize) || this.state.pageSize || 25);
+    this.state.totalCount = Math.max(0, Number(meta.totalCount) || 0);
+    this.state.totalPages = Math.max(1, Number(meta.totalPages) || 1);
+    this.state.hasMore = Boolean(meta.hasMore);
+  },
+  ensurePaginationControls() {
+    if (!E.leadsState || this._paginationWired) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'table-pagination-controls';
+    wrap.innerHTML = `
+      <button class="btn ghost sm" type="button" data-leads-page-prev>Previous</button>
+      <span class="muted" data-leads-page-label>Page 1 of 1</span>
+      <button class="btn ghost sm" type="button" data-leads-page-next>Next</button>
+    `;
+    E.leadsState.insertAdjacentElement('afterend', wrap);
+    wrap.addEventListener('click', event => {
+      const prev = event.target?.closest?.('[data-leads-page-prev]');
+      const next = event.target?.closest?.('[data-leads-page-next]');
+      if (prev) this.goToPage(this.state.currentPage - 1);
+      if (next) this.goToPage(this.state.currentPage + 1);
+    });
+    this._paginationWired = true;
+    this._paginationWrap = wrap;
+  },
+  renderPaginationControls() {
+    this.ensurePaginationControls();
+    if (!this._paginationWrap) return;
+    const prevBtn = this._paginationWrap.querySelector('[data-leads-page-prev]');
+    const nextBtn = this._paginationWrap.querySelector('[data-leads-page-next]');
+    const label = this._paginationWrap.querySelector('[data-leads-page-label]');
+    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
+    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
+    if (nextBtn) nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
+  },
   async listLeads(options = {}) {
-    return Api.postAuthenticatedCached('leads', 'list', {
-      filters: this.collectServerFilters()
-    }, { forceRefresh: options.forceRefresh === true });
+    return Api.listLeads(this.collectServerFilters(), {
+      page: options.page || this.state.currentPage,
+      page_size: options.pageSize || this.state.pageSize,
+      forceRefresh: options.forceRefresh === true
+    });
   },
   async getLead(id) {
     return Api.postAuthenticated('leads', 'get', { id });
@@ -437,7 +492,8 @@ const Leads = {
 
     const rows = this.state.filteredRows;
     this.renderLeadAnalytics(this.computeLeadAnalytics(rows));
-    E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'}`;
+    E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
+    this.renderPaginationControls();
 
     if (!rows.length) {
       E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No leads found for current filters.</td></tr>';
@@ -496,7 +552,9 @@ const Leads = {
 
     try {
       const response = await this.listLeads({ forceRefresh: force });
-      this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
+      const paged = this.extractPagedPayload(response);
+      this.updatePaginationState(paged);
+      this.state.rows = paged.rows.map(item => this.normalizeLead(item));
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -508,6 +566,7 @@ const Leads = {
       }
       this.state.rows = [];
       this.state.filteredRows = [];
+      this.updatePaginationState({ page: 1, totalCount: 0, totalPages: 1, hasMore: false });
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load leads right now.';
       this.render();
       UI.toast(this.state.loadError);
@@ -515,6 +574,15 @@ const Leads = {
       this.state.loading = false;
       this.render();
     }
+  },
+  async goToPage(page) {
+    const nextPage = Math.max(1, Number(page) || 1);
+    if (nextPage === this.state.currentPage) return;
+    this.state.currentPage = nextPage;
+    await this.loadAndRefresh({ force: true });
+  },
+  resetPagination() {
+    this.state.currentPage = 1;
   },
   setFormBusy(v) {
     if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = !!v;
@@ -637,6 +705,7 @@ const Leads = {
         UI.toast('Lead created.');
       }
       this.closeForm();
+      Api.invalidateResourceCache('leads', 'list');
       await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
@@ -661,6 +730,7 @@ const Leads = {
       await this.deleteLead(leadId);
       UI.toast('Lead deleted.');
       this.closeForm();
+      Api.invalidateResourceCache('leads', 'list');
       await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
@@ -687,7 +757,9 @@ const Leads = {
       const response = await this.convertToDeal(leadId);
       const dealId = this.getConvertedDealId(response);
       UI.toast(dealId ? `Lead converted to deal ${dealId}.` : 'Lead converted to deal.');
-      await Promise.all([
+      Api.invalidateResourceCache('leads', 'list');
+      Api.invalidateResourceCache('deals', 'list');
+      await Promise.allSettled([
         this.loadAndRefresh({ force: true }),
         window.Deals?.loadAndRefresh ? Deals.loadAndRefresh({ force: true }) : Promise.resolve()
       ]);
@@ -701,24 +773,33 @@ const Leads = {
       this.setFormBusy(false);
     }
   },
-  handleFilterChange() {
+  handleFilterChange({ serverRefetch = false } = {}) {
+    if (serverRefetch) {
+      this.resetPagination();
+      this.loadAndRefresh({ force: true });
+      return;
+    }
     this.applyFilters();
     this.render();
   },
   wire() {
     if (this.state.initialized) return;
 
-    const bindState = (el, key) => {
+    const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
       if (!el) return;
+      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
-        this.handleFilterChange();
+        if (timer) window.clearTimeout(timer);
+        const trigger = () => this.handleFilterChange({ serverRefetch });
+        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
+        else trigger();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
 
-    bindState(E.leadsSearchInput, 'search');
+    bindState(E.leadsSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
     bindState(E.leadsStatusFilter, 'status');
     bindState(E.leadsServiceInterestFilter, 'serviceInterest');
     bindState(E.leadsAssignedToFilter, 'assignedTo');
@@ -737,9 +818,8 @@ const Leads = {
         this.state.agreementNeeded = 'All';
         this.state.createdFrom = '';
         this.state.createdTo = '';
-        this.applyFilters();
         this.renderFilters();
-        this.render();
+        this.handleFilterChange({ serverRefetch: true });
       });
     }
 

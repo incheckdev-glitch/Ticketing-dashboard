@@ -137,6 +137,36 @@ const Api = {
       // Ignore storage quota/sandbox failures.
     }
   },
+  invalidateResourceCache(resource, action = null) {
+    const config = this.getCacheConfig();
+    const segments = [config.prefix, resource];
+    if (action) segments.push(action);
+    const prefix = `${segments.join(':')}:`;
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(prefix)) localStorage.removeItem(key);
+      });
+    } catch {
+      // Ignore storage access failures.
+    }
+  },
+  buildPagedListPayload(filters = {}, options = {}) {
+    const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+    const pageSize = Math.max(1, Number.parseInt(options.page_size ?? options.pageSize, 10) || 25);
+    return {
+      filters: filters && typeof filters === 'object' ? filters : {},
+      paged: options.paged !== false,
+      summary_only: options.summary_only !== false,
+      page,
+      page_size: pageSize
+    };
+  },
+  async listPagedResource(resource, filters = {}, options = {}) {
+    const payload = this.buildPagedListPayload(filters, options);
+    return this.postAuthenticatedCached(resource, 'list', payload, {
+      forceRefresh: options.forceRefresh === true
+    });
+  },
   mergeIncrementalRows(cachedRows = [], freshRows = []) {
     if (!Array.isArray(cachedRows)) return Array.isArray(freshRows) ? freshRows : [];
     if (!Array.isArray(freshRows) || !freshRows.length) return cachedRows;
@@ -240,16 +270,33 @@ const Api = {
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
-  async listAgreements() {
-    return this.postAuthenticatedCached('agreements', 'list', {});
+  async listTickets(filters = {}, options = {}) {
+    return this.listPagedResource('tickets', filters, options);
+  },
+  async listCsmActivities(filters = {}, options = {}) {
+    return this.listPagedResource('csm', filters, options);
+  },
+  async listLeads(filters = {}, options = {}) {
+    return this.listPagedResource('leads', filters, options);
+  },
+  async listDeals(filters = {}, options = {}) {
+    return this.listPagedResource('deals', filters, options);
+  },
+  async listProposals(filters = {}, options = {}) {
+    return this.listPagedResource('proposals', filters, options);
+  },
+  async listAgreements(filters = {}, options = {}) {
+    return this.listPagedResource('agreements', filters, options);
   },
   async getAgreement(agreementId) {
     return this.postAuthenticated('agreements', 'get', { agreement_id: agreementId });
   },
   async createAgreement(agreement, items = []) {
+    this.invalidateResourceCache('agreements', 'list');
     return this.postAuthenticated('agreements', 'create', { agreement, items });
   },
   async updateAgreement(agreementId, updates, items = []) {
+    this.invalidateResourceCache('agreements', 'list');
     return this.postAuthenticated('agreements', 'update', {
       agreement_id: agreementId,
       updates,
@@ -257,6 +304,7 @@ const Api = {
     });
   },
   async deleteAgreement(agreementId) {
+    this.invalidateResourceCache('agreements', 'list');
     return this.postAuthenticated('agreements', 'delete', { agreement_id: agreementId });
   },
   async createAgreementFromProposal(proposalId) {

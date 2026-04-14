@@ -45,7 +45,12 @@ const Deals = {
     proposalNeeded: 'All',
     agreementNeeded: 'All',
     convertedFrom: '',
-    convertedTo: ''
+    convertedTo: '',
+    currentPage: 1,
+    pageSize: 25,
+    totalCount: 0,
+    totalPages: 1,
+    hasMore: false
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -150,11 +155,37 @@ const Deals = {
     }
     return [];
   },
+  extractPagedPayload(response) {
+    const container = response && typeof response === 'object' ? response : {};
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      page: Number(container.page) || this.state.currentPage || 1,
+      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      totalCount: Number(container.total_count) || rows.length,
+      totalPages: Number(container.total_pages) || 1,
+      hasMore: Boolean(container.has_more)
+    };
+  },
+  collectServerFilters() {
+    const filters = {};
+    if (this.state.stage !== 'All') filters.stage = this.state.stage;
+    if (this.state.status !== 'All') filters.status = this.state.status;
+    if (this.state.priority !== 'All') filters.priority = this.state.priority;
+    if (this.state.serviceInterest !== 'All') filters.service_interest = this.state.serviceInterest;
+    if (this.state.leadSource !== 'All') filters.lead_source = this.state.leadSource;
+    if (this.state.assignedTo !== 'All') filters.assigned_to = this.state.assignedTo;
+    if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
+    if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
+    if (this.state.search) filters.search = this.state.search;
+    return filters;
+  },
   async listDeals(options = {}) {
-    return Api.postAuthenticatedCached('deals', 'list', {
-      sheetName: CONFIG.DEALS_SHEET_NAME,
-      tabName: CONFIG.DEALS_SHEET_NAME
-    }, { forceRefresh: options.forceRefresh === true });
+    return Api.listDeals(this.collectServerFilters(), {
+      page: options.page || this.state.currentPage,
+      page_size: options.pageSize || this.state.pageSize,
+      forceRefresh: options.forceRefresh === true
+    });
   },
   async getDeal(id) {
     return Api.postAuthenticated('deals', 'get', { id });
@@ -534,7 +565,12 @@ const Deals = {
     if (E.dealsSidebarSearchInput) E.dealsSidebarSearchInput.value = this.state.search;
     if (E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
   },
-  handleFilterChange() {
+  handleFilterChange({ serverRefetch = false } = {}) {
+    if (serverRefetch) {
+      this.state.currentPage = 1;
+      this.loadAndRefresh({ force: true });
+      return;
+    }
     this.applyFilters();
     this.render();
   },
@@ -559,7 +595,7 @@ const Deals = {
 
     const rows = this.state.filteredRows;
     this.renderDealAnalytics(this.computeDealAnalytics(rows));
-    E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'}`;
+    E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
 
     if (!rows.length) {
       E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No deals found.</td></tr>';
@@ -607,7 +643,13 @@ const Deals = {
 
     try {
       const response = await this.listDeals({ forceRefresh: force });
-      this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
+      const paged = this.extractPagedPayload(response);
+      this.state.currentPage = paged.page;
+      this.state.pageSize = paged.pageSize;
+      this.state.totalCount = paged.totalCount;
+      this.state.totalPages = paged.totalPages;
+      this.state.hasMore = paged.hasMore;
+      this.state.rows = paged.rows.map(item => this.normalizeDeal(item));
       this.syncDealFormDropdowns();
       this.renderFilters();
       this.applyFilters();
@@ -619,6 +661,10 @@ const Deals = {
       }
       this.state.rows = [];
       this.state.filteredRows = [];
+      this.state.currentPage = 1;
+      this.state.totalCount = 0;
+      this.state.totalPages = 1;
+      this.state.hasMore = false;
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load deals right now.';
       this.render();
       UI.toast(this.state.loadError);
@@ -751,6 +797,7 @@ const Deals = {
         await this.createDeal(deal);
         UI.toast('Deal created.');
       }
+      Api.invalidateResourceCache('deals', 'list');
       this.closeForm();
       await this.loadAndRefresh({ force: true });
     } catch (error) {
@@ -774,6 +821,7 @@ const Deals = {
     this.setFormBusy(true);
     try {
       await this.deleteDeal(dealId);
+      Api.invalidateResourceCache('deals', 'list');
       UI.toast('Deal deleted.');
       this.closeForm();
       await this.loadAndRefresh({ force: true });
@@ -790,8 +838,9 @@ const Deals = {
   wire() {
     if (this.state.initialized) return;
 
-    const bindState = (el, key) => {
+    const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
       if (!el) return;
+      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
         if (key === 'search') {
@@ -799,14 +848,17 @@ const Deals = {
             E.dealsSidebarSearchInput.value = this.state.search;
           if (E.dealsSearchInput && el !== E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
         }
-        this.handleFilterChange();
+        if (timer) window.clearTimeout(timer);
+        const trigger = () => this.handleFilterChange({ serverRefetch });
+        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
+        else trigger();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
 
-    bindState(E.dealsSearchInput, 'search');
-    bindState(E.dealsSidebarSearchInput, 'search');
+    bindState(E.dealsSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
+    bindState(E.dealsSidebarSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
     bindState(E.dealsStageFilter, 'stage');
     bindState(E.dealsStatusFilter, 'status');
     bindState(E.dealsPriorityFilter, 'priority');
@@ -831,9 +883,8 @@ const Deals = {
         this.state.agreementNeeded = 'All';
         this.state.convertedFrom = '';
         this.state.convertedTo = '';
-        this.applyFilters();
         this.renderFilters();
-        this.render();
+        this.handleFilterChange({ serverRefetch: true });
       });
     }
 

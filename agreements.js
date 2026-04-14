@@ -55,7 +55,12 @@ const Agreements = {
     status: 'All',
     proposalOrDeal: '',
     formReadOnly: false,
-    currentItems: []
+    currentItems: [],
+    currentPage: 1,
+    pageSize: 25,
+    totalCount: 0,
+    totalPages: 1,
+    hasMore: false
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -223,7 +228,32 @@ const Agreements = {
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
   },
-  async listAgreements() { return Api.listAgreements(); },
+  async listAgreements(options = {}) {
+    return Api.listAgreements(this.collectServerFilters(), {
+      page: options.page || this.state.currentPage,
+      page_size: options.pageSize || this.state.pageSize,
+      forceRefresh: options.forceRefresh === true
+    });
+  },
+  collectServerFilters() {
+    const filters = {};
+    if (this.state.search) filters.search = this.state.search;
+    if (this.state.proposalOrDeal) filters.proposal_or_deal = this.state.proposalOrDeal;
+    if (this.state.status !== 'All') filters.status = this.state.status;
+    return filters;
+  },
+  extractPagedPayload(response) {
+    const container = response && typeof response === 'object' ? response : {};
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      page: Number(container.page) || this.state.currentPage || 1,
+      pageSize: Number(container.page_size) || this.state.pageSize || 25,
+      totalCount: Number(container.total_count) || rows.length,
+      totalPages: Number(container.total_pages) || 1,
+      hasMore: Boolean(container.has_more)
+    };
+  },
   async getAgreement(id) { return Api.getAgreement(id); },
   async createAgreement(agreement, items) { return Api.createAgreement(agreement, items); },
   async updateAgreement(id, updates, items) { return Api.updateAgreement(id, updates, items); },
@@ -650,6 +680,7 @@ const Agreements = {
         UI.toast(`Agreement saved, but client sync failed: ${clientSyncError?.message || 'Unknown error'}`);
       }
       this.closeAgreementForm();
+      Api.invalidateResourceCache('agreements', 'list');
       await this.loadAndRefresh({ force: true });
       UI.toast(id ? 'Agreement updated.' : 'Agreement created.');
     } catch (error) {
@@ -669,6 +700,7 @@ const Agreements = {
     if (!id || !window.confirm(`Delete agreement ${id}?`)) return;
     try {
       await this.deleteAgreement(id);
+      Api.invalidateResourceCache('agreements', 'list');
       this.closeAgreementForm();
       await this.loadAndRefresh({ force: true });
       UI.toast('Agreement deleted.');
@@ -800,14 +832,24 @@ const Agreements = {
     this.state.loadError = '';
     this.render();
     try {
-      const response = await this.listAgreements();
-      this.state.rows = this.extractRows(response).map(row => this.normalizeAgreement(row));
+      const response = await this.listAgreements({ forceRefresh: force });
+      const paged = this.extractPagedPayload(response);
+      this.state.currentPage = paged.page;
+      this.state.pageSize = paged.pageSize;
+      this.state.totalCount = paged.totalCount;
+      this.state.totalPages = paged.totalPages;
+      this.state.hasMore = paged.hasMore;
+      this.state.rows = paged.rows.map(row => this.normalizeAgreement(row));
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
         return;
       }
       this.state.rows = [];
+      this.state.currentPage = 1;
+      this.state.totalCount = 0;
+      this.state.totalPages = 1;
+      this.state.hasMore = false;
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load agreements.';
     } finally {
       this.state.loading = false;
@@ -818,19 +860,23 @@ const Agreements = {
   },
   wire() {
     if (this.state.initialized) return;
-    const bindState = (el, key) => {
+    const bindState = (el, key, debounceMs = 0) => {
       if (!el) return;
+      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
-        this.applyFilters();
-        this.render();
+        this.state.currentPage = 1;
+        if (timer) window.clearTimeout(timer);
+        const trigger = () => this.loadAndRefresh({ force: true });
+        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
+        else trigger();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
-    bindState(E.agreementsSearchInput, 'search');
+    bindState(E.agreementsSearchInput, 'search', 300);
     bindState(E.agreementsStatusFilter, 'status');
-    bindState(E.agreementsProposalDealFilter, 'proposalOrDeal');
+    bindState(E.agreementsProposalDealFilter, 'proposalOrDeal', 300);
 
     if (E.agreementsRefreshBtn) E.agreementsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
     if (E.agreementsCreateBtn) E.agreementsCreateBtn.addEventListener('click', () => {

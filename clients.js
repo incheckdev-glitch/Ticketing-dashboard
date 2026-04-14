@@ -463,16 +463,24 @@ const Clients = {
     this.state.loadError = '';
     if (E.clientsState) E.clientsState.textContent = 'Loading client intelligence…';
     try {
-      const [clientsRes, agreementsRes, invoicesRes, receiptsRes] = await Promise.all([
+      const [clientsRes, agreementsRes, invoicesRes, receiptsRes] = await Promise.allSettled([
         Api.listClients(),
-        Api.listAgreements(),
+        Api.listAgreements({}, { page: 1, page_size: 100, summary_only: true }),
         Api.listInvoices(),
         Api.listReceipts()
       ]);
-      this.state.rows = this.extractRows(clientsRes).map(item => this.normalizeClient(item));
-      this.state.agreements = this.extractRows(agreementsRes).map(item => this.normalizeAgreement(item));
-      this.state.invoices = this.extractRows(invoicesRes).map(item => this.normalizeInvoice(item));
-      this.state.receipts = this.extractRows(receiptsRes).map(item => this.normalizeReceipt(item));
+      this.state.rows = clientsRes.status === 'fulfilled'
+        ? this.extractRows(clientsRes.value).map(item => this.normalizeClient(item))
+        : [];
+      this.state.agreements = agreementsRes.status === 'fulfilled'
+        ? this.extractRows(agreementsRes.value).map(item => this.normalizeAgreement(item))
+        : [];
+      this.state.invoices = invoicesRes.status === 'fulfilled'
+        ? this.extractRows(invoicesRes.value).map(item => this.normalizeInvoice(item))
+        : [];
+      this.state.receipts = receiptsRes.status === 'fulfilled'
+        ? this.extractRows(receiptsRes.value).map(item => this.normalizeReceipt(item))
+        : [];
 
       this.state.agreements.forEach(agreement => {
         this.findOrCreateClientFromSignedAgreement_(agreement);
