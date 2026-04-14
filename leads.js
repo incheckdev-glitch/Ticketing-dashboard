@@ -112,14 +112,17 @@ const Leads = {
   },
   extractPagedPayload(response) {
     const container = response && typeof response === 'object' ? response : {};
-    const rows = this.extractRows(response);
+    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
       pageSize: Number(container.page_size) || this.state.pageSize || 25,
-      totalCount: Number(container.total_count) || rows.length,
+      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
-      hasMore: Boolean(container.has_more)
+      hasMore:
+        Boolean(container.has_more) ||
+        (Number(container.page) || this.state.currentPage || 1) <
+          (Number(container.total_pages) || this.state.totalPages || 1)
     };
   },
   updatePaginationState(meta = {}) {
@@ -162,6 +165,7 @@ const Leads = {
     return Api.listLeads(this.collectServerFilters(), {
       page: options.page || this.state.currentPage,
       page_size: options.pageSize || this.state.pageSize,
+      summary_only: options.summaryOnly !== false,
       forceRefresh: options.forceRefresh === true
     });
   },
@@ -480,7 +484,8 @@ const Leads = {
     if (this.state.loading) {
       E.leadsState.textContent = 'Loading leads…';
       this.renderLeadAnalytics(this.computeLeadAnalytics([]));
-      E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading leads…</td></tr>';
+      UI.renderTableSkeleton(E.leadsTbody, 21, 8);
+      this.renderPaginationControls();
       return;
     }
     if (this.state.loadError) {
@@ -548,6 +553,7 @@ const Leads = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
+    E.leadsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
@@ -555,6 +561,12 @@ const Leads = {
       const paged = this.extractPagedPayload(response);
       this.updatePaginationState(paged);
       this.state.rows = paged.rows.map(item => this.normalizeLead(item));
+      UI.saveViewState('leads', {
+        page: this.state.currentPage,
+        pageSize: this.state.pageSize,
+        search: this.state.search,
+        status: this.state.status
+      });
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -585,8 +597,8 @@ const Leads = {
     this.state.currentPage = 1;
   },
   setFormBusy(v) {
-    if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = !!v;
-    if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.disabled = !!v;
+    UI.setButtonBusy(E.leadFormSaveBtn, v, 'Saving changes…');
+    UI.setButtonBusy(E.leadFormDeleteBtn, v, 'Deleting…');
   },
   resetForm() {
     if (!E.leadForm) return;
@@ -699,14 +711,20 @@ const Leads = {
         const resolved = this.normalizeLead(latest?.lead || latest?.data?.lead || latest || { lead_id: leadId });
         const id = resolved.lead_id || leadId;
         await this.updateLead(id, lead);
+        const index = this.state.rows.findIndex(row => row.lead_id === id);
+        if (index >= 0) this.state.rows[index] = this.normalizeLead({ ...this.state.rows[index], ...lead, lead_id: id });
         UI.toast('Lead updated.');
       } else {
-        await this.createLead(lead);
+        const created = await this.createLead(lead);
+        const normalized = this.normalizeLead(created?.lead || created?.data?.lead || lead);
+        this.state.rows.unshift(normalized);
+        this.state.totalCount += 1;
         UI.toast('Lead created.');
       }
       this.closeForm();
       Api.invalidateResourceCache('leads', 'list');
-      await this.loadAndRefresh({ force: true });
+      this.applyFilters();
+      this.render();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -728,10 +746,13 @@ const Leads = {
     this.setFormBusy(true);
     try {
       await this.deleteLead(leadId);
+      this.state.rows = this.state.rows.filter(row => row.lead_id !== leadId);
+      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
+      this.applyFilters();
+      this.render();
       UI.toast('Lead deleted.');
       this.closeForm();
       Api.invalidateResourceCache('leads', 'list');
-      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -784,6 +805,13 @@ const Leads = {
   },
   wire() {
     if (this.state.initialized) return;
+    const persisted = UI.readViewState('leads');
+    if (persisted) {
+      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
+      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
+      this.state.search = String(persisted.search || this.state.search);
+      this.state.status = String(persisted.status || this.state.status);
+    }
 
     const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
       if (!el) return;

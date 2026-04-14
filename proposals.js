@@ -276,6 +276,7 @@ const Proposals = {
     return Api.listProposals(this.collectServerFilters(), {
       page: options.page || this.state.currentPage,
       page_size: options.pageSize || this.state.pageSize,
+      summary_only: options.summaryOnly !== false,
       forceRefresh: options.forceRefresh === true
     });
   },
@@ -288,14 +289,17 @@ const Proposals = {
   },
   extractPagedPayload(response) {
     const container = response && typeof response === 'object' ? response : {};
-    const rows = this.extractRows(response);
+    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
     return {
       rows,
       page: Number(container.page) || this.state.currentPage || 1,
       pageSize: Number(container.page_size) || this.state.pageSize || 25,
-      totalCount: Number(container.total_count) || rows.length,
+      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
       totalPages: Number(container.total_pages) || 1,
-      hasMore: Boolean(container.has_more)
+      hasMore:
+        Boolean(container.has_more) ||
+        (Number(container.page) || this.state.currentPage || 1) <
+          (Number(container.total_pages) || this.state.totalPages || 1)
     };
   },
   async getProposal(proposalId) {
@@ -374,12 +378,47 @@ const Proposals = {
     if (E.proposalsSearchInput) E.proposalsSearchInput.value = this.state.search;
     if (E.proposalsCustomerFilter) E.proposalsCustomerFilter.value = this.state.customer;
   },
+  ensurePaginationControls() {
+    if (!E.proposalsState || this._paginationWired) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'table-pagination-controls';
+    wrap.innerHTML = `
+      <button class="btn ghost sm" type="button" data-proposals-page-prev>Previous</button>
+      <span class="muted" data-proposals-page-label>Page 1 of 1</span>
+      <button class="btn ghost sm" type="button" data-proposals-page-next>Next</button>
+    `;
+    E.proposalsState.insertAdjacentElement('afterend', wrap);
+    wrap.addEventListener('click', event => {
+      if (event.target?.closest?.('[data-proposals-page-prev]')) this.goToPage(this.state.currentPage - 1);
+      if (event.target?.closest?.('[data-proposals-page-next]')) this.goToPage(this.state.currentPage + 1);
+    });
+    this._paginationWrap = wrap;
+    this._paginationWired = true;
+  },
+  renderPaginationControls() {
+    this.ensurePaginationControls();
+    if (!this._paginationWrap) return;
+    const prevBtn = this._paginationWrap.querySelector('[data-proposals-page-prev]');
+    const nextBtn = this._paginationWrap.querySelector('[data-proposals-page-next]');
+    const label = this._paginationWrap.querySelector('[data-proposals-page-label]');
+    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
+    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
+    if (nextBtn)
+      nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
+  },
+  async goToPage(page) {
+    const nextPage = Math.max(1, Number(page) || 1);
+    if (nextPage === this.state.currentPage) return;
+    this.state.currentPage = nextPage;
+    await this.loadAndRefresh({ force: true });
+  },
   render() {
     if (!E.proposalsState || !E.proposalsTbody) return;
 
     if (this.state.loading) {
       E.proposalsState.textContent = 'Loading proposals…';
-      E.proposalsTbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;">Loading proposals…</td></tr>';
+      UI.renderTableSkeleton(E.proposalsTbody, 14, 8);
+      this.renderPaginationControls();
       return;
     }
 
@@ -393,6 +432,7 @@ const Proposals = {
 
     const rows = this.state.filteredRows;
     E.proposalsState.textContent = `${rows.length} proposal${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
+    this.renderPaginationControls();
     if (!rows.length) {
       E.proposalsTbody.innerHTML =
         '<tr><td colspan="14" class="muted" style="text-align:center;">No proposals found.</td></tr>';
@@ -434,6 +474,7 @@ const Proposals = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
+    E.proposalsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
@@ -445,6 +486,12 @@ const Proposals = {
       this.state.totalPages = paged.totalPages;
       this.state.hasMore = paged.hasMore;
       this.state.rows = paged.rows.map(raw => this.normalizeProposal(raw));
+      UI.saveViewState('proposals', {
+        page: this.state.currentPage,
+        pageSize: this.state.pageSize,
+        search: this.state.search,
+        status: this.state.status
+      });
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -896,8 +943,8 @@ const Proposals = {
   },
   setFormBusy(value) {
     const busy = !!value;
-    if (E.proposalFormSaveBtn) E.proposalFormSaveBtn.disabled = busy;
-    if (E.proposalFormDeleteBtn) E.proposalFormDeleteBtn.disabled = busy;
+    UI.setButtonBusy(E.proposalFormSaveBtn, busy, 'Saving changes…');
+    UI.setButtonBusy(E.proposalFormDeleteBtn, busy, 'Deleting…');
     if (E.proposalFormPreviewBtn) E.proposalFormPreviewBtn.disabled = busy;
   },
   async submitForm() {
@@ -943,9 +990,14 @@ const Proposals = {
 
       const parsed = this.extractProposalAndItems(response, proposalId);
       const savedId = parsed.proposal?.proposal_id || proposalId;
+      const normalized = this.normalizeProposal(parsed.proposal || proposal);
+      const existingIndex = this.state.rows.findIndex(row => String(row.proposal_id || '') === String(savedId || ''));
+      if (existingIndex >= 0) this.state.rows[existingIndex] = normalized;
+      else this.state.rows.unshift(normalized);
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
       Api.invalidateResourceCache('proposals', 'list');
-      await this.loadAndRefresh({ force: true });
+      this.applyFilters();
+      this.render();
 
       if (savedId) {
         await this.openProposalFormById(savedId);
@@ -977,7 +1029,10 @@ const Proposals = {
       UI.toast('Proposal deleted.');
       this.closeProposalForm();
       Api.invalidateResourceCache('proposals', 'list');
-      await this.loadAndRefresh({ force: true });
+      this.state.rows = this.state.rows.filter(row => String(row.proposal_id || '') !== String(proposalId));
+      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
+      this.applyFilters();
+      this.render();
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -1126,6 +1181,13 @@ const Proposals = {
   },
   wire() {
     if (this.state.initialized) return;
+    const persisted = UI.readViewState('proposals');
+    if (persisted) {
+      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
+      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
+      this.state.search = String(persisted.search || this.state.search);
+      this.state.status = String(persisted.status || this.state.status);
+    }
 
     const bindState = (el, key, debounceMs = 0) => {
       if (!el) return;

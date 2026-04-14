@@ -161,11 +161,46 @@ const Api = {
       page_size: pageSize
     };
   },
+  normalizePagedResponse(response, fallback = {}) {
+    const container = response && typeof response === 'object' ? response : {};
+    const rows = Array.isArray(container.data)
+      ? container.data
+      : Array.isArray(response)
+      ? response
+      : [];
+    const page = Math.max(1, Number(container.page) || Number(fallback.page) || 1);
+    const pageSize = Math.max(
+      1,
+      Number(container.page_size) || Number(container.pageSize) || Number(fallback.page_size) || 25
+    );
+    const count = Math.max(
+      0,
+      Number(container.count) ||
+        Number(container.total_count) ||
+        Number(fallback.count) ||
+        rows.length
+    );
+    const totalPages = Math.max(
+      1,
+      Number(container.total_pages) ||
+        Number(fallback.total_pages) ||
+        Math.ceil((count || rows.length) / pageSize) ||
+        1
+    );
+    return {
+      data: rows,
+      page,
+      page_size: pageSize,
+      total_pages: totalPages,
+      count
+    };
+  },
   async listPagedResource(resource, filters = {}, options = {}) {
     const payload = this.buildPagedListPayload(filters, options);
-    return this.postAuthenticatedCached(resource, 'list', payload, {
+    const response = await this.postAuthenticatedCached(resource, 'list', payload, {
       forceRefresh: options.forceRefresh === true
     });
+    return this.normalizePagedResponse(response, payload);
   },
   mergeIncrementalRows(cachedRows = [], freshRows = []) {
     if (!Array.isArray(cachedRows)) return Array.isArray(freshRows) ? freshRows : [];
