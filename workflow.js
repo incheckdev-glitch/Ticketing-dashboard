@@ -72,6 +72,12 @@ const Workflow = {
     invoices: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
     receipts: ['Issued', 'Partially Paid', 'Paid', 'Cancelled']
   },
+  resourceFieldOptions: {
+    proposals: ['title', 'status', 'customer_name', 'subtotal', 'discount_percent', 'tax_percent', 'total_amount', 'valid_until', 'notes'],
+    agreements: ['status', 'customer_name', 'start_date', 'end_date', 'payment_terms', 'total_amount', 'notes'],
+    invoices: ['status', 'customer_name', 'issue_date', 'due_date', 'subtotal', 'discount_percent', 'tax_percent', 'total_amount', 'amount_paid', 'notes'],
+    receipts: ['status', 'customer_name', 'receipt_date', 'payment_method', 'reference_number', 'amount', 'notes']
+  },
   normalizeRows(response) {
     const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
     for (const item of candidates) {
@@ -91,14 +97,16 @@ const Workflow = {
       approval_role: get('workflowApprovalRole').toLowerCase(),
       max_discount_percent: Number(get('workflowMaxDiscount') || 0),
       hard_stop_discount_percent: Number(get('workflowHardStopDiscount') || 0),
-      editable_fields: get('workflowEditableFields').split(',').map(v => v.trim()).filter(Boolean),
-      required_fields: get('workflowRequiredFields').split(',').map(v => v.trim()).filter(Boolean),
+      editable_fields: this.getMultiSelectValues(E.workflowEditableFields),
+      required_fields: this.getMultiSelectValues(E.workflowRequiredFields),
       require_comment: String(get('workflowRequireComment')) === 'true',
       require_attachment: String(get('workflowRequireAttachment')) === 'true',
       is_active: String(get('workflowIsActive')) !== 'false'
     };
   },
   fillRuleForm(rule = {}) {
+    const editableFields = Array.isArray(rule.editable_fields) ? rule.editable_fields : String(rule.editable_fields || '').split(',');
+    const requiredFields = Array.isArray(rule.required_fields) ? rule.required_fields : String(rule.required_fields || '').split(',');
     if (E.workflowRuleId) E.workflowRuleId.value = rule.workflow_rule_id || '';
     if (E.workflowResource) E.workflowResource.value = rule.resource || '';
     if (E.workflowCurrentStatus) E.workflowCurrentStatus.value = rule.current_status || '';
@@ -113,12 +121,12 @@ const Workflow = {
     if (E.workflowApprovalRole) E.workflowApprovalRole.value = rule.approval_role || '';
     if (E.workflowMaxDiscount) E.workflowMaxDiscount.value = rule.max_discount_percent ?? '';
     if (E.workflowHardStopDiscount) E.workflowHardStopDiscount.value = rule.hard_stop_discount_percent ?? '';
-    if (E.workflowEditableFields) E.workflowEditableFields.value = Array.isArray(rule.editable_fields) ? rule.editable_fields.join(', ') : String(rule.editable_fields || '');
-    if (E.workflowRequiredFields) E.workflowRequiredFields.value = Array.isArray(rule.required_fields) ? rule.required_fields.join(', ') : String(rule.required_fields || '');
     if (E.workflowRequireComment) E.workflowRequireComment.value = String(WorkflowEngine.toBool(rule.require_comment));
     if (E.workflowRequireAttachment) E.workflowRequireAttachment.value = String(WorkflowEngine.toBool(rule.require_attachment));
     if (E.workflowIsActive) E.workflowIsActive.value = String(rule.is_active !== false);
     this.populateRuleSelects();
+    this.setMultiSelectValues(E.workflowEditableFields, editableFields);
+    this.setMultiSelectValues(E.workflowRequiredFields, requiredFields);
   },
   resetRuleForm() {
     if (E.workflowRuleForm) E.workflowRuleForm.reset();
@@ -201,6 +209,62 @@ const Workflow = {
       .join('');
     if (currentValue && options.some(option => option.value === currentValue)) selectEl.value = currentValue;
   },
+  getMultiSelectValues(selectEl) {
+    if (!selectEl) return [];
+    return Array.from(selectEl.selectedOptions || [])
+      .map(option => String(option.value || '').trim())
+      .filter(Boolean);
+  },
+  setMultiSelectValues(selectEl, values = []) {
+    if (!selectEl) return;
+    const normalized = new Set(
+      (Array.isArray(values) ? values : [values])
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+    );
+    Array.from(selectEl.options || []).forEach(option => {
+      option.selected = normalized.has(String(option.value || '').trim());
+    });
+  },
+  setMultiSelectOptions(selectEl, values = []) {
+    if (!selectEl) return;
+    const selected = new Set(this.getMultiSelectValues(selectEl));
+    const options = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    selectEl.innerHTML = options.map(value => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(value)}</option>`).join('');
+    Array.from(selectEl.options || []).forEach(option => {
+      option.selected = selected.has(String(option.value || '').trim());
+    });
+  },
+  getFieldsForResource(resourceValue = '') {
+    const resource = String(resourceValue || '').trim().toLowerCase();
+    const fields = new Set(this.resourceFieldOptions[resource] || []);
+    this.state.rules
+      .filter(rule => String(rule.resource || '').trim().toLowerCase() === resource)
+      .forEach(rule => {
+        const editable = Array.isArray(rule.editable_fields) ? rule.editable_fields : String(rule.editable_fields || '').split(',');
+        const required = Array.isArray(rule.required_fields) ? rule.required_fields : String(rule.required_fields || '').split(',');
+        [...editable, ...required]
+          .map(field => String(field || '').trim())
+          .filter(Boolean)
+          .forEach(field => fields.add(field));
+      });
+    const moduleStateRows = {
+      proposals: window.Proposals?.state?.rows,
+      agreements: window.Agreements?.state?.rows,
+      invoices: window.Invoices?.state?.rows,
+      receipts: window.Receipts?.state?.rows
+    }[resource];
+    if (Array.isArray(moduleStateRows)) {
+      moduleStateRows.slice(0, 10).forEach(row => {
+        Object.keys(row || {}).forEach(key => {
+          const field = String(key || '').trim();
+          if (!field || field.endsWith('_id') || field === 'id') return;
+          fields.add(field);
+        });
+      });
+    }
+    return [...fields];
+  },
   populateRuleSelects() {
     this.setSelectOptions(E.workflowResource, this.resourceOptions, 'Select resource');
     const selectedResource = String(E.workflowResource?.value || '').trim().toLowerCase();
@@ -210,6 +274,9 @@ const Workflow = {
     const roles = this.getSystemRoles();
     this.setRoleSelectOptions(E.workflowAllowedRoles, roles, 'Select allowed role');
     this.setRoleSelectOptions(E.workflowApprovalRole, roles, 'Select approval role');
+    const fieldOptions = selectedResource ? this.getFieldsForResource(selectedResource) : [];
+    this.setMultiSelectOptions(E.workflowEditableFields, fieldOptions);
+    this.setMultiSelectOptions(E.workflowRequiredFields, fieldOptions);
   },
   renderRules() {
     if (!E.workflowRulesTbody) return;
