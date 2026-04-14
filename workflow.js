@@ -170,11 +170,153 @@ const Workflow = {
     receipts: ['status', 'customer_name', 'receipt_date', 'payment_method', 'reference_number', 'amount', 'notes']
   },
   normalizeRows(response) {
-    const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload];
-    for (const item of candidates) {
-      if (Array.isArray(item)) return item;
+    const parseJsonIfNeeded = value => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return value;
+      try {
+        return JSON.parse(trimmed);
+      } catch (_error) {
+        return value;
+      }
+    };
+    const normalizeKey = key =>
+      String(key || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    const normalizeRowObject = row => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+      const normalized = {};
+      Object.entries(row).forEach(([key, value]) => {
+        const canonical = normalizeKey(key);
+        if (!canonical) return;
+        normalized[canonical] = value;
+      });
+      return normalized;
+    };
+    const rowsFromColumns = (columns, rows) => {
+      if (!Array.isArray(columns) || !Array.isArray(rows)) return [];
+      const normalizedColumns = columns.map(col => normalizeKey(col));
+      return rows
+        .map(row => {
+          if (!Array.isArray(row)) return normalizeRowObject(row);
+          return normalizedColumns.reduce((acc, key, idx) => {
+            if (key) acc[key] = row[idx];
+            return acc;
+          }, {});
+        })
+        .filter(Boolean);
+    };
+    const coerceRows = value => {
+      const parsed = parseJsonIfNeeded(value);
+      if (Array.isArray(parsed)) {
+        if (!parsed.length) return [];
+        if (Array.isArray(parsed[0])) {
+          const [header, ...rows] = parsed;
+          if (Array.isArray(header) && header.length) return rowsFromColumns(header, rows);
+          return [];
+        }
+        return parsed.map(item => normalizeRowObject(item)).filter(Boolean);
+      }
+      if (!parsed || typeof parsed !== 'object') return [];
+
+      if (Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
+        const mapped = rowsFromColumns(parsed.columns, parsed.rows);
+        if (mapped.length) return mapped;
+      }
+      if (Array.isArray(parsed.headers) && Array.isArray(parsed.values)) {
+        const mapped = rowsFromColumns(parsed.headers, parsed.values);
+        if (mapped.length) return mapped;
+      }
+      if (Array.isArray(parsed.values) && Array.isArray(parsed.values[0])) {
+        const [header, ...rows] = parsed.values;
+        if (Array.isArray(header) && header.length) {
+          const mapped = rowsFromColumns(header, rows);
+          if (mapped.length) return mapped;
+        }
+      }
+      const values = Object.values(parsed).filter(Boolean);
+      if (values.length && values.every(item => item && typeof item === 'object' && !Array.isArray(item))) {
+        return values.map(item => normalizeRowObject(item)).filter(Boolean);
+      }
+      return [];
+    };
+    const candidates = [
+      response,
+      response?.items,
+      response?.rows,
+      response?.data,
+      response?.result,
+      response?.payload,
+      response?.data?.items,
+      response?.data?.rows,
+      response?.result?.items,
+      response?.result?.rows,
+      response?.payload?.items,
+      response?.payload?.rows
+    ];
+    for (const candidate of candidates) {
+      const rows = coerceRows(candidate);
+      if (rows.length) return rows;
     }
     return [];
+  },
+  normalizeWorkflowRule(raw = {}) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    const normalizedAllowedRoles = (() => {
+      const value = pick(source.allowed_roles, source.allowed_roles_csv, source.allowedroles);
+      if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+      return String(value || '')
+        .split(',')
+        .map(item => String(item || '').trim())
+        .filter(Boolean);
+    })();
+    return {
+      ...source,
+      workflow_rule_id: String(
+        pick(source.workflow_rule_id, source.rule_id, source.id, source.miorder, source.minorder)
+      ).trim(),
+      resource: String(pick(source.resource)).trim().toLowerCase(),
+      current_status: String(pick(source.current_status)).trim(),
+      next_status: String(pick(source.next_status)).trim(),
+      allowed_roles: normalizedAllowedRoles,
+      allowed_roles_csv: normalizedAllowedRoles.join(','),
+      requires_approval: WorkflowEngine.toBool(
+        pick(source.requires_approval, source.requiresapproval)
+      ),
+      approval_role: String(pick(source.approval_role, source.approvalrole)).trim().toLowerCase(),
+      max_discount_percent: Number(pick(source.max_discount_percent, source.maxdiscountpercent) || 0),
+      hard_stop_discount_percent: Number(
+        pick(source.hard_stop_discount_percent, source.hardstopdiscountpercent) || 0
+      ),
+      editable_fields: Array.isArray(source.editable_fields)
+        ? source.editable_fields
+        : String(pick(source.editable_fields, source.editablefields))
+            .split(',')
+            .map(field => String(field || '').trim())
+            .filter(Boolean),
+      required_fields: Array.isArray(source.required_fields)
+        ? source.required_fields
+        : String(pick(source.required_fields, source.requiredfields))
+            .split(',')
+            .map(field => String(field || '').trim())
+            .filter(Boolean),
+      require_comment: WorkflowEngine.toBool(
+        pick(source.require_comment, source.requirecomment)
+      ),
+      require_attachment: WorkflowEngine.toBool(
+        pick(source.require_attachment, source.requireattachment)
+      ),
+      is_active: WorkflowEngine.toBool(pick(source.is_active, source.isactive, true))
+    };
   },
   getRulePayloadFromForm() {
     const get = id => String(E[id]?.value || '').trim();
@@ -445,7 +587,7 @@ const Workflow = {
         Api.listPendingWorkflowApprovals(),
         Api.listWorkflowAudit()
       ]);
-      this.state.rules = this.normalizeRows(rulesRes);
+      this.state.rules = this.normalizeRows(rulesRes).map(rule => this.normalizeWorkflowRule(rule));
       this.state.approvals = this.normalizeRows(approvalsRes);
       this.state.audit = this.normalizeRows(auditRes);
       this.renderRules();
