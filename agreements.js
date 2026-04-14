@@ -55,13 +55,7 @@ const Agreements = {
     status: 'All',
     proposalOrDeal: '',
     formReadOnly: false,
-    currentItems: [],
-    currentPage: 1,
-    pageSize: 50,
-    totalCount: 0,
-    totalPages: 1,
-    hasMore: false,
-    activeFilters: {}
+    currentItems: []
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -229,38 +223,7 @@ const Agreements = {
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
   },
-  async listAgreements(options = {}) {
-    return Api.listAgreements(this.collectServerFilters(), {
-      page: options.page || this.state.currentPage,
-      page_size: options.pageSize || this.state.pageSize,
-      summary_only: options.summaryOnly !== false,
-      forceRefresh: options.forceRefresh === true
-    });
-  },
-  collectServerFilters() {
-    const filters = {};
-    if (this.state.search) filters.search = this.state.search;
-    if (this.state.proposalOrDeal) filters.proposal_or_deal = this.state.proposalOrDeal;
-    if (this.state.status !== 'All') filters.status = this.state.status;
-    this.state.activeFilters = { ...filters };
-    if (window.ServerPagingState?.agreements) window.ServerPagingState.agreements.activeFilters = { ...filters };
-    return filters;
-  },
-  extractPagedPayload(response) {
-    const container = response && typeof response === 'object' ? response : {};
-    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
-    return {
-      rows,
-      page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 50,
-      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
-      totalPages: Number(container.total_pages) || 1,
-      hasMore:
-        Boolean(container.has_more) ||
-        (Number(container.page) || this.state.currentPage || 1) <
-          (Number(container.total_pages) || this.state.totalPages || 1)
-    };
-  },
+  async listAgreements() { return Api.listAgreements(); },
   async getAgreement(id) { return Api.getAgreement(id); },
   async createAgreement(agreement, items) { return Api.createAgreement(agreement, items); },
   async updateAgreement(id, updates, items) { return Api.updateAgreement(id, updates, items); },
@@ -463,46 +426,11 @@ const Agreements = {
     if (E.agreementsSearchInput) E.agreementsSearchInput.value = this.state.search;
     if (E.agreementsProposalDealFilter) E.agreementsProposalDealFilter.value = this.state.proposalOrDeal;
   },
-  ensurePaginationControls() {
-    if (!E.agreementsState || this._paginationWired) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'table-pagination-controls';
-    wrap.innerHTML = `
-      <button class="btn ghost sm" type="button" data-agreements-page-prev>Previous</button>
-      <span class="muted" data-agreements-page-label>Page 1 of 1</span>
-      <button class="btn ghost sm" type="button" data-agreements-page-next>Next</button>
-    `;
-    E.agreementsState.insertAdjacentElement('afterend', wrap);
-    wrap.addEventListener('click', event => {
-      if (event.target?.closest?.('[data-agreements-page-prev]')) this.goToPage(this.state.currentPage - 1);
-      if (event.target?.closest?.('[data-agreements-page-next]')) this.goToPage(this.state.currentPage + 1);
-    });
-    this._paginationWrap = wrap;
-    this._paginationWired = true;
-  },
-  renderPaginationControls() {
-    this.ensurePaginationControls();
-    if (!this._paginationWrap) return;
-    const prevBtn = this._paginationWrap.querySelector('[data-agreements-page-prev]');
-    const nextBtn = this._paginationWrap.querySelector('[data-agreements-page-next]');
-    const label = this._paginationWrap.querySelector('[data-agreements-page-label]');
-    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
-    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
-    if (nextBtn)
-      nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
-  },
-  async goToPage(page) {
-    const nextPage = Math.max(1, Number(page) || 1);
-    if (nextPage === this.state.currentPage) return;
-    this.state.currentPage = nextPage;
-    await this.loadAndRefresh({ force: true });
-  },
   render() {
     if (!E.agreementsState || !E.agreementsTbody) return;
     if (this.state.loading) {
       E.agreementsState.textContent = 'Loading agreements…';
-      UI.renderTableSkeleton(E.agreementsTbody, 15, 8);
-      this.renderPaginationControls();
+      E.agreementsTbody.innerHTML = '<tr><td colspan="15" class="muted" style="text-align:center;">Loading agreements…</td></tr>';
       return;
     }
     if (this.state.loadError) {
@@ -512,7 +440,6 @@ const Agreements = {
     }
     const rows = this.state.filteredRows;
     E.agreementsState.textContent = `${rows.length} agreement${rows.length === 1 ? '' : 's'}`;
-    this.renderPaginationControls();
     this.renderSummary();
     if (!rows.length) {
       E.agreementsTbody.innerHTML = '<tr><td colspan="15" class="muted" style="text-align:center;">No agreements found.</td></tr>';
@@ -687,10 +614,6 @@ const Agreements = {
       UI.toast('Unable to load agreement: ' + (error?.message || 'Unknown error'));
     }
   },
-  setFormBusy(value) {
-    UI.setButtonBusy(E.agreementFormSaveBtn, value, 'Saving changes…');
-    UI.setButtonBusy(E.agreementFormDeleteBtn, value, 'Deleting…');
-  },
   async submitForm() {
     const id = String(E.agreementForm?.dataset.id || '').trim();
     if (id && !Permissions.canUpdateAgreement()) {
@@ -715,7 +638,6 @@ const Agreements = {
       UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Agreement save blocked.'));
       return;
     }
-    this.setFormBusy(true);
     try {
       const saveResponse = id
         ? await this.updateAgreement(id, agreement, items)
@@ -728,13 +650,7 @@ const Agreements = {
         UI.toast(`Agreement saved, but client sync failed: ${clientSyncError?.message || 'Unknown error'}`);
       }
       this.closeAgreementForm();
-      Api.invalidateResourceCache('agreements', 'list');
-      const normalized = this.normalizeAgreement(persistedAgreement || agreement);
-      const index = this.state.rows.findIndex(row => String(row.agreement_id || '') === String(persistedAgreementId || ''));
-      if (index >= 0) this.state.rows[index] = normalized;
-      else this.state.rows.unshift(normalized);
-      this.applyFilters();
-      this.render();
+      await this.loadAndRefresh({ force: true });
       UI.toast(id ? 'Agreement updated.' : 'Agreement created.');
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
@@ -742,8 +658,6 @@ const Agreements = {
         return;
       }
       UI.toast('Unable to save agreement: ' + (error?.message || 'Unknown error'));
-    } finally {
-      this.setFormBusy(false);
     }
   },
   async deleteById(agreementId) {
@@ -753,15 +667,10 @@ const Agreements = {
     }
     const id = String(agreementId || '').trim();
     if (!id || !window.confirm(`Delete agreement ${id}?`)) return;
-    this.setFormBusy(true);
     try {
       await this.deleteAgreement(id);
-      Api.invalidateResourceCache('agreements', 'list');
-      this.state.rows = this.state.rows.filter(row => String(row.agreement_id || '') !== id);
-      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
-      this.applyFilters();
-      this.render();
       this.closeAgreementForm();
+      await this.loadAndRefresh({ force: true });
       UI.toast('Agreement deleted.');
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
@@ -769,8 +678,6 @@ const Agreements = {
         return;
       }
       UI.toast('Unable to delete agreement: ' + (error?.message || 'Unknown error'));
-    } finally {
-      this.setFormBusy(false);
     }
   },
   async previewAgreementHtml(id) {
@@ -891,39 +798,16 @@ const Agreements = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
-    E.agreementsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
     try {
-      const response = await this.listAgreements({ forceRefresh: force });
-      const paged = this.extractPagedPayload(response);
-      this.state.currentPage = paged.page;
-      this.state.pageSize = paged.pageSize;
-      this.state.totalCount = paged.totalCount;
-      this.state.totalPages = paged.totalPages;
-      this.state.hasMore = paged.hasMore;
-      if (window.ServerPagingState?.agreements) {
-        window.ServerPagingState.agreements.currentPage = this.state.currentPage;
-        window.ServerPagingState.agreements.pageSize = this.state.pageSize;
-        window.ServerPagingState.agreements.totalCount = this.state.totalCount;
-        window.ServerPagingState.agreements.totalPages = this.state.totalPages;
-      }
-      this.state.rows = paged.rows.map(row => this.normalizeAgreement(row));
-      UI.saveViewState('agreements', {
-        page: this.state.currentPage,
-        pageSize: this.state.pageSize,
-        search: this.state.search,
-        status: this.state.status
-      });
+      const response = await this.listAgreements();
+      this.state.rows = this.extractRows(response).map(row => this.normalizeAgreement(row));
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
         return;
       }
       this.state.rows = [];
-      this.state.currentPage = 1;
-      this.state.totalCount = 0;
-      this.state.totalPages = 1;
-      this.state.hasMore = false;
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load agreements.';
     } finally {
       this.state.loading = false;
@@ -934,30 +818,19 @@ const Agreements = {
   },
   wire() {
     if (this.state.initialized) return;
-    const persisted = UI.readViewState('agreements');
-    if (persisted) {
-      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
-      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
-      this.state.search = String(persisted.search || this.state.search);
-      this.state.status = String(persisted.status || this.state.status);
-    }
-    const bindState = (el, key, debounceMs = 0) => {
+    const bindState = (el, key) => {
       if (!el) return;
-      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
-        this.state.currentPage = 1;
-        if (timer) window.clearTimeout(timer);
-        const trigger = () => this.loadAndRefresh({ force: true });
-        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
-        else trigger();
+        this.applyFilters();
+        this.render();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
-    bindState(E.agreementsSearchInput, 'search', 300);
+    bindState(E.agreementsSearchInput, 'search');
     bindState(E.agreementsStatusFilter, 'status');
-    bindState(E.agreementsProposalDealFilter, 'proposalOrDeal', 300);
+    bindState(E.agreementsProposalDealFilter, 'proposalOrDeal');
 
     if (E.agreementsRefreshBtn) E.agreementsRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
     if (E.agreementsCreateBtn) E.agreementsCreateBtn.addEventListener('click', () => {

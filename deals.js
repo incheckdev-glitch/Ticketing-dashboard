@@ -45,13 +45,7 @@ const Deals = {
     proposalNeeded: 'All',
     agreementNeeded: 'All',
     convertedFrom: '',
-    convertedTo: '',
-    currentPage: 1,
-    pageSize: 50,
-    totalCount: 0,
-    totalPages: 1,
-    hasMore: false,
-    activeFilters: {}
+    convertedTo: ''
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -156,43 +150,11 @@ const Deals = {
     }
     return [];
   },
-  extractPagedPayload(response) {
-    const container = response && typeof response === 'object' ? response : {};
-    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
-    return {
-      rows,
-      page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 50,
-      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
-      totalPages: Number(container.total_pages) || 1,
-      hasMore:
-        Boolean(container.has_more) ||
-        (Number(container.page) || this.state.currentPage || 1) <
-          (Number(container.total_pages) || this.state.totalPages || 1)
-    };
-  },
-  collectServerFilters() {
-    const filters = {};
-    if (this.state.stage !== 'All') filters.stage = this.state.stage;
-    if (this.state.status !== 'All') filters.status = this.state.status;
-    if (this.state.priority !== 'All') filters.priority = this.state.priority;
-    if (this.state.serviceInterest !== 'All') filters.service_interest = this.state.serviceInterest;
-    if (this.state.leadSource !== 'All') filters.lead_source = this.state.leadSource;
-    if (this.state.assignedTo !== 'All') filters.assigned_to = this.state.assignedTo;
-    if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
-    if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
-    if (this.state.search) filters.search = this.state.search;
-    this.state.activeFilters = { ...filters };
-    if (window.ServerPagingState?.deals) window.ServerPagingState.deals.activeFilters = { ...filters };
-    return filters;
-  },
   async listDeals(options = {}) {
-    return Api.listDeals(this.collectServerFilters(), {
-      page: options.page || this.state.currentPage,
-      page_size: options.pageSize || this.state.pageSize,
-      summary_only: options.summaryOnly !== false,
-      forceRefresh: options.forceRefresh === true
-    });
+    return Api.postAuthenticatedCached('deals', 'list', {
+      sheetName: CONFIG.DEALS_SHEET_NAME,
+      tabName: CONFIG.DEALS_SHEET_NAME
+    }, { forceRefresh: options.forceRefresh === true });
   },
   async getDeal(id) {
     return Api.postAuthenticated('deals', 'get', { id });
@@ -572,48 +534,9 @@ const Deals = {
     if (E.dealsSidebarSearchInput) E.dealsSidebarSearchInput.value = this.state.search;
     if (E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
   },
-  handleFilterChange({ serverRefetch = false } = {}) {
-    if (serverRefetch) {
-      this.state.currentPage = 1;
-      this.loadAndRefresh({ force: true });
-      return;
-    }
+  handleFilterChange() {
     this.applyFilters();
     this.render();
-  },
-  ensurePaginationControls() {
-    if (!E.dealsState || this._paginationWired) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'table-pagination-controls';
-    wrap.innerHTML = `
-      <button class="btn ghost sm" type="button" data-deals-page-prev>Previous</button>
-      <span class="muted" data-deals-page-label>Page 1 of 1</span>
-      <button class="btn ghost sm" type="button" data-deals-page-next>Next</button>
-    `;
-    E.dealsState.insertAdjacentElement('afterend', wrap);
-    wrap.addEventListener('click', event => {
-      if (event.target?.closest?.('[data-deals-page-prev]')) this.goToPage(this.state.currentPage - 1);
-      if (event.target?.closest?.('[data-deals-page-next]')) this.goToPage(this.state.currentPage + 1);
-    });
-    this._paginationWrap = wrap;
-    this._paginationWired = true;
-  },
-  renderPaginationControls() {
-    this.ensurePaginationControls();
-    if (!this._paginationWrap) return;
-    const prevBtn = this._paginationWrap.querySelector('[data-deals-page-prev]');
-    const nextBtn = this._paginationWrap.querySelector('[data-deals-page-next]');
-    const label = this._paginationWrap.querySelector('[data-deals-page-label]');
-    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
-    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
-    if (nextBtn)
-      nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
-  },
-  async goToPage(page) {
-    const nextPage = Math.max(1, Number(page) || 1);
-    if (nextPage === this.state.currentPage) return;
-    this.state.currentPage = nextPage;
-    await this.loadAndRefresh({ force: true });
   },
   render() {
     if (!E.dealsState || !E.dealsTbody) return;
@@ -621,8 +544,7 @@ const Deals = {
     if (this.state.loading) {
       E.dealsState.textContent = 'Loading deals…';
       this.renderDealAnalytics(this.computeDealAnalytics([]));
-      UI.renderTableSkeleton(E.dealsTbody, 21, 8);
-      this.renderPaginationControls();
+      E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading deals…</td></tr>';
       return;
     }
 
@@ -637,8 +559,7 @@ const Deals = {
 
     const rows = this.state.filteredRows;
     this.renderDealAnalytics(this.computeDealAnalytics(rows));
-    E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
-    this.renderPaginationControls();
+    E.dealsState.textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'}`;
 
     if (!rows.length) {
       E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No deals found.</td></tr>';
@@ -682,31 +603,11 @@ const Deals = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
-    E.dealsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
       const response = await this.listDeals({ forceRefresh: force });
-      const paged = this.extractPagedPayload(response);
-      this.state.currentPage = paged.page;
-      this.state.pageSize = paged.pageSize;
-      this.state.totalCount = paged.totalCount;
-      this.state.totalPages = paged.totalPages;
-      this.state.hasMore = paged.hasMore;
-      if (window.ServerPagingState?.deals) {
-        window.ServerPagingState.deals.currentPage = this.state.currentPage;
-        window.ServerPagingState.deals.pageSize = this.state.pageSize;
-        window.ServerPagingState.deals.totalCount = this.state.totalCount;
-        window.ServerPagingState.deals.totalPages = this.state.totalPages;
-      }
-      this.state.rows = paged.rows.map(item => this.normalizeDeal(item));
-      UI.saveViewState('deals', {
-        page: this.state.currentPage,
-        pageSize: this.state.pageSize,
-        search: this.state.search,
-        status: this.state.status,
-        stage: this.state.stage
-      });
+      this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
       this.syncDealFormDropdowns();
       this.renderFilters();
       this.applyFilters();
@@ -718,10 +619,6 @@ const Deals = {
       }
       this.state.rows = [];
       this.state.filteredRows = [];
-      this.state.currentPage = 1;
-      this.state.totalCount = 0;
-      this.state.totalPages = 1;
-      this.state.hasMore = false;
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load deals right now.';
       this.render();
       UI.toast(this.state.loadError);
@@ -731,8 +628,8 @@ const Deals = {
     }
   },
   setFormBusy(v) {
-    UI.setButtonBusy(E.dealFormSaveBtn, v, 'Saving changes…');
-    UI.setButtonBusy(E.dealFormDeleteBtn, v, 'Deleting…');
+    if (E.dealFormSaveBtn) E.dealFormSaveBtn.disabled = !!v;
+    if (E.dealFormDeleteBtn) E.dealFormDeleteBtn.disabled = !!v;
   },
   resetForm() {
     if (!E.dealForm) return;
@@ -849,20 +746,13 @@ const Deals = {
         const resolved = this.normalizeDeal(latest?.deal || latest?.data?.deal || latest || { deal_id: dealId });
         const id = resolved.deal_id || dealId;
         await this.updateDeal(id, deal);
-        const index = this.state.rows.findIndex(row => row.deal_id === id);
-        if (index >= 0) this.state.rows[index] = this.normalizeDeal({ ...this.state.rows[index], ...deal, deal_id: id });
         UI.toast('Deal updated.');
       } else {
-        const created = await this.createDeal(deal);
-        const normalized = this.normalizeDeal(created?.deal || created?.data?.deal || deal);
-        this.state.rows.unshift(normalized);
-        this.state.totalCount += 1;
+        await this.createDeal(deal);
         UI.toast('Deal created.');
       }
-      Api.invalidateResourceCache('deals', 'list');
       this.closeForm();
-      this.applyFilters();
-      this.render();
+      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -884,13 +774,9 @@ const Deals = {
     this.setFormBusy(true);
     try {
       await this.deleteDeal(dealId);
-      Api.invalidateResourceCache('deals', 'list');
-      this.state.rows = this.state.rows.filter(row => row.deal_id !== dealId);
-      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
-      this.applyFilters();
-      this.render();
       UI.toast('Deal deleted.');
       this.closeForm();
+      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -903,18 +789,9 @@ const Deals = {
   },
   wire() {
     if (this.state.initialized) return;
-    const persisted = UI.readViewState('deals');
-    if (persisted) {
-      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
-      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
-      this.state.search = String(persisted.search || this.state.search);
-      this.state.status = String(persisted.status || this.state.status);
-      this.state.stage = String(persisted.stage || this.state.stage);
-    }
 
-    const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
+    const bindState = (el, key) => {
       if (!el) return;
-      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
         if (key === 'search') {
@@ -922,17 +799,14 @@ const Deals = {
             E.dealsSidebarSearchInput.value = this.state.search;
           if (E.dealsSearchInput && el !== E.dealsSearchInput) E.dealsSearchInput.value = this.state.search;
         }
-        if (timer) window.clearTimeout(timer);
-        const trigger = () => this.handleFilterChange({ serverRefetch });
-        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
-        else trigger();
+        this.handleFilterChange();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
 
-    bindState(E.dealsSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
-    bindState(E.dealsSidebarSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
+    bindState(E.dealsSearchInput, 'search');
+    bindState(E.dealsSidebarSearchInput, 'search');
     bindState(E.dealsStageFilter, 'stage');
     bindState(E.dealsStatusFilter, 'status');
     bindState(E.dealsPriorityFilter, 'priority');
@@ -957,8 +831,9 @@ const Deals = {
         this.state.agreementNeeded = 'All';
         this.state.convertedFrom = '';
         this.state.convertedTo = '';
+        this.applyFilters();
         this.renderFilters();
-        this.handleFilterChange({ serverRefetch: true });
+        this.render();
       });
     }
 

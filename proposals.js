@@ -49,13 +49,7 @@ const Proposals = {
     formReadOnly: false,
     currentProposalId: '',
     currentItems: [],
-    catalogLoading: false,
-    currentPage: 1,
-    pageSize: 50,
-    totalCount: 0,
-    totalPages: 1,
-    hasMore: false,
-    activeFilters: {}
+    catalogLoading: false
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -274,36 +268,7 @@ const Proposals = {
     };
   },
   async listProposals(options = {}) {
-    return Api.listProposals(this.collectServerFilters(), {
-      page: options.page || this.state.currentPage,
-      page_size: options.pageSize || this.state.pageSize,
-      summary_only: options.summaryOnly !== false,
-      forceRefresh: options.forceRefresh === true
-    });
-  },
-  collectServerFilters() {
-    const filters = {};
-    if (this.state.search) filters.search = this.state.search;
-    if (this.state.customer) filters.customer = this.state.customer;
-    if (this.state.status !== 'All') filters.status = this.state.status;
-    this.state.activeFilters = { ...filters };
-    if (window.ServerPagingState?.proposals) window.ServerPagingState.proposals.activeFilters = { ...filters };
-    return filters;
-  },
-  extractPagedPayload(response) {
-    const container = response && typeof response === 'object' ? response : {};
-    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
-    return {
-      rows,
-      page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 50,
-      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
-      totalPages: Number(container.total_pages) || 1,
-      hasMore:
-        Boolean(container.has_more) ||
-        (Number(container.page) || this.state.currentPage || 1) <
-          (Number(container.total_pages) || this.state.totalPages || 1)
-    };
+    return Api.postAuthenticatedCached('proposals', 'list', {}, { forceRefresh: options.forceRefresh === true });
   },
   async getProposal(proposalId) {
     return Api.postAuthenticated('proposals', 'get', { proposal_id: proposalId });
@@ -381,47 +346,12 @@ const Proposals = {
     if (E.proposalsSearchInput) E.proposalsSearchInput.value = this.state.search;
     if (E.proposalsCustomerFilter) E.proposalsCustomerFilter.value = this.state.customer;
   },
-  ensurePaginationControls() {
-    if (!E.proposalsState || this._paginationWired) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'table-pagination-controls';
-    wrap.innerHTML = `
-      <button class="btn ghost sm" type="button" data-proposals-page-prev>Previous</button>
-      <span class="muted" data-proposals-page-label>Page 1 of 1</span>
-      <button class="btn ghost sm" type="button" data-proposals-page-next>Next</button>
-    `;
-    E.proposalsState.insertAdjacentElement('afterend', wrap);
-    wrap.addEventListener('click', event => {
-      if (event.target?.closest?.('[data-proposals-page-prev]')) this.goToPage(this.state.currentPage - 1);
-      if (event.target?.closest?.('[data-proposals-page-next]')) this.goToPage(this.state.currentPage + 1);
-    });
-    this._paginationWrap = wrap;
-    this._paginationWired = true;
-  },
-  renderPaginationControls() {
-    this.ensurePaginationControls();
-    if (!this._paginationWrap) return;
-    const prevBtn = this._paginationWrap.querySelector('[data-proposals-page-prev]');
-    const nextBtn = this._paginationWrap.querySelector('[data-proposals-page-next]');
-    const label = this._paginationWrap.querySelector('[data-proposals-page-label]');
-    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
-    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
-    if (nextBtn)
-      nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
-  },
-  async goToPage(page) {
-    const nextPage = Math.max(1, Number(page) || 1);
-    if (nextPage === this.state.currentPage) return;
-    this.state.currentPage = nextPage;
-    await this.loadAndRefresh({ force: true });
-  },
   render() {
     if (!E.proposalsState || !E.proposalsTbody) return;
 
     if (this.state.loading) {
       E.proposalsState.textContent = 'Loading proposals…';
-      UI.renderTableSkeleton(E.proposalsTbody, 14, 8);
-      this.renderPaginationControls();
+      E.proposalsTbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;">Loading proposals…</td></tr>';
       return;
     }
 
@@ -434,8 +364,7 @@ const Proposals = {
     }
 
     const rows = this.state.filteredRows;
-    E.proposalsState.textContent = `${rows.length} proposal${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
-    this.renderPaginationControls();
+    E.proposalsState.textContent = `${rows.length} proposal${rows.length === 1 ? '' : 's'}`;
     if (!rows.length) {
       E.proposalsTbody.innerHTML =
         '<tr><td colspan="14" class="muted" style="text-align:center;">No proposals found.</td></tr>';
@@ -477,30 +406,11 @@ const Proposals = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
-    E.proposalsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
       const response = await this.listProposals({ forceRefresh: force });
-      const paged = this.extractPagedPayload(response);
-      this.state.currentPage = paged.page;
-      this.state.pageSize = paged.pageSize;
-      this.state.totalCount = paged.totalCount;
-      this.state.totalPages = paged.totalPages;
-      this.state.hasMore = paged.hasMore;
-      if (window.ServerPagingState?.proposals) {
-        window.ServerPagingState.proposals.currentPage = this.state.currentPage;
-        window.ServerPagingState.proposals.pageSize = this.state.pageSize;
-        window.ServerPagingState.proposals.totalCount = this.state.totalCount;
-        window.ServerPagingState.proposals.totalPages = this.state.totalPages;
-      }
-      this.state.rows = paged.rows.map(raw => this.normalizeProposal(raw));
-      UI.saveViewState('proposals', {
-        page: this.state.currentPage,
-        pageSize: this.state.pageSize,
-        search: this.state.search,
-        status: this.state.status
-      });
+      this.state.rows = this.extractRows(response).map(raw => this.normalizeProposal(raw));
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -511,10 +421,6 @@ const Proposals = {
       }
       this.state.rows = [];
       this.state.filteredRows = [];
-      this.state.currentPage = 1;
-      this.state.totalCount = 0;
-      this.state.totalPages = 1;
-      this.state.hasMore = false;
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load proposals.';
       this.render();
       UI.toast(this.state.loadError);
@@ -952,8 +858,8 @@ const Proposals = {
   },
   setFormBusy(value) {
     const busy = !!value;
-    UI.setButtonBusy(E.proposalFormSaveBtn, busy, 'Saving changes…');
-    UI.setButtonBusy(E.proposalFormDeleteBtn, busy, 'Deleting…');
+    if (E.proposalFormSaveBtn) E.proposalFormSaveBtn.disabled = busy;
+    if (E.proposalFormDeleteBtn) E.proposalFormDeleteBtn.disabled = busy;
     if (E.proposalFormPreviewBtn) E.proposalFormPreviewBtn.disabled = busy;
   },
   async submitForm() {
@@ -999,14 +905,8 @@ const Proposals = {
 
       const parsed = this.extractProposalAndItems(response, proposalId);
       const savedId = parsed.proposal?.proposal_id || proposalId;
-      const normalized = this.normalizeProposal(parsed.proposal || proposal);
-      const existingIndex = this.state.rows.findIndex(row => String(row.proposal_id || '') === String(savedId || ''));
-      if (existingIndex >= 0) this.state.rows[existingIndex] = normalized;
-      else this.state.rows.unshift(normalized);
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
-      Api.invalidateResourceCache('proposals', 'list');
-      this.applyFilters();
-      this.render();
+      await this.loadAndRefresh({ force: true });
 
       if (savedId) {
         await this.openProposalFormById(savedId);
@@ -1037,11 +937,7 @@ const Proposals = {
       await this.deleteProposal(proposalId);
       UI.toast('Proposal deleted.');
       this.closeProposalForm();
-      Api.invalidateResourceCache('proposals', 'list');
-      this.state.rows = this.state.rows.filter(row => String(row.proposal_id || '') !== String(proposalId));
-      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
-      this.applyFilters();
-      this.render();
+      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -1190,31 +1086,20 @@ const Proposals = {
   },
   wire() {
     if (this.state.initialized) return;
-    const persisted = UI.readViewState('proposals');
-    if (persisted) {
-      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
-      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
-      this.state.search = String(persisted.search || this.state.search);
-      this.state.status = String(persisted.status || this.state.status);
-    }
 
-    const bindState = (el, key, debounceMs = 0) => {
+    const bindState = (el, key) => {
       if (!el) return;
-      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
-        this.state.currentPage = 1;
-        if (timer) window.clearTimeout(timer);
-        const trigger = () => this.loadAndRefresh({ force: true });
-        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
-        else trigger();
+        this.applyFilters();
+        this.render();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
 
-    bindState(E.proposalsSearchInput, 'search', 300);
-    bindState(E.proposalsCustomerFilter, 'customer', 300);
+    bindState(E.proposalsSearchInput, 'search');
+    bindState(E.proposalsCustomerFilter, 'customer');
     bindState(E.proposalsStatusFilter, 'status');
 
     if (E.proposalsRefreshBtn) {

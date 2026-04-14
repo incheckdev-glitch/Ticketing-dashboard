@@ -29,54 +29,25 @@ const WorkflowEngine = {
       .map(value => String(value || '').trim())
       .filter(Boolean);
   },
-  normalizeStatusValue(value) {
-    return String(value || '').trim().toLowerCase();
-  },
-  isWildcardStatus(value) {
-    const normalized = this.normalizeStatusValue(value);
-    return !normalized || normalized === '*';
-  },
-  statusMatches(ruleStatus, actualStatus, allowEmptyActual = false) {
-    if (this.isWildcardStatus(ruleStatus)) return true;
-    const normalizedRule = this.normalizeStatusValue(ruleStatus);
-    const normalizedActual = this.normalizeStatusValue(actualStatus);
-    if (!normalizedActual) return allowEmptyActual;
-    return normalizedRule === normalizedActual;
-  },
-  getRankedMatchingRule(resource, record, requestedChanges = {}) {
+  evaluateLocalRule(resource, record, requestedChanges = {}) {
     const rules = Array.isArray(window.Workflow?.state?.rules) ? window.Workflow.state.rules : [];
     const normalizedResource = String(resource || '').trim().toLowerCase();
-    const currentStatus = String(requestedChanges?.current_status || record?.status || '').trim();
-    const requestedStatus = String(requestedChanges?.requested_status ?? requestedChanges?.next_status ?? '').trim();
-    const userRole = Session?.role?.() || '';
-    const ranked = [[], [], [], []];
-
-    rules.forEach(rule => {
-      if (rule?.is_active === false) return;
-      if (String(rule?.resource || '').trim().toLowerCase() !== normalizedResource) return;
-      const allowedRoles = this.parseAllowedRoles(rule);
-      if (allowedRoles.length && !this.roleMatches(allowedRoles, userRole)) return;
-      const ruleCurrent = String(rule?.current_status || '').trim();
-      const ruleNext = String(rule?.next_status || '').trim();
-      if (!this.statusMatches(ruleCurrent, currentStatus, true)) return;
-      if (!this.statusMatches(ruleNext, requestedStatus, true)) return;
-
-      const currentWildcard = this.isWildcardStatus(ruleCurrent);
-      const nextWildcard = this.isWildcardStatus(ruleNext);
-      if (!currentWildcard && !nextWildcard) ranked[0].push(rule);
-      else if (!currentWildcard && nextWildcard) ranked[1].push(rule);
-      else if (currentWildcard && !nextWildcard) ranked[2].push(rule);
-      else ranked[3].push(rule);
-    });
-
-    for (const tier of ranked) {
-      if (tier.length) return tier[0];
-    }
-    return null;
-  },
-  evaluateLocalRule(resource, record, requestedChanges = {}) {
+    const currentStatus = String(requestedChanges?.current_status || record?.status || '').trim().toLowerCase();
+    const requestedStatus = String(requestedChanges?.requested_status || '').trim().toLowerCase();
     const requestedDiscount = this.toNumber(requestedChanges?.discount_percent);
-    const matchingRule = this.getRankedMatchingRule(resource, record, requestedChanges);
+    const userRole = Session?.role?.() || '';
+
+    const matchingRule = rules.find(rule => {
+      if (rule?.is_active === false) return false;
+      if (String(rule?.resource || '').trim().toLowerCase() !== normalizedResource) return false;
+      const ruleCurrent = String(rule?.current_status || '').trim().toLowerCase();
+      const ruleNext = String(rule?.next_status || '').trim().toLowerCase();
+      if (ruleCurrent && currentStatus && ruleCurrent !== currentStatus) return false;
+      if (ruleNext && requestedStatus && ruleNext !== requestedStatus) return false;
+      const allowedRoles = this.parseAllowedRoles(rule);
+      if (allowedRoles.length && !this.roleMatches(allowedRoles, userRole)) return false;
+      return true;
+    });
 
     if (!matchingRule) return null;
 
@@ -111,11 +82,7 @@ const WorkflowEngine = {
     return null;
   },
   async validateWorkflowTransition(resource, record, requestedChanges = {}) {
-    return Api.validateWorkflowTransition({
-      target_resource: resource,
-      record,
-      requested_changes: requestedChanges
-    });
+    return Api.validateWorkflowTransition({ resource, record, requested_changes: requestedChanges });
   },
   async enforceBeforeSave(resource, record, requestedChanges = {}) {
     try {
@@ -257,11 +224,11 @@ const Workflow = {
     if (E.workflowRuleId) E.workflowRuleId.value = '';
     this.populateRuleSelects();
   },
-  setSelectOptions(selectEl, values = [], placeholder = '', labelOverrides = {}) {
+  setSelectOptions(selectEl, values = [], placeholder = '') {
     if (!selectEl) return;
     const currentValue = String(selectEl.value || '').trim();
     const uniq = [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
-    selectEl.innerHTML = [placeholder ? `<option value="">${U.escapeHtml(placeholder)}</option>` : '', ...uniq.map(value => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(labelOverrides?.[value] || value)}</option>`)]
+    selectEl.innerHTML = [placeholder ? `<option value="">${U.escapeHtml(placeholder)}</option>` : '', ...uniq.map(value => `<option value="${U.escapeAttr(value)}">${U.escapeHtml(value)}</option>`)]
       .filter(Boolean)
       .join('');
     if (currentValue && uniq.includes(currentValue)) selectEl.value = currentValue;
@@ -393,8 +360,8 @@ const Workflow = {
     this.setSelectOptions(E.workflowResource, this.resourceOptions, 'Select resource');
     const selectedResource = String(E.workflowResource?.value || '').trim().toLowerCase();
     const statusOptions = selectedResource ? this.getStatusesForResource(selectedResource) : [];
-    this.setSelectOptions(E.workflowCurrentStatus, ['*', ...statusOptions], 'Select current status', { '*': 'Any status' });
-    this.setSelectOptions(E.workflowNextStatus, ['*', ...statusOptions], 'Select next status', { '*': 'Any status' });
+    this.setSelectOptions(E.workflowCurrentStatus, statusOptions, 'Select current status');
+    this.setSelectOptions(E.workflowNextStatus, statusOptions, 'Select next status');
     const roles = this.getSystemRoles();
     this.setRoleSelectOptions(E.workflowAllowedRoles, roles, 'Select allowed role');
     this.setRoleSelectOptions(E.workflowApprovalRole, roles, 'Select approval role');
@@ -473,39 +440,19 @@ const Workflow = {
     this.state.loading = true;
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
-      const [rulesResult, approvalsResult, auditResult] = await Promise.allSettled([
+      const [rulesRes, approvalsRes, auditRes] = await Promise.all([
         Api.listWorkflowRules(),
         Api.listPendingWorkflowApprovals(),
         Api.listWorkflowAudit()
       ]);
-
-      if (rulesResult.status === 'fulfilled') {
-        this.state.rules = this.normalizeRows(rulesResult.value);
-        this.renderRules();
-        this.renderDiscountPolicy();
-        this.renderMatrix();
-      } else {
-        UI.toast('Unable to load workflow rules: ' + (rulesResult.reason?.message || 'Unknown error'));
-      }
-
-      if (approvalsResult.status === 'fulfilled') {
-        this.state.approvals = this.normalizeRows(approvalsResult.value);
-        this.renderApprovals();
-      } else {
-        UI.toast('Unable to load workflow approvals: ' + (approvalsResult.reason?.message || 'Unknown error'));
-      }
-
-      if (auditResult.status === 'fulfilled') {
-        this.state.audit = this.normalizeRows(auditResult.value);
-        this.renderAudit();
-      } else {
-        UI.toast('Unable to load workflow audit: ' + (auditResult.reason?.message || 'Unknown error'));
-      }
-
-      if (rulesResult.status !== 'fulfilled' && approvalsResult.status !== 'fulfilled' && auditResult.status !== 'fulfilled') {
-        throw new Error('All workflow sections failed to load.');
-      }
-
+      this.state.rules = this.normalizeRows(rulesRes);
+      this.state.approvals = this.normalizeRows(approvalsRes);
+      this.state.audit = this.normalizeRows(auditRes);
+      this.renderRules();
+      this.renderDiscountPolicy();
+      this.renderApprovals();
+      this.renderAudit();
+      this.renderMatrix();
       this.populateRuleSelects();
     } catch (error) {
       UI.toast('Unable to load workflow data: ' + (error?.message || 'Unknown error'));
@@ -521,10 +468,6 @@ const Workflow = {
     await Api.saveWorkflowRule(payload);
     UI.toast(payload.workflow_rule_id ? 'Workflow rule updated.' : 'Workflow rule created.');
     this.resetRuleForm();
-    Api.clearCachedValue(Api.buildCacheKey('workflow', 'list', {
-      filters: {},
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
-    }));
     await this.loadAndRefresh(true);
   },
   async deleteRule(workflowRuleId) {

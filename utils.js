@@ -186,8 +186,8 @@ const U = {
 };
 
 /** Filters persisted */
-function getDefaultTicketFilters() {
-  return {
+const Filters = {
+  state: {
     search: '',
     module: 'All',
     category: 'All',
@@ -197,13 +197,7 @@ function getDefaultTicketFilters() {
     issueRelated: 'All',
     start: '',
     end: ''
-  };
-}
-
-window.getDefaultTicketFilters = getDefaultTicketFilters;
-
-const Filters = {
-  state: getDefaultTicketFilters(),
+  },
   load() {
     try {
       const raw = localStorage.getItem(LS_KEYS.filters);

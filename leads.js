@@ -19,13 +19,7 @@ const Leads = {
     agreementNeeded: 'All',
     createdFrom: '',
     createdTo: '',
-    initialized: false,
-    currentPage: 1,
-    pageSize: 50,
-    totalCount: 0,
-    totalPages: 1,
-    hasMore: false,
-    activeFilters: {}
+    initialized: false
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -109,76 +103,12 @@ const Leads = {
     if (this.state.proposalNeeded !== 'All') filters.proposal_needed = this.state.proposalNeeded === 'yes';
     if (this.state.agreementNeeded !== 'All') filters.agreement_needed = this.state.agreementNeeded === 'yes';
     if (this.state.search) filters.search = this.state.search;
-    this.state.activeFilters = { ...filters };
-    if (window.ServerPagingState?.leads) {
-      window.ServerPagingState.leads.activeFilters = { ...filters };
-    }
     return filters;
   },
-  extractPagedPayload(response) {
-    const container = response && typeof response === 'object' ? response : {};
-    const rows = Array.isArray(container.data) ? container.data : this.extractRows(response);
-    return {
-      rows,
-      page: Number(container.page) || this.state.currentPage || 1,
-      pageSize: Number(container.page_size) || this.state.pageSize || 50,
-      totalCount: Number(container.count) || Number(container.total_count) || rows.length,
-      totalPages: Number(container.total_pages) || 1,
-      hasMore:
-        Boolean(container.has_more) ||
-        (Number(container.page) || this.state.currentPage || 1) <
-          (Number(container.total_pages) || this.state.totalPages || 1)
-    };
-  },
-  updatePaginationState(meta = {}) {
-    this.state.currentPage = Math.max(1, Number(meta.page) || 1);
-    this.state.pageSize = Math.max(1, Number(meta.pageSize) || this.state.pageSize || 50);
-    this.state.totalCount = Math.max(0, Number(meta.totalCount) || 0);
-    this.state.totalPages = Math.max(1, Number(meta.totalPages) || 1);
-    this.state.hasMore = Boolean(meta.hasMore);
-    if (window.ServerPagingState?.leads) {
-      window.ServerPagingState.leads.currentPage = this.state.currentPage;
-      window.ServerPagingState.leads.pageSize = this.state.pageSize;
-      window.ServerPagingState.leads.totalCount = this.state.totalCount;
-      window.ServerPagingState.leads.totalPages = this.state.totalPages;
-    }
-  },
-  ensurePaginationControls() {
-    if (!E.leadsState || this._paginationWired) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'table-pagination-controls';
-    wrap.innerHTML = `
-      <button class="btn ghost sm" type="button" data-leads-page-prev>Previous</button>
-      <span class="muted" data-leads-page-label>Page 1 of 1</span>
-      <button class="btn ghost sm" type="button" data-leads-page-next>Next</button>
-    `;
-    E.leadsState.insertAdjacentElement('afterend', wrap);
-    wrap.addEventListener('click', event => {
-      const prev = event.target?.closest?.('[data-leads-page-prev]');
-      const next = event.target?.closest?.('[data-leads-page-next]');
-      if (prev) this.goToPage(this.state.currentPage - 1);
-      if (next) this.goToPage(this.state.currentPage + 1);
-    });
-    this._paginationWired = true;
-    this._paginationWrap = wrap;
-  },
-  renderPaginationControls() {
-    this.ensurePaginationControls();
-    if (!this._paginationWrap) return;
-    const prevBtn = this._paginationWrap.querySelector('[data-leads-page-prev]');
-    const nextBtn = this._paginationWrap.querySelector('[data-leads-page-next]');
-    const label = this._paginationWrap.querySelector('[data-leads-page-label]');
-    if (label) label.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages}`;
-    if (prevBtn) prevBtn.disabled = this.state.currentPage <= 1 || this.state.loading;
-    if (nextBtn) nextBtn.disabled = (!this.state.hasMore && this.state.currentPage >= this.state.totalPages) || this.state.loading;
-  },
   async listLeads(options = {}) {
-    return Api.listLeads(this.collectServerFilters(), {
-      page: options.page || this.state.currentPage,
-      page_size: options.pageSize || this.state.pageSize,
-      summary_only: options.summaryOnly !== false,
-      forceRefresh: options.forceRefresh === true
-    });
+    return Api.postAuthenticatedCached('leads', 'list', {
+      filters: this.collectServerFilters()
+    }, { forceRefresh: options.forceRefresh === true });
   },
   async getLead(id) {
     return Api.postAuthenticated('leads', 'get', { id });
@@ -495,8 +425,7 @@ const Leads = {
     if (this.state.loading) {
       E.leadsState.textContent = 'Loading leads…';
       this.renderLeadAnalytics(this.computeLeadAnalytics([]));
-      UI.renderTableSkeleton(E.leadsTbody, 21, 8);
-      this.renderPaginationControls();
+      E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading leads…</td></tr>';
       return;
     }
     if (this.state.loadError) {
@@ -508,8 +437,7 @@ const Leads = {
 
     const rows = this.state.filteredRows;
     this.renderLeadAnalytics(this.computeLeadAnalytics(rows));
-    E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'} (of ${this.state.totalCount})`;
-    this.renderPaginationControls();
+    E.leadsState.textContent = `${rows.length} lead${rows.length === 1 ? '' : 's'}`;
 
     if (!rows.length) {
       E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">No leads found for current filters.</td></tr>';
@@ -564,20 +492,11 @@ const Leads = {
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.loadError = '';
-    E.leadsState.textContent = `Fetching page ${this.state.currentPage}…`;
     this.render();
 
     try {
       const response = await this.listLeads({ forceRefresh: force });
-      const paged = this.extractPagedPayload(response);
-      this.updatePaginationState(paged);
-      this.state.rows = paged.rows.map(item => this.normalizeLead(item));
-      UI.saveViewState('leads', {
-        page: this.state.currentPage,
-        pageSize: this.state.pageSize,
-        search: this.state.search,
-        status: this.state.status
-      });
+      this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -589,7 +508,6 @@ const Leads = {
       }
       this.state.rows = [];
       this.state.filteredRows = [];
-      this.updatePaginationState({ page: 1, totalCount: 0, totalPages: 1, hasMore: false });
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load leads right now.';
       this.render();
       UI.toast(this.state.loadError);
@@ -598,18 +516,9 @@ const Leads = {
       this.render();
     }
   },
-  async goToPage(page) {
-    const nextPage = Math.max(1, Number(page) || 1);
-    if (nextPage === this.state.currentPage) return;
-    this.state.currentPage = nextPage;
-    await this.loadAndRefresh({ force: true });
-  },
-  resetPagination() {
-    this.state.currentPage = 1;
-  },
   setFormBusy(v) {
-    UI.setButtonBusy(E.leadFormSaveBtn, v, 'Saving changes…');
-    UI.setButtonBusy(E.leadFormDeleteBtn, v, 'Deleting…');
+    if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = !!v;
+    if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.disabled = !!v;
   },
   resetForm() {
     if (!E.leadForm) return;
@@ -722,20 +631,13 @@ const Leads = {
         const resolved = this.normalizeLead(latest?.lead || latest?.data?.lead || latest || { lead_id: leadId });
         const id = resolved.lead_id || leadId;
         await this.updateLead(id, lead);
-        const index = this.state.rows.findIndex(row => row.lead_id === id);
-        if (index >= 0) this.state.rows[index] = this.normalizeLead({ ...this.state.rows[index], ...lead, lead_id: id });
         UI.toast('Lead updated.');
       } else {
-        const created = await this.createLead(lead);
-        const normalized = this.normalizeLead(created?.lead || created?.data?.lead || lead);
-        this.state.rows.unshift(normalized);
-        this.state.totalCount += 1;
+        await this.createLead(lead);
         UI.toast('Lead created.');
       }
       this.closeForm();
-      Api.invalidateResourceCache('leads', 'list');
-      this.applyFilters();
-      this.render();
+      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -757,13 +659,9 @@ const Leads = {
     this.setFormBusy(true);
     try {
       await this.deleteLead(leadId);
-      this.state.rows = this.state.rows.filter(row => row.lead_id !== leadId);
-      this.state.totalCount = Math.max(0, this.state.totalCount - 1);
-      this.applyFilters();
-      this.render();
       UI.toast('Lead deleted.');
       this.closeForm();
-      Api.invalidateResourceCache('leads', 'list');
+      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -789,9 +687,7 @@ const Leads = {
       const response = await this.convertToDeal(leadId);
       const dealId = this.getConvertedDealId(response);
       UI.toast(dealId ? `Lead converted to deal ${dealId}.` : 'Lead converted to deal.');
-      Api.invalidateResourceCache('leads', 'list');
-      Api.invalidateResourceCache('deals', 'list');
-      await Promise.allSettled([
+      await Promise.all([
         this.loadAndRefresh({ force: true }),
         window.Deals?.loadAndRefresh ? Deals.loadAndRefresh({ force: true }) : Promise.resolve()
       ]);
@@ -805,40 +701,24 @@ const Leads = {
       this.setFormBusy(false);
     }
   },
-  handleFilterChange({ serverRefetch = false } = {}) {
-    if (serverRefetch) {
-      this.resetPagination();
-      this.loadAndRefresh({ force: true });
-      return;
-    }
+  handleFilterChange() {
     this.applyFilters();
     this.render();
   },
   wire() {
     if (this.state.initialized) return;
-    const persisted = UI.readViewState('leads');
-    if (persisted) {
-      this.state.currentPage = Math.max(1, Number(persisted.page) || this.state.currentPage);
-      this.state.pageSize = Math.max(1, Number(persisted.pageSize) || this.state.pageSize);
-      this.state.search = String(persisted.search || this.state.search);
-      this.state.status = String(persisted.status || this.state.status);
-    }
 
-    const bindState = (el, key, { serverRefetch = true, debounceMs = 0 } = {}) => {
+    const bindState = (el, key) => {
       if (!el) return;
-      let timer = null;
       const sync = () => {
         this.state[key] = String(el.value || '').trim();
-        if (timer) window.clearTimeout(timer);
-        const trigger = () => this.handleFilterChange({ serverRefetch });
-        if (debounceMs > 0) timer = window.setTimeout(trigger, debounceMs);
-        else trigger();
+        this.handleFilterChange();
       };
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
 
-    bindState(E.leadsSearchInput, 'search', { serverRefetch: true, debounceMs: 300 });
+    bindState(E.leadsSearchInput, 'search');
     bindState(E.leadsStatusFilter, 'status');
     bindState(E.leadsServiceInterestFilter, 'serviceInterest');
     bindState(E.leadsAssignedToFilter, 'assignedTo');
@@ -857,8 +737,9 @@ const Leads = {
         this.state.agreementNeeded = 'All';
         this.state.createdFrom = '';
         this.state.createdTo = '';
+        this.applyFilters();
         this.renderFilters();
-        this.handleFilterChange({ serverRefetch: true });
+        this.render();
       });
     }
 
