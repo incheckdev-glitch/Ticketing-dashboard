@@ -33,6 +33,13 @@
 /* moved to calendar.js */
 /* moved to planner.js */
 /* moved to ui.js */
+const TicketPagination = {
+  hasServerMeta: false,
+  page: 1,
+  pageSize: 100,
+  totalCount: 0,
+  totalPages: 1
+};
 /** Issues UI */
 UI.Issues = {
   renderFilters() {
@@ -212,13 +219,23 @@ UI.Issues = {
       : list;
     const rows = sortAsc ? sorted : sorted.reverse();
 
-    const total = rows.length,
-      size = GridState.pageSize,
-      page = GridState.page;
-    const pages = Math.max(1, Math.ceil(total / size));
-    if (GridState.page > pages) GridState.page = pages;
-    const start = (GridState.page - 1) * size;
-    const pageData = rows.slice(start, start + size);
+    const useServerPagination = TicketPagination.hasServerMeta;
+    const size = useServerPagination
+      ? Math.max(1, Number(TicketPagination.pageSize) || GridState.pageSize || 100)
+      : Math.max(1, Number(GridState.pageSize) || 100);
+    const total = useServerPagination
+      ? Math.max(rows.length, Number(TicketPagination.totalCount) || 0)
+      : rows.length;
+    const pages = useServerPagination
+      ? Math.max(1, Number(TicketPagination.totalPages) || Math.ceil(total / size) || 1)
+      : Math.max(1, Math.ceil(total / size));
+    if (useServerPagination) {
+      GridState.page = Math.max(1, Number(TicketPagination.page) || 1);
+    } else if (GridState.page > pages) {
+      GridState.page = pages;
+    }
+    const start = useServerPagination ? (GridState.page - 1) * size : (GridState.page - 1) * size;
+    const pageData = useServerPagination ? rows : rows.slice(start, start + size);
 
     const firstRow = total ? start + 1 : 0;
     const lastRow = total ? Math.min(total, start + pageData.length) : 0;
@@ -2528,6 +2545,7 @@ async function loadIssues(force = false) {
       UI.skeleton(false);
       UI.refreshAll();
       openIssueFromLink();
+      TicketPagination.hasServerMeta = false;
     }
   }
 
@@ -2536,31 +2554,42 @@ async function loadIssues(force = false) {
     UI.skeleton(true);
     const filtersPayload = buildTicketListFiltersPayload();
     const response = await Api.listTickets(filtersPayload, {
-      page: 1,
-      page_size: 200,
+      page: GridState.page,
+      page_size: GridState.pageSize,
+      summary_only: true,
       forceRefresh: force
     });
-    const totalPages = Math.max(1, Number(response?.total_pages) || 1);
-    let rawRows = extractEventsPayload(response);
-    if (totalPages > 1) {
-      const requests = [];
-      for (let page = 2; page <= totalPages; page++) {
-        requests.push(
-          Api.listTickets(filtersPayload, {
-            page,
-            page_size: 200,
-            forceRefresh: force
-          })
-        );
-      }
-      const additionalPages = await Promise.all(requests);
-      additionalPages.forEach(pageResponse => {
-        rawRows = rawRows.concat(extractEventsPayload(pageResponse));
-      });
-    }
+    const rawRows = extractEventsPayload(response);
     const rows = rawRows.map(raw => DataStore.normalizeRow(raw));
     DataStore.hydrateFromRows(rows.filter(r => r.id && String(r.id).trim() !== ''));
     IssuesCache.save(rawRows);
+    if (
+      response &&
+      typeof response === 'object' &&
+      (Object.prototype.hasOwnProperty.call(response, 'total_count') ||
+        Object.prototype.hasOwnProperty.call(response, 'total_pages') ||
+        Object.prototype.hasOwnProperty.call(response, 'page_size'))
+    ) {
+      TicketPagination.hasServerMeta = true;
+      TicketPagination.page = Math.max(1, Number(response.page) || GridState.page || 1);
+      TicketPagination.pageSize = Math.max(1, Number(response.page_size) || GridState.pageSize || 100);
+      TicketPagination.totalCount = Math.max(
+        rows.length,
+        Number(response.total_count) || Number(response.count) || 0
+      );
+      TicketPagination.totalPages = Math.max(
+        1,
+        Number(response.total_pages) || Math.ceil((TicketPagination.totalCount || rows.length) / TicketPagination.pageSize) || 1
+      );
+      GridState.page = TicketPagination.page;
+      GridState.pageSize = TicketPagination.pageSize;
+    } else {
+      TicketPagination.hasServerMeta = false;
+      TicketPagination.page = GridState.page;
+      TicketPagination.pageSize = GridState.pageSize;
+      TicketPagination.totalCount = rows.length;
+      TicketPagination.totalPages = Math.max(1, Math.ceil(rows.length / Math.max(1, GridState.pageSize)));
+    }
     UI.Issues.renderFilters();
     setIfOptionExists(E.moduleFilter, Filters.state.module);
     setIfOptionExists(E.categoryFilter, Filters.state.category);
@@ -4210,38 +4239,52 @@ function wireSorting() {
 
 function wirePaging() {
   if (E.pageSize)
-    E.pageSize.addEventListener('change', () => {
+    E.pageSize.addEventListener('change', async () => {
       GridState.pageSize = +E.pageSize.value;
       localStorage.setItem(LS_KEYS.pageSize, GridState.pageSize);
       GridState.page = 1;
-      UI.refreshAll();
+      TicketPagination.pageSize = GridState.pageSize;
+      TicketPagination.page = 1;
+      await loadIssues(true);
     });
   if (E.firstPage)
-    E.firstPage.addEventListener('click', () => {
+    E.firstPage.addEventListener('click', async () => {
       GridState.page = 1;
-      UI.refreshAll();
+      TicketPagination.page = 1;
+      if (TicketPagination.hasServerMeta) await loadIssues(true);
+      else UI.refreshAll();
     });
   if (E.prevPage)
-    E.prevPage.addEventListener('click', () => {
+    E.prevPage.addEventListener('click', async () => {
       if (GridState.page > 1) {
         GridState.page--;
-        UI.refreshAll();
+        TicketPagination.page = GridState.page;
+        if (TicketPagination.hasServerMeta) await loadIssues(true);
+        else UI.refreshAll();
       }
     });
   if (E.nextPage)
-    E.nextPage.addEventListener('click', () => {
+    E.nextPage.addEventListener('click', async () => {
       const list = UI.Issues.applyFilters();
-      const pages = Math.max(1, Math.ceil(list.length / GridState.pageSize));
+      const pages = TicketPagination.hasServerMeta
+        ? Math.max(1, Number(TicketPagination.totalPages) || 1)
+        : Math.max(1, Math.ceil(list.length / GridState.pageSize));
       if (GridState.page < pages) {
         GridState.page++;
-        UI.refreshAll();
+        TicketPagination.page = GridState.page;
+        if (TicketPagination.hasServerMeta) await loadIssues(true);
+        else UI.refreshAll();
       }
     });
   if (E.lastPage)
-    E.lastPage.addEventListener('click', () => {
+    E.lastPage.addEventListener('click', async () => {
       const list = UI.Issues.applyFilters();
-      GridState.page = Math.max(1, Math.ceil(list.length / GridState.pageSize));
-      UI.refreshAll();
+      GridState.page = TicketPagination.hasServerMeta
+        ? Math.max(1, Number(TicketPagination.totalPages) || 1)
+        : Math.max(1, Math.ceil(list.length / GridState.pageSize));
+      TicketPagination.page = GridState.page;
+      if (TicketPagination.hasServerMeta) await loadIssues(true);
+      else UI.refreshAll();
     });
 }
 
@@ -5032,9 +5075,12 @@ const CSMActivity = {
       const response = await Api.listCsmActivities(this.collectServerFilters(), {
         page: this.state.currentPage,
         page_size: this.state.pageSize,
+        summary_only: true,
         forceRefresh: force
       });
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
+      this.state.currentPage = Number(response?.page) || this.state.currentPage;
+      this.state.pageSize = Number(response?.page_size) || this.state.pageSize;
       this.state.totalCount = Number(response?.total_count) || rows.length;
       this.state.totalPages = Number(response?.total_pages) || 1;
       this.state.hasMore = Boolean(response?.has_more);
