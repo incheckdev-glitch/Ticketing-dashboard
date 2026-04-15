@@ -939,18 +939,106 @@ const LifecycleAnalytics = {
     select.innerHTML = ['All', ...unique].map(v => `<option>${this.escape(v)}</option>`).join('');
     select.value = unique.includes(current) ? current : 'All';
   },
-  async resolveFromBackend(query, filters = {}) {
-    const search = await Api.analyticsSearchEntity(query, filters);
-    if (!search) return null;
-    const lifecycle = await Api.analyticsGetLifecycle(search.entity_id || search.id || query, filters);
-    const timeline = await Api.analyticsGetTimeline(search.entity_id || search.id || query, filters);
-    const metrics = await Api.analyticsGetMetrics(search.entity_id || search.id || query, filters);
+  backendAnalyticsToGraph(payload = {}) {
+    const records = payload?.records || payload?.linked_records || {};
+    if (!records || typeof records !== 'object') {
+      return {
+        lead: null,
+        deal: null,
+        proposals: [],
+        agreements: [],
+        invoices: [],
+        receipts: []
+      };
+    }
+    if ('lead' in records || 'deal' in records) {
+      return {
+        lead: records.lead || null,
+        deal: records.deal || null,
+        proposals: Array.isArray(records.proposals) ? records.proposals : [],
+        agreements: Array.isArray(records.agreements) ? records.agreements : [],
+        invoices: Array.isArray(records.invoices) ? records.invoices : [],
+        receipts: Array.isArray(records.receipts) ? records.receipts : []
+      };
+    }
     return {
-      summary: lifecycle?.summary || lifecycle?.entity_summary || {},
-      graph: lifecycle?.linked_records || lifecycle?.records || {},
-      timeline: Array.isArray(timeline?.events) ? timeline.events : this.extractRows(timeline),
-      metrics: metrics?.metrics || metrics || {},
-      insights: Array.isArray(metrics?.insights) ? metrics.insights : lifecycle?.insights || []
+      lead: Array.isArray(records.leads) ? records.leads[0] || null : null,
+      deal: Array.isArray(records.deals) ? records.deals[0] || null : null,
+      proposals: Array.isArray(records.proposals) ? records.proposals : [],
+      agreements: Array.isArray(records.agreements) ? records.agreements : [],
+      invoices: Array.isArray(records.invoices) ? records.invoices : [],
+      receipts: Array.isArray(records.receipts) ? records.receipts : []
+    };
+  },
+  hasRenderableAnalyticsPayload(payload = {}) {
+    const graph = this.backendAnalyticsToGraph(payload);
+    const timeline = Array.isArray(payload?.timeline)
+      ? payload.timeline
+      : Array.isArray(payload?.events)
+      ? payload.events
+      : this.extractRows(payload?.timeline || payload?.events || payload);
+    return this.hasAnyRecords({
+      leads: graph.lead ? [graph.lead] : [],
+      deals: graph.deal ? [graph.deal] : [],
+      proposals: graph.proposals,
+      agreements: graph.agreements,
+      invoices: graph.invoices,
+      receipts: graph.receipts
+    }) || (Array.isArray(timeline) && timeline.length > 0);
+  },
+  sanitizeAnalyticsFilters(filters = {}) {
+    const norm = value => {
+      const raw = this.text(value);
+      return /^all$/i.test(raw) ? '' : raw;
+    };
+    return {
+      date_from: norm(filters.date_from),
+      date_to: norm(filters.date_to),
+      stage: norm(filters.stage),
+      owner: norm(filters.owner)
+    };
+  },
+  async resolveFromBackend(query, filters = {}) {
+    const cleanFilters = this.sanitizeAnalyticsFilters(filters);
+    const search = await Api.analyticsSearchEntity(query, cleanFilters);
+    if (!search) return null;
+
+    if (this.hasRenderableAnalyticsPayload(search)) {
+      return {
+        found: search?.found !== false,
+        primary_entity: search?.primary_entity || null,
+        summary: search?.summary || search?.entity_summary || {},
+        graph: this.backendAnalyticsToGraph(search),
+        timeline: Array.isArray(search?.timeline) ? search.timeline : this.extractRows(search?.timeline || search),
+        metrics: search?.metrics || {},
+        insights: Array.isArray(search?.insights) ? search.insights : []
+      };
+    }
+
+    const entityId = this.text(search?.entity_id || search?.id || search?.primary_entity?.id || query);
+    const lifecycle = await Api.analyticsGetLifecycle(entityId, cleanFilters);
+    const timeline = await Api.analyticsGetTimeline(entityId, cleanFilters);
+    const metrics = await Api.analyticsGetMetrics(entityId, cleanFilters);
+    const lifecyclePayload = lifecycle?.data || lifecycle;
+    const timelinePayload = timeline?.data || timeline;
+    const metricsPayload = metrics?.data || metrics;
+
+    return {
+      found: lifecyclePayload?.found !== false,
+      primary_entity: lifecyclePayload?.primary_entity || search?.primary_entity || null,
+      summary: lifecyclePayload?.summary || lifecyclePayload?.entity_summary || {},
+      graph: this.backendAnalyticsToGraph(lifecyclePayload),
+      timeline: Array.isArray(timelinePayload?.events)
+        ? timelinePayload.events
+        : Array.isArray(timelinePayload?.timeline)
+        ? timelinePayload.timeline
+        : this.extractRows(timelinePayload),
+      metrics: metricsPayload?.metrics || metricsPayload || {},
+      insights: Array.isArray(metricsPayload?.insights)
+        ? metricsPayload.insights
+        : Array.isArray(lifecyclePayload?.insights)
+        ? lifecyclePayload.insights
+        : []
     };
   },
   async resolveLocal(query) {
@@ -1014,7 +1102,21 @@ const LifecycleAnalytics = {
         this.log('analytics backend endpoint unavailable, falling back to local aggregation', backendError);
       }
 
-      if (!resolved) {
+      const backendHasData = resolved && (
+        this.hasRenderableAnalyticsPayload({
+          records: {
+            leads: resolved?.graph?.lead ? [resolved.graph.lead] : [],
+            deals: resolved?.graph?.deal ? [resolved.graph.deal] : [],
+            proposals: resolved?.graph?.proposals || [],
+            agreements: resolved?.graph?.agreements || [],
+            invoices: resolved?.graph?.invoices || [],
+            receipts: resolved?.graph?.receipts || []
+          },
+          timeline: resolved?.timeline || []
+        })
+      );
+
+      if (!backendHasData) {
         resolved = await this.resolveLocal(query);
       }
 
