@@ -42,6 +42,33 @@ const Api = {
     }
     return payload;
   },
+  isWorkflowDebugEnabled() {
+    try {
+      const runtimeFlag = window.RUNTIME_CONFIG?.DEBUG_WORKFLOW;
+      if (runtimeFlag === true || String(runtimeFlag || '').toLowerCase() === 'true') return true;
+    } catch {}
+    const host = String(window.location?.hostname || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1';
+  },
+  logWorkflowDebug(resource, action, rawResponse) {
+    if (String(resource || '').toLowerCase() !== 'workflow') return;
+    if (!this.isWorkflowDebugEnabled()) return;
+    const endpoint = (() => {
+      try {
+        return this.ensureBaseUrl();
+      } catch {
+        return '';
+      }
+    })();
+    const unwrappedPayload = this.unwrapApiPayload(rawResponse);
+    console.debug('[workflow-api]', {
+      endpoint,
+      resource,
+      action,
+      rawResponse,
+      unwrappedPayload
+    });
+  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
@@ -474,10 +501,12 @@ const Api = {
   },
 
   async listWorkflowRules(filters = {}, options = {}) {
-    return this.postAuthenticatedCached('workflow', 'list', {
+    const response = await this.postAuthenticated('workflow', 'list', {
       filters,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     }, options);
+    this.logWorkflowDebug('workflow', 'list', response);
+    return response;
   },
   async getWorkflowRule(workflowRuleId) {
     return this.postAuthenticated('workflow', 'get', {

@@ -2030,7 +2030,7 @@ function setActiveView(view) {
   if (view === 'receipts' && window.Receipts?.refresh) Receipts.refresh();
   if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
-  if (view === 'workflow' && window.Workflow?.loadAndRefresh) Workflow.loadAndRefresh(true);
+  if (view === 'workflow' && window.Workflow?.loadAndRefresh) Workflow.loadAndRefresh(true); // Always force fresh workflow fetch.
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   if ((view === 'roles' || view === 'rolePermissions') && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
   updatePrimaryActionButton(view);
