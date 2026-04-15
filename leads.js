@@ -142,7 +142,7 @@ const Leads = {
     this.renderLeadAnalytics(this.computeLeadAnalytics(this.state.filteredRows));
   },
   async getLead(id) {
-    return Api.postAuthenticated('leads', 'get', { id });
+    return Api.postAuthenticated('leads', 'get', { id, lead_id: id });
   },
   async createLead(lead) {
     return Api.postAuthenticated('leads', 'create', {
@@ -716,15 +716,16 @@ const Leads = {
       UI.toast('Full name is required.');
       return;
     }
+    if (mode === 'edit' && !leadId) {
+      UI.toast('Lead ID is missing. Please reopen the lead and try again.');
+      return;
+    }
 
     this.setFormBusy(true);
     try {
       if (mode === 'edit') {
-        const latest = await this.getLead(leadId);
-        const resolved = this.normalizeLead(latest?.lead || latest?.data?.lead || latest || { lead_id: leadId });
-        const id = resolved.lead_id || leadId;
-        const response = await this.updateLead(id, lead);
-        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: id };
+        const response = await this.updateLead(leadId, lead);
+        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
         this.upsertLocalRow(resolvedRow);
         UI.toast('Lead updated.');
       } else {
