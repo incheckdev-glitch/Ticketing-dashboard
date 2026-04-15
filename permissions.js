@@ -10,6 +10,7 @@ const Permissions = {
     agreements: 'agreements',
     invoices: 'invoices',
     receipts: 'receipts',
+    lifecycleAnalytics: 'analytics',
     clients: 'clients',
     proposalCatalog: 'proposal_catalog',
     users: 'users',
