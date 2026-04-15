@@ -749,13 +749,9 @@ const Leads = {
     }
   },
   formatLeadActionError(error, { resource = 'leads', action = 'unknown' } = {}) {
-    const message = String(error?.message || '');
-    const statusMatch =
-      message.match(/\bHTTP\s+(\d{3})\b/i) ||
-      message.match(/\bUpstream status:\s*(\d{3})\b/i) ||
-      message.match(/\bupstreamStatus[=:]\s*(\d{3})\b/i);
+    const statusMatch = String(error?.message || '').match(/\bHTTP\s+(\d{3})\b/i);
     const proxyStatus = statusMatch ? statusMatch[1] : 'unknown';
-    const rawMessage = message.trim() || 'Unknown error';
+    const rawMessage = String(error?.message || '').trim() || 'Unknown error';
     const backendMessageMatch = rawMessage.match(/Backend message:\s*([^.]*)/i);
     const backendMessage = String(
       backendMessageMatch?.[1] || error?.backendMessage || rawMessage

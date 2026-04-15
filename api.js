@@ -689,25 +689,6 @@ function hasExplicitBackendFailure(data) {
   return ok === false || success === false;
 }
 
-function buildExplicitBackendFailureError(data, context = {}) {
-  const endpointLabel = String(context?.endpoint || API_BASE_URL || 'backend endpoint');
-  const resource = String(context?.resource || data?.resource || '').trim();
-  const action = String(context?.action || data?.action || '').trim();
-  const backendMessage = String(data?.error || data?.message || 'Backend rejected request.').trim();
-  const upstreamStatus = Number(data?.upstreamStatus || context?.status || 0);
-  const sample = String(data?.upstreamBodySample || data?.sample || data?.raw || '').trim();
-  const details = [
-    `Backend rejected request from ${endpointLabel}.`,
-    resource || action ? `Request: resource=${resource || '-'} action=${action || '-'}.` : '',
-    upstreamStatus ? `Upstream status: ${upstreamStatus}.` : '',
-    `Backend message: ${backendMessage}.`,
-    sample ? `Upstream sample: ${sample.slice(0, 500)}` : ''
-  ]
-    .filter(Boolean)
-    .join(' ');
-  return new Error(details || backendMessage);
-}
-
 function buildHttpResponseError(response, data, endpoint, context = {}) {
   const status = Number(response?.status || 0);
   const statusText = String(response?.statusText || '').trim();
