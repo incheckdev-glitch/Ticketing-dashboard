@@ -326,6 +326,10 @@
                     role="tab" aria-selected="false" aria-controls="receiptsView">
               <span class="icon" aria-hidden="true">🧾</span> Receipts
             </button>
+            <button id="lifecycleAnalyticsTab" class="view-tab" data-view="lifecycleAnalytics"
+                    role="tab" aria-selected="false" aria-controls="lifecycleAnalyticsView">
+              <span class="icon" aria-hidden="true">🧭</span> Lifecycle Analytics
+            </button>
             <button id="clientsTab" class="view-tab" data-view="clients"
                     role="tab" aria-selected="false" aria-controls="clientsView">
               <span class="icon" aria-hidden="true">🏢</span> Clients
@@ -561,7 +565,11 @@
               <option value="proposals">Proposals</option>
               <option value="agreements">Agreements</option>
               <option value="invoices">Invoices</option>
+              <option value="receipts">Receipts</option>
+              <option value="lifecycleAnalytics">Lifecycle Analytics</option>
+              <option value="clients">Clients</option>
               <option value="proposalCatalog">Proposal Catalog</option>
+              <option value="workflow">Workflow</option>
               <option value="users">Users</option>
               <option value="roles">Roles</option>
               <option value="rolePermissions">Role Permissions</option>
@@ -1540,7 +1548,35 @@
         </div>
       </section>
 
-
+      <section id="lifecycleAnalyticsView" class="view" role="tabpanel" aria-labelledby="lifecycleAnalyticsTab">
+        <div class="card" aria-label="Lifecycle analytics search">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>360 Analytics</strong>
+              <div class="muted">Search any lifecycle entity and resolve its full lead-to-receipt journey.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="lifecycleSearchInput" class="input" type="search" placeholder="Search by ID, company, email, phone, lead, deal, proposal, agreement, invoice, or receipt" aria-label="Search lifecycle records" style="min-width:320px;" />
+              <input id="lifecycleDateFrom" class="input" type="date" aria-label="Lifecycle date from" />
+              <input id="lifecycleDateTo" class="input" type="date" aria-label="Lifecycle date to" />
+              <select id="lifecycleStageFilter" class="select" aria-label="Filter by stage">
+                <option>All</option>
+                <option>Lead</option>
+                <option>Deal</option>
+                <option>Proposal</option>
+                <option>Agreement</option>
+                <option>Invoice</option>
+                <option>Receipt</option>
+              </select>
+              <select id="lifecycleOwnerFilter" class="select" aria-label="Filter by owner"><option>All</option></select>
+              <button id="lifecycleSearchBtn" class="btn sm" type="button">Search</button>
+              <button id="lifecycleExportBtn" class="btn ghost sm" type="button">Export</button>
+            </div>
+          </div>
+          <div id="lifecycleState" class="muted" style="margin-bottom:8px;">Search by lead/deal/proposal/agreement/invoice/receipt ID, company, phone, or email.</div>
+          <div id="lifecycleResultBody"></div>
+        </div>
+      </section>
 
       <section id="workflowView" class="view" role="tabpanel" aria-labelledby="workflowTab">
         <div class="card" aria-label="Workflow rules builder">
@@ -2906,6 +2942,7 @@
   <script src="agreements.js"></script>
   <script src="invoices.js"></script>
   <script src="receipts.js"></script>
+  <script src="lifecycle-analytics.js"></script>
   <script src="clients.js"></script>
   <script src="proposal-catalog.js"></script>
   <script src="workflow.js"></script>

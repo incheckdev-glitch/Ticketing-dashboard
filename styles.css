@@ -1750,3 +1750,73 @@ background:var(--ai-table-row-even);
     padding:12px;
   }
 }
+
+/* Lifecycle Analytics */
+.lifecycle-skeleton-grid .skeleton-block,
+.skeleton-block {
+  min-height: 96px;
+  background: var(--skeleton);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--shimmer);
+  transform: translateX(-100%);
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.lifecycle-timeline {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+.lifecycle-timeline-item {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.lifecycle-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 8px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+.lifecycle-timeline-content {
+  border-left: 1px dashed var(--border);
+  padding-left: 12px;
+  padding-bottom: 10px;
+}
+.lifecycle-timeline-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lifecycle-records-grid {
+  margin-top: 10px;
+}
+.lifecycle-record-card {
+  display: grid;
+  gap: 4px;
+}
+@media (max-width: 920px) {
+  #lifecycleAnalyticsView .grid.cols-4,
+  #lifecycleAnalyticsView .grid.cols-3 {
+    grid-template-columns: 1fr;
+  }
+  #lifecycleSearchInput {
+    min-width: 0 !important;
+    width: 100%;
+  }
+}
