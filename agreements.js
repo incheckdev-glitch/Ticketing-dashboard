@@ -50,6 +50,9 @@ const Agreements = {
     filteredRows: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
     initialized: false,
     search: '',
     status: 'All',
@@ -224,6 +227,21 @@ const Agreements = {
     };
   },
   async listAgreements() { return Api.listAgreements(); },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeAgreement(row);
+    const idx = this.state.rows.findIndex(item => String(item.agreement_id || '') === String(normalized.agreement_id || ''));
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
+  },
+  removeLocalRow(id) {
+    this.state.rows = this.state.rows.filter(item => String(item.agreement_id || '') !== String(id || ''));
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
+  },
   async getAgreement(id) { return Api.getAgreement(id); },
   async createAgreement(agreement, items) { return Api.createAgreement(agreement, items); },
   async updateAgreement(id, updates, items) { return Api.updateAgreement(id, updates, items); },
@@ -649,8 +667,8 @@ const Agreements = {
       } catch (clientSyncError) {
         UI.toast(`Agreement saved, but client sync failed: ${clientSyncError?.message || 'Unknown error'}`);
       }
+      if (persistedAgreement) this.upsertLocalRow(persistedAgreement);
       this.closeAgreementForm();
-      await this.loadAndRefresh({ force: true });
       UI.toast(id ? 'Agreement updated.' : 'Agreement created.');
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
@@ -669,8 +687,8 @@ const Agreements = {
     if (!id || !window.confirm(`Delete agreement ${id}?`)) return;
     try {
       await this.deleteAgreement(id);
+      this.removeLocalRow(id);
       this.closeAgreementForm();
-      await this.loadAndRefresh({ force: true });
       UI.toast('Agreement deleted.');
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
@@ -796,12 +814,26 @@ const Agreements = {
   },
   async loadAndRefresh({ force = false } = {}) {
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.applyFilters();
+      this.renderFilters();
+      this.render();
+      return;
+    }
     this.state.loading = true;
     this.state.loadError = '';
     this.render();
     try {
-      const response = await this.listAgreements();
+      const response = await Api.postAuthenticatedCached(
+        'agreements',
+        'list',
+        { limit: 50, offset: 0, sort_by: 'updated_at', sort_dir: 'desc', search: this.state.search || '', summary_only: true },
+        { forceRefresh: force }
+      );
       this.state.rows = this.extractRows(response).map(row => this.normalizeAgreement(row));
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');

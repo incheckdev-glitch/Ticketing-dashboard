@@ -11,6 +11,10 @@ const Leads = {
     filteredRows: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
+    lastSyncedAt: '',
     search: '',
     status: 'All',
     serviceInterest: 'All',
@@ -107,8 +111,35 @@ const Leads = {
   },
   async listLeads(options = {}) {
     return Api.postAuthenticatedCached('leads', 'list', {
-      filters: this.collectServerFilters()
+      filters: this.collectServerFilters(),
+      limit: Number(options.limit || 50),
+      offset: Number(options.offset || 0),
+      sort_by: options.sortBy || 'updated_at',
+      sort_dir: options.sortDir || 'desc',
+      search: this.state.search || '',
+      summary_only: true
     }, { forceRefresh: options.forceRefresh === true });
+  },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeLead(row);
+    const idx = this.state.rows.findIndex(item => item.lead_id === normalized.lead_id);
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.rerenderVisibleTable();
+    return normalized;
+  },
+  removeLocalRow(id) {
+    const before = this.state.rows.length;
+    this.state.rows = this.state.rows.filter(item => item.lead_id !== id);
+    if (this.state.rows.length !== before) this.rerenderVisibleTable();
+  },
+  rerenderVisibleTable() {
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
+  },
+  rerenderSummaryIfNeeded() {
+    this.renderLeadAnalytics(this.computeLeadAnalytics(this.state.filteredRows));
   },
   async getLead(id) {
     return Api.postAuthenticated('leads', 'get', { id });
@@ -425,7 +456,14 @@ const Leads = {
     if (this.state.loading) {
       E.leadsState.textContent = 'Loading leads…';
       this.renderLeadAnalytics(this.computeLeadAnalytics([]));
-      E.leadsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading leads…</td></tr>';
+      E.leadsTbody.innerHTML = Array.from({ length: 6 })
+        .map(
+          () =>
+            '<tr class="skeleton-row">' +
+            '<td colspan="21"><div class="skeleton-line" style="height:12px;margin:6px 0;"></div></td>' +
+            '</tr>'
+        )
+        .join('');
       return;
     }
     if (this.state.loadError) {
@@ -490,13 +528,21 @@ const Leads = {
   async loadAndRefresh({ force = false } = {}) {
     if (!Session.isAuthenticated()) return;
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.rerenderVisibleTable();
+      return;
+    }
     this.state.loading = true;
     this.state.loadError = '';
     this.render();
 
     try {
-      const response = await this.listLeads({ forceRefresh: force });
+      const response = await this.listLeads({ forceRefresh: force, limit: 50, offset: 0 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
+      this.state.lastSyncedAt = new Date().toISOString();
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -517,7 +563,10 @@ const Leads = {
     }
   },
   setFormBusy(v) {
-    if (E.leadFormSaveBtn) E.leadFormSaveBtn.disabled = !!v;
+    if (E.leadFormSaveBtn) {
+      E.leadFormSaveBtn.disabled = !!v;
+      E.leadFormSaveBtn.textContent = v ? 'Saving…' : 'Save';
+    }
     if (E.leadFormDeleteBtn) E.leadFormDeleteBtn.disabled = !!v;
   },
   resetForm() {
@@ -630,14 +679,18 @@ const Leads = {
         const latest = await this.getLead(leadId);
         const resolved = this.normalizeLead(latest?.lead || latest?.data?.lead || latest || { lead_id: leadId });
         const id = resolved.lead_id || leadId;
-        await this.updateLead(id, lead);
+        const response = await this.updateLead(id, lead);
+        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: id };
+        this.upsertLocalRow(resolvedRow);
         UI.toast('Lead updated.');
       } else {
-        await this.createLead(lead);
+        const response = await this.createLead(lead);
+        const created = response?.lead || response?.data?.lead || response || lead;
+        this.upsertLocalRow(created);
         UI.toast('Lead created.');
       }
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
+      this.rerenderSummaryIfNeeded();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -659,9 +712,10 @@ const Leads = {
     this.setFormBusy(true);
     try {
       await this.deleteLead(leadId);
+      this.removeLocalRow(leadId);
       UI.toast('Lead deleted.');
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
+      this.rerenderSummaryIfNeeded();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');

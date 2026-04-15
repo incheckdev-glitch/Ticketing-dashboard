@@ -154,7 +154,10 @@ const Workflow = {
     rules: [],
     approvals: [],
     audit: [],
-    loading: false
+    loading: false,
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000
   },
   resourceOptions: ['proposals', 'agreements', 'invoices', 'receipts'],
   resourceStatusOptions: {
@@ -579,6 +582,15 @@ const Workflow = {
   },
   async loadAndRefresh(force = false) {
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.renderRules();
+      this.renderDiscountPolicy();
+      this.renderApprovals();
+      this.renderAudit();
+      this.renderMatrix();
+      return;
+    }
     this.state.loading = true;
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
@@ -590,6 +602,8 @@ const Workflow = {
       this.state.rules = this.normalizeRows(rulesRes).map(rule => this.normalizeWorkflowRule(rule));
       this.state.approvals = this.normalizeRows(approvalsRes);
       this.state.audit = this.normalizeRows(auditRes);
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
       this.renderRules();
       this.renderDiscountPolicy();
       this.renderApprovals();
@@ -607,18 +621,25 @@ const Workflow = {
     if (!payload.resource || !payload.current_status || !payload.next_status || !payload.allowed_roles.length) {
       return UI.toast('resource, current status, next status, and allowed roles are required.');
     }
-    await Api.saveWorkflowRule(payload);
+    const response = await Api.saveWorkflowRule(payload);
+    const savedRule = this.normalizeWorkflowRule(response?.rule || response?.data?.rule || payload);
+    const idx = this.state.rules.findIndex(rule => String(rule.workflow_rule_id || '') === String(savedRule.workflow_rule_id || ''));
+    if (idx === -1) this.state.rules.unshift(savedRule);
+    else this.state.rules[idx] = { ...this.state.rules[idx], ...savedRule };
     UI.toast(payload.workflow_rule_id ? 'Workflow rule updated.' : 'Workflow rule created.');
     this.resetRuleForm();
-    await this.loadAndRefresh(true);
+    this.renderRules();
+    this.renderMatrix();
   },
   async deleteRule(workflowRuleId) {
     const id = String(workflowRuleId || '').trim();
     if (!id) return;
     if (!window.confirm(`Delete workflow rule ${id}?`)) return;
     await Api.deleteWorkflowRule(id);
+    this.state.rules = this.state.rules.filter(rule => String(rule.workflow_rule_id || '') !== id);
     UI.toast('Workflow rule deleted.');
-    await this.loadAndRefresh(true);
+    this.renderRules();
+    this.renderMatrix();
   },
   async actOnApproval(action, approvalId) {
     const id = String(approvalId || '').trim();

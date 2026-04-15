@@ -35,6 +35,29 @@
 /* moved to ui.js */
 /** Issues UI */
 UI.Issues = {
+  getFilteredList() {
+    return this.applyFilters();
+  },
+  renderTableOnly(list = this.getFilteredList()) {
+    this.renderTable(list);
+  },
+  renderSummaryOnly(list = this.getFilteredList()) {
+    this.renderSummary(list);
+    this.renderFilterChips();
+    this.renderKPIs(list);
+  },
+  refreshChartsOnly(list = this.getFilteredList()) {
+    this.renderCharts(list);
+  },
+  lightRefresh(list = this.getFilteredList()) {
+    this.renderSummaryOnly(list);
+    this.renderTableOnly(list);
+  },
+  fullRefresh(list = this.getFilteredList()) {
+    this.renderSummaryOnly(list);
+    this.renderTableOnly(list);
+    this.refreshChartsOnly(list);
+  },
   renderFilters() {
     const uniq = a =>
       [...new Set(a.filter(Boolean).map(v => v.trim()))].sort((a, b) =>
@@ -186,7 +209,8 @@ UI.Issues = {
           Filters.state.search = '';
         }
         Filters.save();
-        UI.refreshAll();
+        GridState.page = 1;
+        UI.refreshTableAndSummary();
       };
       d.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -346,7 +370,8 @@ UI.Issues = {
           if (E.startDateFilter) E.startDateFilter.value = '';
           if (E.endDateFilter) E.endDateFilter.value = '';
           UI.Issues.renderFilters();
-          UI.refreshAll();
+          GridState.page = 1;
+          UI.refreshTableAndSummary();
         });
     }
 ColumnManager.apply();
@@ -413,20 +438,23 @@ ColumnManager.apply();
       const el = U.q('#' + id);
       if (!el) return;
       UI._charts = UI._charts || {};
-      if (UI._charts[id]) UI._charts[id].destroy();
       const labels = Object.keys(data),
         values = Object.values(data);
+      const dataset = {
+        data: values,
+        backgroundColor: labels.map((l, i) => colors[l] || palette[i % palette.length])
+      };
+      const existing = UI._charts[id];
+      if (existing && existing.config?.type === type) {
+        existing.data.labels = labels;
+        existing.data.datasets = [dataset];
+        existing.update('none');
+        return;
+      }
+      if (existing) existing.destroy();
       UI._charts[id] = new Chart(el, {
         type,
-        data: {
-          labels,
-          datasets: [
-            {
-              data: values,
-               backgroundColor: labels.map((l, i) => colors[l] || palette[i % palette.length])
-            }
-          ]
-        },
+        data: { labels, datasets: [dataset] },
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -535,7 +563,7 @@ UI.Issues.renderFilterChips = function () {
       if (E.startDateFilter && key === 'start') E.startDateFilter.value = '';
       if (E.endDateFilter && key === 'end') E.endDateFilter.value = '';
 
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
   });
 };
@@ -2546,7 +2574,7 @@ async function loadIssues(force = false) {
       setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
       setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
       UI.skeleton(false);
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
       openIssueFromLink();
     }
   }
@@ -4027,7 +4055,8 @@ function wireCore() {
       debounce(() => {
         Filters.state.search = E.searchInput.value || '';
         Filters.save();
-        UI.refreshAll();
+        GridState.page = 1;
+        UI.refreshTableAndSummary();
       }, 250)
     );
 
@@ -4170,13 +4199,14 @@ function wireCore() {
     });
   }
   
+  UI.refreshTableAndSummary = () => {
+    const list = UI.Issues.applyFilters();
+    UI.Issues.lightRefresh(list);
+    return list;
+  };
   UI.refreshAll = () => {
     const list = UI.Issues.applyFilters();
-    UI.Issues.renderSummary(list);
-    UI.Issues.renderFilterChips();
-    UI.Issues.renderKPIs(list);
-    UI.Issues.renderTable(list);
-    UI.Issues.renderCharts(list);
+    UI.Issues.fullRefresh(list);
     UI.updateHeroMetrics(DataStore.rows);
     refreshPlannerTickets(list);
     if (E.insightsView && E.insightsView.classList.contains('active')) {
@@ -4197,7 +4227,7 @@ function wireSorting() {
         GridState.sortKey = key;
         GridState.sortAsc = true;
       }
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     th.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -4217,18 +4247,18 @@ function wirePaging() {
       GridState.pageSize = +E.pageSize.value;
       localStorage.setItem(LS_KEYS.pageSize, GridState.pageSize);
       GridState.page = 1;
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
   if (E.firstPage)
     E.firstPage.addEventListener('click', () => {
       GridState.page = 1;
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
   if (E.prevPage)
     E.prevPage.addEventListener('click', () => {
       if (GridState.page > 1) {
         GridState.page--;
-        UI.refreshAll();
+        UI.refreshTableAndSummary();
       }
     });
   if (E.nextPage)
@@ -4237,14 +4267,14 @@ function wirePaging() {
       const pages = Math.max(1, Math.ceil(list.length / GridState.pageSize));
       if (GridState.page < pages) {
         GridState.page++;
-        UI.refreshAll();
+        UI.refreshTableAndSummary();
       }
     });
   if (E.lastPage)
     E.lastPage.addEventListener('click', () => {
       const list = UI.Issues.applyFilters();
       GridState.page = Math.max(1, Math.ceil(list.length / GridState.pageSize));
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
 }
 
@@ -4253,7 +4283,7 @@ function wireFilters() {
     E.moduleFilter.addEventListener('change', () => {
       Filters.state.module = E.moduleFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     setIfOptionExists(E.moduleFilter, Filters.state.module);
   }
@@ -4261,7 +4291,7 @@ function wireFilters() {
     E.categoryFilter.addEventListener('change', () => {
       Filters.state.category = E.categoryFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     setIfOptionExists(E.categoryFilter, Filters.state.category);
   }
@@ -4269,7 +4299,7 @@ function wireFilters() {
     E.priorityFilter.addEventListener('change', () => {
       Filters.state.priority = E.priorityFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
      setIfOptionExists(E.priorityFilter, Filters.state.priority);
   }
@@ -4277,7 +4307,7 @@ function wireFilters() {
     E.statusFilter.addEventListener('change', () => {
       Filters.state.status = E.statusFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     setIfOptionExists(E.statusFilter, Filters.state.status);
   }
@@ -4285,7 +4315,7 @@ function wireFilters() {
     E.devTeamStatusFilter.addEventListener('change', () => {
       Filters.state.devTeamStatus = E.devTeamStatusFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     setIfOptionExists(E.devTeamStatusFilter, Filters.state.devTeamStatus);
   }
@@ -4293,7 +4323,7 @@ function wireFilters() {
     E.issueRelatedFilter.addEventListener('change', () => {
       Filters.state.issueRelated = E.issueRelatedFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
     setIfOptionExists(E.issueRelatedFilter, Filters.state.issueRelated);
   }
@@ -4302,7 +4332,7 @@ function wireFilters() {
     E.startDateFilter.addEventListener('change', () => {
       Filters.state.start = E.startDateFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
   }
   if (E.endDateFilter) {
@@ -4310,7 +4340,7 @@ function wireFilters() {
     E.endDateFilter.addEventListener('change', () => {
       Filters.state.end = E.endDateFilter.value;
       Filters.save();
-      UI.refreshAll();
+      UI.refreshTableAndSummary();
     });
   }
   if (E.searchInput) E.searchInput.value = Filters.state.search || '';
@@ -4334,7 +4364,8 @@ function wireFilters() {
       if (E.startDateFilter) E.startDateFilter.value = '';
       if (E.endDateFilter) E.endDateFilter.value = '';
       UI.Issues.renderFilters();
-      UI.refreshAll();
+      GridState.page = 1;
+      UI.refreshTableAndSummary();
     });
 }
 
@@ -4947,8 +4978,10 @@ function wireAIQuery() {
 
 /* ---------- CSM Daily Activity ---------- */
 const CSMActivity = {
+  cacheTtlMs: 2 * 60 * 1000,
   rows: [],
   loaded: false,
+  lastLoadedAt: 0,
   isLoading: false,
   isSaving: false,
   loadError: '',
@@ -5027,7 +5060,8 @@ const CSMActivity = {
   async loadAndRefresh(options = {}) {
     const force = !!options.force;
     if (this.isLoading) return;
-    if (this.loaded && !force) {
+    const hasWarmCache = this.loaded && Date.now() - this.lastLoadedAt <= this.cacheTtlMs;
+    if (hasWarmCache && !force) {
       this.refresh();
       return;
     }
@@ -5035,10 +5069,16 @@ const CSMActivity = {
     this.loadError = '';
     this.refresh();
     try {
-      const response = await Api.postAuthenticatedCached('csm', 'list', {}, { requireAuth: true, forceRefresh: force });
+      const response = await Api.postAuthenticatedCached(
+        'csm',
+        'list',
+        { limit: 50, offset: 0, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+        { requireAuth: true, forceRefresh: force }
+      );
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
       this.rows = rows.filter(row => row.id || row.csmName || row.client || row.timestamp);
       this.loaded = true;
+      this.lastLoadedAt = Date.now();
       this.hydrateOptions();
       this.refresh();
     } catch (error) {
@@ -5103,6 +5143,16 @@ const CSMActivity = {
   destroyChart(chart) {
     if (chart && typeof chart.destroy === 'function') chart.destroy();
   },
+  upsertChart(existingChart, ctx, config) {
+    if (existingChart && existingChart.config?.type === config.type) {
+      existingChart.data = config.data;
+      existingChart.options = config.options || existingChart.options;
+      existingChart.update('none');
+      return existingChart;
+    }
+    this.destroyChart(existingChart);
+    return new Chart(ctx, config);
+  },
   renderCharts(list) {
     const minutes = row => Number(row.timeSpentMinutes) || 0;
     const countByKey = key => {
@@ -5134,8 +5184,7 @@ const CSMActivity = {
 
     if (E.csmMinutesByClientChart?.getContext) {
       const byClient = [...totalByKey('client').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      this.destroyChart(this.charts.minutesByClient);
-      this.charts.minutesByClient = new Chart(E.csmMinutesByClientChart.getContext('2d'), {
+      this.charts.minutesByClient = this.upsertChart(this.charts.minutesByClient, E.csmMinutesByClientChart.getContext('2d'), {
         type: 'bar',
         data: {
           labels: byClient.map(row => row[0]),
@@ -5147,8 +5196,7 @@ const CSMActivity = {
 
     if (E.csmTypeOfSupportChart?.getContext) {
       const bySupport = [...countByKey('supportType').entries()].sort((a, b) => b[1] - a[1]);
-      this.destroyChart(this.charts.typeOfSupport);
-      this.charts.typeOfSupport = new Chart(E.csmTypeOfSupportChart.getContext('2d'), {
+      this.charts.typeOfSupport = this.upsertChart(this.charts.typeOfSupport, E.csmTypeOfSupportChart.getContext('2d'), {
         type: 'doughnut',
         data: {
           labels: bySupport.map(row => row[0]),
@@ -5166,8 +5214,7 @@ const CSMActivity = {
         else if (effort.startsWith('m')) effortCounts.Medium += 1;
         else effortCounts.Low += 1;
       });
-      this.destroyChart(this.charts.effortRequirement);
-      this.charts.effortRequirement = new Chart(E.csmEffortRequirementChart.getContext('2d'), {
+      this.charts.effortRequirement = this.upsertChart(this.charts.effortRequirement, E.csmEffortRequirementChart.getContext('2d'), {
         type: 'pie',
         data: {
           labels: ['Low', 'Medium', 'High'],
@@ -5179,8 +5226,7 @@ const CSMActivity = {
 
     if (E.csmSupportChannelsChart?.getContext) {
       const byChannel = [...countByKey('supportChannel').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      this.destroyChart(this.charts.supportChannels);
-      this.charts.supportChannels = new Chart(E.csmSupportChannelsChart.getContext('2d'), {
+      this.charts.supportChannels = this.upsertChart(this.charts.supportChannels, E.csmSupportChannelsChart.getContext('2d'), {
         type: 'bar',
         data: {
           labels: byChannel.map(row => row[0]),
@@ -5196,8 +5242,7 @@ const CSMActivity = {
         if (!row.parsedDate) return;
         weekdayMinutes[weekdayIndex(row.parsedDate)] += minutes(row);
       });
-      this.destroyChart(this.charts.weekdayWorkload);
-      this.charts.weekdayWorkload = new Chart(E.csmWeekdayWorkloadChart.getContext('2d'), {
+      this.charts.weekdayWorkload = this.upsertChart(this.charts.weekdayWorkload, E.csmWeekdayWorkloadChart.getContext('2d'), {
         type: 'bar',
         data: { labels: weekdays, datasets: [{ label: 'Minutes', data: weekdayMinutes.map(v => Math.round(v)), backgroundColor: '#0ea5e9' }] },
         options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Minutes' } } } }
@@ -5212,8 +5257,7 @@ const CSMActivity = {
         byWeek.set(week, (byWeek.get(week) || 0) + minutes(row));
       });
       const weeklyRows = [...byWeek.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
-      this.destroyChart(this.charts.weeklyTrend);
-      this.charts.weeklyTrend = new Chart(E.csmWeeklyTrendChart.getContext('2d'), {
+      this.charts.weeklyTrend = this.upsertChart(this.charts.weeklyTrend, E.csmWeeklyTrendChart.getContext('2d'), {
         type: 'line',
         data: { labels: weeklyRows.map(r => r[0]), datasets: [{ label: 'Minutes', data: weeklyRows.map(r => Math.round(r[1])), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.15)', fill: true, tension: 0.35 }] },
         options: { responsive: true, scales: { y: { beginAtZero: false, title: { display: true, text: 'Minutes' } } } }
@@ -5229,8 +5273,7 @@ const CSMActivity = {
         const bucket = effort.startsWith('h') ? 'High' : effort.startsWith('m') ? 'Medium' : 'Low';
         byEffort[bucket].set(csm, (byEffort[bucket].get(csm) || 0) + 1);
       });
-      this.destroyChart(this.charts.effortMixByCsm);
-      this.charts.effortMixByCsm = new Chart(E.csmEffortMixByCsmChart.getContext('2d'), {
+      this.charts.effortMixByCsm = this.upsertChart(this.charts.effortMixByCsm, E.csmEffortMixByCsmChart.getContext('2d'), {
         type: 'bar',
         data: {
           labels: names,
@@ -5249,8 +5292,7 @@ const CSMActivity = {
       const top = byClient.slice(0, 5);
       const otherMinutes = byClient.slice(5).reduce((sum, row) => sum + row[1], 0);
       if (otherMinutes > 0) top.push(['Others', otherMinutes]);
-      this.destroyChart(this.charts.clientConcentration);
-      this.charts.clientConcentration = new Chart(E.csmClientConcentrationChart.getContext('2d'), {
+      this.charts.clientConcentration = this.upsertChart(this.charts.clientConcentration, E.csmClientConcentrationChart.getContext('2d'), {
         type: 'doughnut',
         data: {
           labels: top.map(r => r[0]),
@@ -5263,8 +5305,7 @@ const CSMActivity = {
     if (E.csmWorkloadBalanceChart?.getContext) {
       const byCsm = [...totalByKey('csmName').entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       const avg = byCsm.length ? byCsm.reduce((sum, row) => sum + row[1], 0) / byCsm.length : 0;
-      this.destroyChart(this.charts.workloadBalance);
-      this.charts.workloadBalance = new Chart(E.csmWorkloadBalanceChart.getContext('2d'), {
+      this.charts.workloadBalance = this.upsertChart(this.charts.workloadBalance, E.csmWorkloadBalanceChart.getContext('2d'), {
         data: {
           labels: byCsm.map(r => r[0]),
           datasets: [
