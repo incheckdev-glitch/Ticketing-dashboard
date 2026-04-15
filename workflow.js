@@ -595,7 +595,7 @@ const Workflow = {
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
       const [rulesRes, approvalsRes, auditRes] = await Promise.all([
-        Api.listWorkflowRules(),
+        Api.listWorkflowRules({}, { forceRefresh: force }),
         Api.listPendingWorkflowApprovals(),
         Api.listWorkflowAudit()
       ]);
@@ -622,14 +622,28 @@ const Workflow = {
       return UI.toast('resource, current status, next status, and allowed roles are required.');
     }
     const response = await Api.saveWorkflowRule(payload);
-    const savedRule = this.normalizeWorkflowRule(response?.rule || response?.data?.rule || payload);
-    const idx = this.state.rules.findIndex(rule => String(rule.workflow_rule_id || '') === String(savedRule.workflow_rule_id || ''));
+    const normalizedRows = this.normalizeRows(response);
+    const responseRule = normalizedRows[0] || response?.rule || response?.data?.rule || payload;
+    const savedRule = this.normalizeWorkflowRule(responseRule);
+    const resolvedRuleId =
+      String(savedRule.workflow_rule_id || '').trim() ||
+      String(payload.workflow_rule_id || '').trim() ||
+      `local-${Date.now()}`;
+    savedRule.workflow_rule_id = resolvedRuleId;
+
+    const idx = this.state.rules.findIndex(rule => String(rule.workflow_rule_id || '') === resolvedRuleId);
     if (idx === -1) this.state.rules.unshift(savedRule);
-    else this.state.rules[idx] = { ...this.state.rules[idx], ...savedRule };
+    else this.state.rules[idx] = { ...this.state.rules[idx], ...savedRule, workflow_rule_id: resolvedRuleId };
+
+    if (E.workflowResourceFilter) {
+      const activeFilter = String(E.workflowResourceFilter.value || '').trim().toLowerCase();
+      if (activeFilter && activeFilter !== savedRule.resource) E.workflowResourceFilter.value = '';
+    }
     UI.toast(payload.workflow_rule_id ? 'Workflow rule updated.' : 'Workflow rule created.');
     this.resetRuleForm();
     this.renderRules();
     this.renderMatrix();
+    await this.loadAndRefresh(true);
   },
   async deleteRule(workflowRuleId) {
     const id = String(workflowRuleId || '').trim();

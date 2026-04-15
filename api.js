@@ -454,11 +454,11 @@ const Api = {
     });
   },
 
-  async listWorkflowRules(filters = {}) {
+  async listWorkflowRules(filters = {}, options = {}) {
     return this.postAuthenticatedCached('workflow', 'list', {
       filters,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
-    });
+    }, options);
   },
   async getWorkflowRule(workflowRuleId) {
     return this.postAuthenticated('workflow', 'get', {
