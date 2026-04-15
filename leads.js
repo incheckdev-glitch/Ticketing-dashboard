@@ -700,6 +700,54 @@ const Leads = {
       notes: String(E.leadFormNotes?.value || '').trim()
     };
   },
+  normalizeComparableLeadDate(value) {
+    return String(value || '')
+      .trim()
+      .slice(0, 10);
+  },
+  didLeadUpdatePersist(latestLead, submittedLead) {
+    const latest = this.normalizeLead(latestLead || {});
+    const submitted = submittedLead || {};
+    const toComparable = lead => ({
+      full_name: String(lead.full_name || '').trim(),
+      company_name: String(lead.company_name || '').trim(),
+      phone: String(lead.phone || '').trim(),
+      email: String(lead.email || '').trim(),
+      country: String(lead.country || '').trim(),
+      lead_source: String(lead.lead_source || '').trim(),
+      service_interest: String(lead.service_interest || '').trim(),
+      status: String(lead.status || '').trim(),
+      priority: String(lead.priority || '').trim(),
+      estimated_value: String(lead.estimated_value ?? '').trim(),
+      currency: String(lead.currency || '').trim(),
+      assigned_to: String(lead.assigned_to || '').trim(),
+      next_followup_date: this.normalizeComparableLeadDate(lead.next_followup_date),
+      last_contact_date: this.normalizeComparableLeadDate(lead.last_contact_date),
+      proposal_needed: this.normalizeBool(lead.proposal_needed),
+      agreement_needed: this.normalizeBool(lead.agreement_needed),
+      notes: String(lead.notes || '').trim()
+    });
+
+    const a = toComparable(latest);
+    const b = toComparable(submitted);
+    return Object.keys(b).every(key => a[key] === b[key]);
+  },
+  async updateLeadWithVerification(leadId, lead) {
+    try {
+      const response = await this.updateLead(leadId, lead);
+      const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
+      return { row: resolvedRow, verifiedAfterError: false };
+    } catch (error) {
+      if (isAuthError(error)) throw error;
+
+      const latest = await this.getLead(leadId).catch(() => null);
+      const latestLead = latest?.lead || latest?.data?.lead || latest || null;
+      if (latestLead && this.didLeadUpdatePersist(latestLead, lead)) {
+        return { row: latestLead, verifiedAfterError: true };
+      }
+      throw error;
+    }
+  },
   async submitForm() {
     if (!Permissions.canCreateLead()) {
       UI.toast('Login is required to manage leads.');
@@ -727,7 +775,7 @@ const Leads = {
         const response = await this.updateLead(leadId, lead);
         const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
         this.upsertLocalRow(resolvedRow);
-        UI.toast('Lead updated.');
+        UI.toast(result?.verifiedAfterError ? 'Lead updated (verified).' : 'Lead updated.');
       } else {
         const response = await this.createLead(lead);
         const created = response?.lead || response?.data?.lead || response || lead;
