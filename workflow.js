@@ -224,15 +224,6 @@ const Workflow = {
         return parsed.map(item => normalizeRowObject(item)).filter(Boolean);
       }
       if (!parsed || typeof parsed !== 'object') return [];
-      if (Array.isArray(parsed.data)) return parsed.data.map(item => normalizeRowObject(item)).filter(Boolean);
-      if (Array.isArray(parsed.rows)) return parsed.rows.map(item => normalizeRowObject(item)).filter(Boolean);
-      if (Array.isArray(parsed.items)) return parsed.items.map(item => normalizeRowObject(item)).filter(Boolean);
-      if (Array.isArray(parsed.result)) return parsed.result.map(item => normalizeRowObject(item)).filter(Boolean);
-      if (Array.isArray(parsed.payload)) return parsed.payload.map(item => normalizeRowObject(item)).filter(Boolean);
-      if (parsed.data && typeof parsed.data === 'object') {
-        if (Array.isArray(parsed.data.data)) return parsed.data.data.map(item => normalizeRowObject(item)).filter(Boolean);
-        if (Array.isArray(parsed.data.rows)) return parsed.data.rows.map(item => normalizeRowObject(item)).filter(Boolean);
-      }
 
       if (Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
         const mapped = rowsFromColumns(parsed.columns, parsed.rows);
@@ -255,48 +246,17 @@ const Workflow = {
       }
       return [];
     };
-    const findRowsDeep = value => {
-      const queue = [parseJsonIfNeeded(value)];
-      const seen = new Set();
-      while (queue.length) {
-        const current = queue.shift();
-        if (!current || typeof current !== 'object') continue;
-        if (seen.has(current)) continue;
-        seen.add(current);
-        const rows = coerceRows(current);
-        if (rows.length) return rows;
-        if (Array.isArray(current)) {
-          current.forEach(item => {
-            if (item && typeof item === 'object') queue.push(item);
-          });
-          continue;
-        }
-        Object.values(current).forEach(item => {
-          const parsedItem = parseJsonIfNeeded(item);
-          if (parsedItem && typeof parsedItem === 'object') queue.push(parsedItem);
-        });
-      }
-      return [];
-    };
     const candidates = [
       response,
-      response?.rules,
-      response?.data?.rules,
-      response?.result?.rules,
-      response?.payload?.rules,
       response?.items,
       response?.rows,
       response?.data,
-      response?.data?.data,
-      response?.data?.rows,
       response?.result,
       response?.payload,
       response?.data?.items,
       response?.data?.rows,
       response?.result?.items,
       response?.result?.rows,
-      response?.result?.data,
-      response?.payload?.data,
       response?.payload?.items,
       response?.payload?.rows
     ];
@@ -304,7 +264,7 @@ const Workflow = {
       const rows = coerceRows(candidate);
       if (rows.length) return rows;
     }
-    return findRowsDeep(response);
+    return [];
   },
   normalizeWorkflowRule(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -328,8 +288,8 @@ const Workflow = {
         pick(source.workflow_rule_id, source.rule_id, source.id, source.miorder, source.minorder)
       ).trim(),
       resource: String(pick(source.resource)).trim().toLowerCase(),
-      current_status: String(pick(source.current_status, source.currentstatus)).trim(),
-      next_status: String(pick(source.next_status, source.nextstatus)).trim(),
+      current_status: String(pick(source.current_status)).trim(),
+      next_status: String(pick(source.next_status)).trim(),
       allowed_roles: normalizedAllowedRoles,
       allowed_roles_csv: normalizedAllowedRoles.join(','),
       requires_approval: WorkflowEngine.toBool(
@@ -360,33 +320,6 @@ const Workflow = {
       ),
       is_active: WorkflowEngine.toBool(pick(source.is_active, source.isactive, true))
     };
-  },
-  responseHasObjectLikeContent(response) {
-    const visited = new Set();
-    const inspect = value => {
-      if (value === null || value === undefined) return false;
-      if (visited.has(value)) return false;
-      if (Array.isArray(value)) {
-        visited.add(value);
-        if (!value.length) return false;
-        return value.some(item => item && typeof item === 'object');
-      }
-      if (typeof value === 'object') {
-        visited.add(value);
-        const values = Object.values(value);
-        if (!values.length) return false;
-        return values.some(item => (item && typeof item === 'object') || Array.isArray(item));
-      }
-      return false;
-    };
-    return inspect(response);
-  },
-  updateRulesDebugStatus(visibleRowsCount = null) {
-    if (!E.workflowRulesStatus) return;
-    const totalCount = Array.isArray(this.state.rules) ? this.state.rules.length : 0;
-    const filter = String(E.workflowResourceFilter?.value || '').trim().toLowerCase();
-    const shownCount = Number.isFinite(visibleRowsCount) ? visibleRowsCount : totalCount;
-    E.workflowRulesStatus.textContent = `Loaded ${totalCount} workflow rule(s)${filter ? ` • Filter: ${filter} • Showing ${shownCount}` : ''}`;
   },
   getRulePayloadFromForm() {
     const get = id => String(E[id]?.value || '').trim();
@@ -585,15 +518,6 @@ const Workflow = {
     if (!E.workflowRulesTbody) return;
     const resourceFilter = String(E.workflowResourceFilter?.value || '').trim().toLowerCase();
     const rows = this.state.rules.filter(rule => !resourceFilter || String(rule.resource || '').toLowerCase() === resourceFilter);
-    this.updateRulesDebugStatus(rows.length);
-    if (!rows.length && this.state.rules.length && resourceFilter) {
-      E.workflowRulesTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No rules match the current filter. Clear filter to see all.</td></tr>';
-      return;
-    }
-    if (!this.state.rules.length) {
-      E.workflowRulesTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No workflow rules returned by API.</td></tr>';
-      return;
-    }
     E.workflowRulesTbody.innerHTML = rows.map(rule => `
       <tr>
         <td>${U.escapeHtml(rule.resource || '—')}</td>
@@ -671,18 +595,11 @@ const Workflow = {
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
       const [rulesRes, approvalsRes, auditRes] = await Promise.all([
-        Api.listWorkflowRules(),
+        Api.listWorkflowRules({}, { forceRefresh: force }),
         Api.listPendingWorkflowApprovals(),
         Api.listWorkflowAudit()
       ]);
-      const shouldDebugWorkflow = typeof Api?.isWorkflowDebugEnabled === 'function' ? Api.isWorkflowDebugEnabled() : false;
-      if (shouldDebugWorkflow) console.debug('[workflow] raw rules response', rulesRes);
-      const normalizedRules = this.normalizeRows(rulesRes).map(rule => this.normalizeWorkflowRule(rule));
-      if (!normalizedRules.length && this.responseHasObjectLikeContent(rulesRes)) {
-        console.warn('Workflow response shape not recognized', rulesRes);
-      }
-      if (shouldDebugWorkflow) console.debug('[workflow] normalized rules count', normalizedRules.length);
-      this.state.rules = normalizedRules;
+      this.state.rules = this.normalizeRows(rulesRes).map(rule => this.normalizeWorkflowRule(rule));
       this.state.approvals = this.normalizeRows(approvalsRes);
       this.state.audit = this.normalizeRows(auditRes);
       this.state.loaded = true;

@@ -172,7 +172,6 @@ function cacheEls() {
     'rolePermissionsView',
     'workflowView',
     'workflowRulesTbody',
-    'workflowRulesStatus',
     'workflowRuleForm',
     'workflowRuleId',
     'workflowResource',

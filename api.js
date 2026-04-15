@@ -42,40 +42,6 @@ const Api = {
     }
     return payload;
   },
-  isWorkflowDebugEnabled() {
-    try {
-      const runtimeFlag = window.RUNTIME_CONFIG?.DEBUG_WORKFLOW;
-      if (runtimeFlag === true || String(runtimeFlag || '').toLowerCase() === 'true') return true;
-    } catch {}
-    const host = String(window.location?.hostname || '').toLowerCase();
-    return host === 'localhost' || host === '127.0.0.1';
-  },
-  logWorkflowDebug(resource, action, rawResponse) {
-    if (String(resource || '').toLowerCase() !== 'workflow') return;
-    if (!this.isWorkflowDebugEnabled()) return;
-    const endpoint = (() => {
-      try {
-        return this.ensureBaseUrl();
-      } catch {
-        return '';
-      }
-    })();
-    const unwrappedPayload = this.unwrapApiPayload(rawResponse);
-    console.debug('[workflow-api]', {
-      endpoint,
-      resource,
-      action,
-      rawResponse,
-      unwrappedPayload
-    });
-  },
-  buildWorkflowSheetPayload(sheetName) {
-    const resolvedSheetName = String(sheetName || '').trim();
-    if (!resolvedSheetName) return {};
-    return {
-      sheetName: resolvedSheetName
-    };
-  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
@@ -508,24 +474,22 @@ const Api = {
   },
 
   async listWorkflowRules(filters = {}, options = {}) {
-    const response = await this.postAuthenticated('workflow', 'list', {
+    return this.postAuthenticatedCached('workflow', 'list', {
       filters,
-      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     }, options);
-    this.logWorkflowDebug('workflow', 'list', response);
-    return response;
   },
   async getWorkflowRule(workflowRuleId) {
     return this.postAuthenticated('workflow', 'get', {
       workflow_rule_id: workflowRuleId,
-      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     });
   },
   async saveWorkflowRule(rule = {}) {
     const body = {
       rule,
       ...rule,
-      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     };
     try {
       return await this.postAuthenticated('workflow', 'save_rule', body);
@@ -539,7 +503,7 @@ const Api = {
   async deleteWorkflowRule(workflowRuleId) {
     const body = {
       workflow_rule_id: workflowRuleId,
-      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     };
     try {
       return await this.postAuthenticated('workflow', 'delete_rule', body);
@@ -553,7 +517,7 @@ const Api = {
   async validateWorkflowTransition(payload = {}) {
     return this.postAuthenticated('workflow', 'validate_transition', {
       ...payload,
-      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
+      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     });
   },
   async requestWorkflowApproval(payload = {}) {

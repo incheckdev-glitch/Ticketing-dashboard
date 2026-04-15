@@ -33,27 +33,6 @@ const Session = {
         keys.forEach(key => localStorage.removeItem(key));
       }
     } catch {}
-    this.clearWorkflowScopedCache();
-  },
-  clearWorkflowScopedCache() {
-    try {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const key = localStorage.key(i);
-        if (!key) continue;
-        if (key.includes(':workflow:') || key.includes('workflow_rules') || key.includes('workflow')) {
-          keys.push(key);
-        }
-      }
-      keys.forEach(key => localStorage.removeItem(key));
-    } catch {}
-    if (window.Workflow?.state) {
-      window.Workflow.state.rules = [];
-      window.Workflow.state.approvals = [];
-      window.Workflow.state.audit = [];
-      window.Workflow.state.loaded = false;
-      window.Workflow.state.lastLoadedAt = 0;
-    }
   },
   normalizeSessionPayload(session = {}, fallbackToken = '') {
     const token = String(session?.token || session?.authToken || fallbackToken || '').trim();
@@ -72,22 +51,9 @@ const Session = {
   },
   applySessionPayload(payload, { clearRoleCacheOnChange = true } = {}) {
     if (!payload) return false;
-    const previousRole = String(this.state.role || '').trim().toLowerCase();
-    const previousUserId = String(this.state.user_id || '').trim();
-    const previousUsername = String(this.state.username || '').trim().toLowerCase();
-    const previousToken = String(this.state.authToken || '').trim();
-    const nextRole = String(payload.role || '').trim().toLowerCase();
-    const nextUserId = String(payload.user_id || '').trim();
-    const nextUsername = String(payload.username || '').trim().toLowerCase();
-    const nextToken = String(payload.authToken || '').trim();
-    const userChanged =
-      (!!previousUserId && previousUserId !== nextUserId) ||
-      (!!previousUsername && previousUsername !== nextUsername) ||
-      (!!previousToken && previousToken !== nextToken);
-    if (clearRoleCacheOnChange && previousRole && previousRole !== nextRole) {
+    const previousRole = this.state.role;
+    if (clearRoleCacheOnChange && previousRole && previousRole !== payload.role) {
       this.clearRoleScopedCache();
-    } else if (userChanged) {
-      this.clearWorkflowScopedCache();
     }
     this.state = {
       role: payload.role,
@@ -154,7 +120,6 @@ const Session = {
         console.warn('Auth logout request failed', error);
       }
     }
-    this.clearWorkflowScopedCache();
     this.clearClientSession();
   },
   clearClientSession() {
