@@ -62,7 +62,12 @@ const Api = {
       throw buildHttpResponseError(response, data, endpoint, { resource, action: 'get' });
     }
     if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
-      throw new Error(data.error || data.message || 'Backend rejected request.');
+      throw buildExplicitBackendFailureError(data, {
+        endpoint,
+        resource,
+        action: 'get',
+        status: response.status
+      });
     }
     return this.unwrapApiPayload(data);
   },
@@ -589,7 +594,12 @@ async function apiPost(payload = {}) {
     throw buildHttpResponseError(response, data, endpoint, { resource, action });
   }
   if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
-    throw new Error(data.error || data.message || 'Backend rejected request.');
+    throw buildExplicitBackendFailureError(data, {
+      endpoint,
+      resource,
+      action,
+      status: response.status
+    });
   }
   if (data && typeof data === 'object' && 'data' in data && data.data !== undefined) {
     return data.data;
