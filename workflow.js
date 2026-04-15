@@ -595,7 +595,7 @@ const Workflow = {
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
       const [rulesRes, approvalsRes, auditRes] = await Promise.all([
-        Api.listWorkflowRules(),
+        Api.listWorkflowRules({}, { forceRefresh: force }),
         Api.listPendingWorkflowApprovals(),
         Api.listWorkflowAudit()
       ]);
