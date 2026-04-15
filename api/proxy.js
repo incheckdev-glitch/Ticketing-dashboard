@@ -89,13 +89,14 @@ export default async function handler(req, res) {
   const data = parseLenientJson(raw);
   if (data === null) {
     const contentType = upstream.headers.get('content-type') || 'unknown';
+    const looksLikeHtml = /<!doctype html|<html[\s>]/i.test(String(raw || '').trim());
     const nonJsonError = {
       error: 'Apps Script returned invalid JSON.',
       contentType,
       sample: String(raw || '').slice(0, 500)
     };
 
-    if (!upstream.ok) {
+    if (!upstream.ok || looksLikeHtml) {
       return res.status(502).json(nonJsonError);
     }
 
