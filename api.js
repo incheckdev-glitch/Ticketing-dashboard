@@ -114,20 +114,6 @@ const Api = {
     const serialized = stableSerialize(cleanPayload);
     return `${config.prefix}:${cacheScope}:${resource}:${action}:${serialized}`;
   },
-  clearCache(prefix = '') {
-    const { prefix: cachePrefix } = this.getCacheConfig();
-    const needle = prefix ? `${cachePrefix}:${prefix}` : cachePrefix;
-    try {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const key = localStorage.key(i);
-        if (key && key.indexOf(needle) !== -1) keys.push(key);
-      }
-      keys.forEach(key => localStorage.removeItem(key));
-    } catch {
-      // Ignore storage access failures.
-    }
-  },
   readCachedValue(cacheKey) {
     if (!cacheKey) return null;
     try {
@@ -473,11 +459,29 @@ const Api = {
     });
   },
 
+  clearApiCache(prefix = '') {
+    try {
+      const cachePrefix = this.getCacheConfig().prefix;
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith(cachePrefix + ':')) continue;
+        if (prefix && !key.includes(prefix)) continue;
+        keys.push(key);
+      }
+      keys.forEach(key => localStorage.removeItem(key));
+    } catch {}
+  },
+  debugWorkflowResponse(label, payload) {
+    try { console.log('[workflow]', label, payload); } catch {}
+  },
   async listWorkflowRules(filters = {}, options = {}) {
-    return this.postAuthenticatedCached('workflow', 'list', {
+    const response = await this.postAuthenticated('workflow', 'list', {
       filters,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     }, options);
+    this.debugWorkflowResponse('list rules response', response);
+    return response;
   },
   async getWorkflowRule(workflowRuleId) {
     return this.postAuthenticated('workflow', 'get', {

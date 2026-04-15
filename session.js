@@ -21,17 +21,7 @@ const Session = {
       } catch {}
     });
     try {
-      if (window.Api?.clearCache) {
-        window.Api.clearCache();
-      } else {
-        const prefix = 'ticketing_dashboard_cache_v1';
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i += 1) {
-          const key = localStorage.key(i);
-          if (key && key.indexOf(prefix) !== -1) keys.push(key);
-        }
-        keys.forEach(key => localStorage.removeItem(key));
-      }
+      if (window.Api?.clearApiCache) window.Api.clearApiCache();
     } catch {}
   },
   normalizeSessionPayload(session = {}, fallbackToken = '') {

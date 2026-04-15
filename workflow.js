@@ -517,19 +517,32 @@ const Workflow = {
   renderRules() {
     if (!E.workflowRulesTbody) return;
     const resourceFilter = String(E.workflowResourceFilter?.value || '').trim().toLowerCase();
-    const rows = this.state.rules.filter(rule => !resourceFilter || String(rule.resource || '').toLowerCase() === resourceFilter);
+    const allRows = Array.isArray(this.state.rules) ? this.state.rules : [];
+    const rows = allRows.filter(rule => !resourceFilter || String(rule.resource || '').toLowerCase() === resourceFilter);
+    const infoEl = document.getElementById('workflowRulesDebug');
+    if (infoEl) {
+      infoEl.textContent = `Loaded ${allRows.length} workflow rule(s)` + (resourceFilter ? ` • filter: ${resourceFilter}` : '');
+    }
+    if (!allRows.length) {
+      E.workflowRulesTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No workflow rules returned by API.</td></tr>';
+      return;
+    }
+    if (!rows.length) {
+      E.workflowRulesTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No rules match the current filter. Clear filter to see all.</td></tr>';
+      return;
+    }
     E.workflowRulesTbody.innerHTML = rows.map(rule => `
       <tr>
         <td>${U.escapeHtml(rule.resource || '—')}</td>
         <td>${U.escapeHtml(rule.current_status || '—')}</td>
         <td>${U.escapeHtml(rule.next_status || '—')}</td>
         <td>${U.escapeHtml(Array.isArray(rule.allowed_roles) ? rule.allowed_roles.join(', ') : String(rule.allowed_roles || rule.allowed_roles_csv || '—'))}</td>
-        <td>${WorkflowEngine.toBool(rule.requires_approval) ? U.escapeHtml(rule.approval_role || 'required') : 'No'}</td>
+        <td>${WorkflowEngine.toBool(rule.requires_approval) ? `Yes (${U.escapeHtml(rule.approval_role || 'required')})` : 'No'}</td>
         <td>${U.escapeHtml(String(rule.max_discount_percent ?? '—'))}</td>
         <td>${U.escapeHtml(String(rule.hard_stop_discount_percent ?? '—'))}</td>
         <td>${WorkflowEngine.toBool(rule.is_active) ? 'Yes' : 'No'}</td>
         <td><button class="chip-btn" data-rule-edit="${U.escapeHtml(rule.workflow_rule_id || '')}">Edit</button> <button class="chip-btn" data-rule-delete="${U.escapeHtml(rule.workflow_rule_id || '')}">Delete</button></td>
-      </tr>`).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;">No workflow rules.</td></tr>';
+      </tr>`).join('');
   },
   renderDiscountPolicy() {
     if (!E.workflowDiscountPolicyTbody) return;
@@ -593,15 +606,35 @@ const Workflow = {
     }
     this.state.loading = true;
     try {
-      if (window.RolesAdmin?.ensureRolesLoaded) await window.RolesAdmin.ensureRolesLoaded(force);
-      const [rulesRes, approvalsRes, auditRes] = await Promise.all([
-        Api.listWorkflowRules({}, { forceRefresh: force }),
-        Api.listPendingWorkflowApprovals(),
-        Api.listWorkflowAudit()
+      if (window.RolesAdmin?.ensureRolesLoaded) {
+        try {
+          await window.RolesAdmin.ensureRolesLoaded(force);
+        } catch (error) {
+          console.warn('Workflow roles preload failed', error);
+        }
+      }
+      const role = String(Session?.role?.() || Session?.state?.role || '').trim().toLowerCase();
+      const canReadWorkflowAdminData = role === 'admin' || role === 'dev';
+      const [rulesResult, approvalsResult, auditResult] = await Promise.allSettled([
+        Api.listWorkflowRules({}, { forceRefresh: true }),
+        canReadWorkflowAdminData ? Api.listPendingWorkflowApprovals() : Promise.resolve([]),
+        canReadWorkflowAdminData ? Api.listWorkflowAudit() : Promise.resolve([])
       ]);
-      this.state.rules = this.normalizeRows(rulesRes).map(rule => this.normalizeWorkflowRule(rule));
-      this.state.approvals = this.normalizeRows(approvalsRes);
-      this.state.audit = this.normalizeRows(auditRes);
+      if (rulesResult.status !== 'fulfilled') {
+        throw rulesResult.reason || new Error('Workflow rules request failed.');
+      }
+      const normalizedRules = this.normalizeRows(rulesResult.value).map(rule => this.normalizeWorkflowRule(rule));
+      this.state.rules = normalizedRules;
+      this.state.approvals = approvalsResult.status === 'fulfilled' ? this.normalizeRows(approvalsResult.value) : [];
+      this.state.audit = auditResult.status === 'fulfilled' ? this.normalizeRows(auditResult.value) : [];
+      if (approvalsResult.status !== 'fulfilled') {
+        console.warn('Workflow approvals load failed', approvalsResult.reason);
+      }
+      if (auditResult.status !== 'fulfilled') {
+        console.warn('Workflow audit load failed', auditResult.reason);
+      }
+      console.log('[workflow] rules raw response', rulesResult.value);
+      console.log('[workflow] normalized rules count', normalizedRules.length);
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
       this.renderRules();
@@ -611,7 +644,9 @@ const Workflow = {
       this.renderMatrix();
       this.populateRuleSelects();
     } catch (error) {
+      console.warn('Workflow load failed', error);
       UI.toast('Unable to load workflow data: ' + (error?.message || 'Unknown error'));
+      this.renderRules();
     } finally {
       this.state.loading = false;
     }
