@@ -228,6 +228,8 @@ const LifecycleAnalytics = {
     if (!normalized) return null;
 
     const idRegex = /^(lead|deal|prop|proposal|agr|agreement|inv|invoice|rec|receipt)[-_\s]?[a-z0-9-]+$/i;
+    const exactById = this.findExactEntityById(query, collections);
+    if (exactById) return exactById;
     const allExact = [];
     const allLoose = [];
 
@@ -245,6 +247,259 @@ const LifecycleAnalytics = {
     if (idRegex.test(query) && allExact.length) return allExact[0];
     if (allExact.length) return allExact[0];
     return allLoose[0] || null;
+  },
+  findByExactId(rows = [], idKey, query) {
+    const normalized = this.norm(query);
+    if (!normalized) return null;
+    return rows.find(row => this.norm(row?.[idKey]) === normalized) || null;
+  },
+  findLeadById(rows = [], query) {
+    return this.findByExactId(rows, 'lead_id', query);
+  },
+  findDealById(rows = [], query) {
+    return this.findByExactId(rows, 'deal_id', query);
+  },
+  findProposalById(rows = [], query) {
+    return this.findByExactId(rows, 'proposal_id', query);
+  },
+  findAgreementById(rows = [], query) {
+    return this.findByExactId(rows, 'agreement_id', query);
+  },
+  findInvoiceById(rows = [], query) {
+    return this.findByExactId(rows, 'invoice_id', query);
+  },
+  findReceiptById(rows = [], query) {
+    return this.findByExactId(rows, 'receipt_id', query);
+  },
+  findExactEntityById(query, collections) {
+    const byStage = {};
+    collections.forEach(item => {
+      byStage[item.stage] = item;
+    });
+    const exactMap = [
+      ['lead', 'lead_id', () => this.findLeadById(byStage.lead?.rows || [], query)],
+      ['deal', 'deal_id', () => this.findDealById(byStage.deal?.rows || [], query)],
+      ['proposal', 'proposal_id', () => this.findProposalById(byStage.proposal?.rows || [], query)],
+      ['agreement', 'agreement_id', () => this.findAgreementById(byStage.agreement?.rows || [], query)],
+      ['invoice', 'invoice_id', () => this.findInvoiceById(byStage.invoice?.rows || [], query)],
+      ['receipt', 'receipt_id', () => this.findReceiptById(byStage.receipt?.rows || [], query)]
+    ];
+    for (const [stage, idKey, resolve] of exactMap) {
+      const row = resolve();
+      if (row) return { stage, row, idKey };
+    }
+    return null;
+  },
+  createEmptyRecords() {
+    return {
+      leads: [],
+      deals: [],
+      proposals: [],
+      agreements: [],
+      invoices: [],
+      receipts: []
+    };
+  },
+  dedupeRecordsById(rows = [], idKey = 'id') {
+    const map = new Map();
+    rows.forEach(row => {
+      const key = this.text(row?.[idKey]);
+      if (!key) return;
+      map.set(this.norm(key), row);
+    });
+    return [...map.values()];
+  },
+  dedupeRecordsBuckets(records) {
+    return {
+      leads: this.dedupeRecordsById(records?.leads || [], 'lead_id'),
+      deals: this.dedupeRecordsById(records?.deals || [], 'deal_id'),
+      proposals: this.dedupeRecordsById(records?.proposals || [], 'proposal_id'),
+      agreements: this.dedupeRecordsById(records?.agreements || [], 'agreement_id'),
+      invoices: this.dedupeRecordsById(records?.invoices || [], 'invoice_id'),
+      receipts: this.dedupeRecordsById(records?.receipts || [], 'receipt_id')
+    };
+  },
+  inferPrimaryEntity(seed) {
+    if (!seed?.stage || !seed?.idKey) return null;
+    const id = this.text(seed?.row?.[seed.idKey]);
+    if (!id) return null;
+    return { type: seed.stage, id };
+  },
+  hydratePrimaryRecord(records, primaryEntity, data) {
+    if (!primaryEntity?.type || !primaryEntity?.id) return null;
+    const id = primaryEntity.id;
+    if (primaryEntity.type === 'lead') {
+      const row = this.findLeadById(data.leads, id);
+      if (row) records.leads.push(row);
+      return row || null;
+    }
+    if (primaryEntity.type === 'deal') {
+      const row = this.findDealById(data.deals, id);
+      if (row) records.deals.push(row);
+      return row || null;
+    }
+    if (primaryEntity.type === 'proposal') {
+      const row = this.findProposalById(data.proposals, id);
+      if (row) records.proposals.push(row);
+      return row || null;
+    }
+    if (primaryEntity.type === 'agreement') {
+      const row = this.findAgreementById(data.agreements, id);
+      if (row) records.agreements.push(row);
+      return row || null;
+    }
+    if (primaryEntity.type === 'invoice') {
+      const row = this.findInvoiceById(data.invoices, id);
+      if (row) records.invoices.push(row);
+      return row || null;
+    }
+    if (primaryEntity.type === 'receipt') {
+      const row = this.findReceiptById(data.receipts, id);
+      if (row) records.receipts.push(row);
+      return row || null;
+    }
+    return null;
+  },
+  collectHydratedLifecycleRecords(primaryEntity, data) {
+    const records = this.createEmptyRecords();
+    const primaryRecord = this.hydratePrimaryRecord(records, primaryEntity, data);
+    const primaryType = this.text(primaryEntity?.type);
+
+    const pushDealsByLead = leadId => {
+      if (!leadId) return;
+      data.deals.filter(item => this.norm(item.lead_id) === this.norm(leadId)).forEach(item => records.deals.push(item));
+    };
+    const pushProposalsByDealOrLead = (dealId, leadId) => {
+      data.proposals
+        .filter(item => (dealId && this.norm(item.deal_id) === this.norm(dealId)) || (leadId && this.norm(item.lead_id) === this.norm(leadId)))
+        .forEach(item => records.proposals.push(item));
+    };
+    const pushAgreementsByProposalDealLead = (proposalIds = [], dealId = '', leadId = '') => {
+      data.agreements
+        .filter(item => proposalIds.some(pid => this.norm(item.proposal_id) === this.norm(pid)) || (dealId && this.norm(item.deal_id) === this.norm(dealId)) || (leadId && this.norm(item.lead_id) === this.norm(leadId)))
+        .forEach(item => records.agreements.push(item));
+    };
+    const pushInvoicesByAgreement = agreementIds => {
+      data.invoices
+        .filter(item => agreementIds.some(aid => this.norm(item.agreement_id) === this.norm(aid)))
+        .forEach(item => records.invoices.push(item));
+    };
+    const pushReceiptsByInvoice = invoiceIds => {
+      data.receipts
+        .filter(item => invoiceIds.some(iid => this.norm(item.invoice_id) === this.norm(iid)))
+        .forEach(item => records.receipts.push(item));
+    };
+
+    if (primaryType === 'lead') pushDealsByLead(primaryRecord?.lead_id || primaryEntity?.id);
+    if (primaryType === 'deal') records.deals.forEach(item => pushDealsByLead(item.lead_id));
+    if (primaryType === 'proposal') {
+      records.proposals.forEach(item => {
+        if (item.deal_id) records.deals.push(...data.deals.filter(d => this.norm(d.deal_id) === this.norm(item.deal_id)));
+        if (item.lead_id) records.leads.push(...data.leads.filter(l => this.norm(l.lead_id) === this.norm(item.lead_id)));
+      });
+    }
+    if (primaryType === 'agreement') {
+      records.agreements.forEach(item => {
+        if (item.proposal_id) records.proposals.push(...data.proposals.filter(p => this.norm(p.proposal_id) === this.norm(item.proposal_id)));
+        if (item.deal_id) records.deals.push(...data.deals.filter(d => this.norm(d.deal_id) === this.norm(item.deal_id)));
+        if (item.lead_id) records.leads.push(...data.leads.filter(l => this.norm(l.lead_id) === this.norm(item.lead_id)));
+      });
+    }
+    if (primaryType === 'invoice') {
+      records.invoices.forEach(item => {
+        if (item.agreement_id) records.agreements.push(...data.agreements.filter(a => this.norm(a.agreement_id) === this.norm(item.agreement_id)));
+      });
+    }
+    if (primaryType === 'receipt') {
+      records.receipts.forEach(item => {
+        if (item.invoice_id) records.invoices.push(...data.invoices.filter(i => this.norm(i.invoice_id) === this.norm(item.invoice_id)));
+      });
+    }
+
+    const leadIds = new Set(records.leads.map(item => this.text(item.lead_id)).filter(Boolean));
+    const dealIds = new Set(records.deals.map(item => this.text(item.deal_id)).filter(Boolean));
+    if (leadIds.size) {
+      [...leadIds].forEach(leadId => pushDealsByLead(leadId));
+    }
+    const dedupedDeals = this.dedupeRecordsById(records.deals, 'deal_id');
+    dedupedDeals.forEach(item => {
+      dealIds.add(this.text(item.deal_id));
+      if (item.lead_id) records.leads.push(...data.leads.filter(lead => this.norm(lead.lead_id) === this.norm(item.lead_id)));
+    });
+    [...dealIds].forEach(dealId => pushProposalsByDealOrLead(dealId, ''));
+    [...leadIds].forEach(leadId => pushProposalsByDealOrLead('', leadId));
+
+    const dedupedProposals = this.dedupeRecordsById(records.proposals, 'proposal_id');
+    const proposalIds = dedupedProposals.map(item => this.text(item.proposal_id)).filter(Boolean);
+    dedupedProposals.forEach(item => {
+      if (item.deal_id) records.deals.push(...data.deals.filter(deal => this.norm(deal.deal_id) === this.norm(item.deal_id)));
+      if (item.lead_id) records.leads.push(...data.leads.filter(lead => this.norm(lead.lead_id) === this.norm(item.lead_id)));
+    });
+
+    const oneDealId = this.text(records.deals[0]?.deal_id);
+    const oneLeadId = this.text(records.leads[0]?.lead_id);
+    pushAgreementsByProposalDealLead(proposalIds, oneDealId, oneLeadId);
+
+    const dedupedAgreements = this.dedupeRecordsById(records.agreements, 'agreement_id');
+    dedupedAgreements.forEach(item => {
+      if (item.proposal_id) records.proposals.push(...data.proposals.filter(p => this.norm(p.proposal_id) === this.norm(item.proposal_id)));
+      if (item.deal_id) records.deals.push(...data.deals.filter(d => this.norm(d.deal_id) === this.norm(item.deal_id)));
+      if (item.lead_id) records.leads.push(...data.leads.filter(l => this.norm(l.lead_id) === this.norm(item.lead_id)));
+    });
+    const agreementIds = dedupedAgreements.map(item => this.text(item.agreement_id)).filter(Boolean);
+    pushInvoicesByAgreement(agreementIds);
+
+    const dedupedInvoices = this.dedupeRecordsById(records.invoices, 'invoice_id');
+    dedupedInvoices.forEach(item => {
+      if (item.agreement_id) records.agreements.push(...data.agreements.filter(a => this.norm(a.agreement_id) === this.norm(item.agreement_id)));
+    });
+    const invoiceIds = dedupedInvoices.map(item => this.text(item.invoice_id)).filter(Boolean);
+    pushReceiptsByInvoice(invoiceIds);
+
+    const deduped = this.dedupeRecordsBuckets(records);
+    return { records: deduped, primaryRecord };
+  },
+  recordsToGraph(records) {
+    return {
+      lead: records.leads[0] || null,
+      deal: records.deals[0] || null,
+      proposals: records.proposals || [],
+      agreements: records.agreements || [],
+      invoices: records.invoices || [],
+      receipts: records.receipts || []
+    };
+  },
+  hasAnyRecords(records) {
+    return ['leads', 'deals', 'proposals', 'agreements', 'invoices', 'receipts'].some(key => Array.isArray(records?.[key]) && records[key].length > 0);
+  },
+  async debugLifecycleAnalyticsHydration(query) {
+    const [leads, deals, proposals, agreements, invoices, receipts] = await Promise.all([
+      this.listLeads(false),
+      this.listDeals(false),
+      this.listProposals(false),
+      this.listAgreements(false),
+      this.listInvoices(false),
+      this.listReceipts(false)
+    ]);
+    const seed = this.findBestMatch(query, [
+      { stage: 'lead', rows: leads, idKey: 'lead_id' },
+      { stage: 'deal', rows: deals, idKey: 'deal_id' },
+      { stage: 'proposal', rows: proposals, idKey: 'proposal_id' },
+      { stage: 'agreement', rows: agreements, idKey: 'agreement_id' },
+      { stage: 'invoice', rows: invoices, idKey: 'invoice_id' },
+      { stage: 'receipt', rows: receipts, idKey: 'receipt_id' }
+    ]);
+    const primary_entity = this.inferPrimaryEntity(seed);
+    const hydrated = this.collectHydratedLifecycleRecords(primary_entity, { leads, deals, proposals, agreements, invoices, receipts });
+    const found = this.hasAnyRecords(hydrated.records);
+    this.log('debugLifecycleAnalyticsHydration', {
+      query,
+      primary_entity,
+      hydrated_primary_record: hydrated.primaryRecord,
+      counts: Object.fromEntries(Object.entries(hydrated.records).map(([key, rows]) => [key, rows.length])),
+      found
+    });
+    return { query, primary_entity, records: hydrated.records, found };
   },
   buildLifecycleGraph(seed, data) {
     const byNorm = value => this.norm(value);
@@ -717,14 +972,17 @@ const LifecycleAnalytics = {
       { stage: 'receipt', rows: receipts, idKey: 'receipt_id' }
     ]);
     if (!seed) return null;
-
-    const graph = this.buildLifecycleGraph(seed, { leads, deals, proposals, agreements, invoices, receipts });
+    const primaryEntity = this.inferPrimaryEntity(seed);
+    const hydration = this.collectHydratedLifecycleRecords(primaryEntity, { leads, deals, proposals, agreements, invoices, receipts });
+    const found = this.hasAnyRecords(hydration.records);
+    if (!found) return null;
+    const graph = this.recordsToGraph(hydration.records);
     const timeline = this.buildTimeline(graph);
     const metrics = this.buildMetrics(graph, timeline);
     const summary = this.buildSummary(graph, timeline, metrics);
     const insights = this.buildInsights(graph, metrics);
 
-    return { summary, graph, timeline, metrics, insights };
+    return { found, primary_entity: primaryEntity, summary, graph, records: hydration.records, timeline, metrics, insights };
   },
   async search() {
     const queryInput = document.getElementById('lifecycleSearchInput');
