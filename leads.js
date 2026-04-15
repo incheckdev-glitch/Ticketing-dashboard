@@ -732,43 +732,18 @@ const Leads = {
     const b = toComparable(submitted);
     return Object.keys(b).every(key => a[key] === b[key]);
   },
-  isLikelyGatewayWriteError(error) {
-    const message = String(error?.message || '')
-      .trim()
-      .toLowerCase();
-    if (!message) return false;
-    return (
-      message.includes('http 502') ||
-      message.includes('bad gateway') ||
-      message.includes('http 504') ||
-      message.includes('gateway timeout')
-    );
-  },
-  async updateLeadWithVerification(leadId, lead, currentRow = null) {
+  async updateLeadWithVerification(leadId, lead) {
     try {
       const response = await this.updateLead(leadId, lead);
       const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
-      return { row: resolvedRow, verifiedAfterError: false, assumedAfterGatewayError: false };
+      return { row: resolvedRow, verifiedAfterError: false };
     } catch (error) {
       if (isAuthError(error)) throw error;
 
       const latest = await this.getLead(leadId).catch(() => null);
       const latestLead = latest?.lead || latest?.data?.lead || latest || null;
       if (latestLead && this.didLeadUpdatePersist(latestLead, lead)) {
-        return { row: latestLead, verifiedAfterError: true, assumedAfterGatewayError: false };
-      }
-
-      if (this.isLikelyGatewayWriteError(error)) {
-        return {
-          row: {
-            ...(currentRow || {}),
-            ...lead,
-            lead_id: leadId,
-            updated_at: new Date().toISOString()
-          },
-          verifiedAfterError: false,
-          assumedAfterGatewayError: true
-        };
+        return { row: latestLead, verifiedAfterError: true };
       }
       throw error;
     }
@@ -797,15 +772,10 @@ const Leads = {
     this.setFormBusy(true);
     try {
       if (mode === 'edit') {
-        const currentRow = this.state.rows.find(item => item.lead_id === leadId) || null;
-        const result = await this.updateLeadWithVerification(leadId, lead, currentRow);
-        const resolvedRow = result?.row || { ...lead, lead_id: leadId };
+        const response = await this.updateLead(leadId, lead);
+        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
         this.upsertLocalRow(resolvedRow);
-        if (result?.assumedAfterGatewayError) {
-          UI.toast('Lead update sent. Gateway error received, UI synced with submitted values.');
-        } else {
-          UI.toast(result?.verifiedAfterError ? 'Lead updated (verified).' : 'Lead updated.');
-        }
+        UI.toast(result?.verifiedAfterError ? 'Lead updated (verified).' : 'Lead updated.');
       } else {
         const response = await this.createLead(lead);
         const created = response?.lead || response?.data?.lead || response || lead;
