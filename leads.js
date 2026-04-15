@@ -160,10 +160,46 @@ const Leads = {
       lead_id: leadId
     });
   },
+  isUnsupportedConvertActionError(error) {
+    const message = String(error?.message || '')
+      .trim()
+      .toLowerCase();
+    if (!message) return false;
+    return (
+      message.includes('not found') ||
+      message.includes('unknown action') ||
+      message.includes('unsupported action') ||
+      message.includes('invalid action') ||
+      message.includes('no handler') ||
+      message.includes('not implemented')
+    );
+  },
   async convertToDeal(leadId) {
-    return Api.postAuthenticated('leads', 'convert_to_deal', {
-      lead_id: leadId
-    });
+    const attempts = [
+      { resource: 'leads', action: 'convert_to_deal', payload: { lead_id: leadId } },
+      { resource: 'leads', action: 'convert', payload: { lead_id: leadId } },
+      { resource: 'deals', action: 'create_from_lead', payload: { lead_id: leadId } },
+      { resource: 'deals', action: 'convert_from_lead', payload: { lead_id: leadId } },
+      { resource: 'deals', action: 'create', payload: { lead_id: leadId } }
+    ];
+
+    let lastError = null;
+    for (let i = 0; i < attempts.length; i += 1) {
+      const attempt = attempts[i];
+      try {
+        return await Api.postAuthenticated(attempt.resource, attempt.action, attempt.payload);
+      } catch (error) {
+        if (isAuthError(error)) throw error;
+        lastError = error;
+        const hasMoreFallbacks = i < attempts.length - 1;
+        if (!hasMoreFallbacks || !this.isUnsupportedConvertActionError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    if (lastError) throw lastError;
+    throw new Error('Unable to convert lead to deal.');
   },
   isConvertedLead(row = {}) {
     const status = this.normalizeText(row.status);
@@ -175,6 +211,11 @@ const Leads = {
     return Permissions.canCreateLead() && !this.isConvertedLead(row) && !!String(row.lead_id || '').trim();
   },
   getConvertedDealId(response) {
+    const directDealId = String(
+      response?.deal_id || response?.dealId || response?.created_deal_id || response?.createdDealId || ''
+    ).trim();
+    if (directDealId) return directDealId;
+
     const dealCandidates = [
       response?.deal,
       response?.deals?.[0],
@@ -182,7 +223,10 @@ const Leads = {
       response?.result?.deal,
       response?.payload?.deal,
       response?.created_deal,
-      response?.createdDeal
+      response?.createdDeal,
+      response?.data,
+      response?.result,
+      response?.payload
     ];
     for (const candidate of dealCandidates) {
       if (!candidate || typeof candidate !== 'object') continue;
