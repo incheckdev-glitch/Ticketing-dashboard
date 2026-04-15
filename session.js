@@ -20,6 +20,19 @@ const Session = {
         localStorage.removeItem(key);
       } catch {}
     });
+    try {
+      if (window.Api?.clearCache) {
+        window.Api.clearCache();
+      } else {
+        const prefix = 'ticketing_dashboard_cache_v1';
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const key = localStorage.key(i);
+          if (key && key.indexOf(prefix) !== -1) keys.push(key);
+        }
+        keys.forEach(key => localStorage.removeItem(key));
+      }
+    } catch {}
   },
   normalizeSessionPayload(session = {}, fallbackToken = '') {
     const token = String(session?.token || session?.authToken || fallbackToken || '').trim();
@@ -167,6 +180,9 @@ const Session = {
   },
   username() {
     return this.state.username || '';
+  },
+  userId() {
+    return this.state.user_id || '';
   },
   displayName() {
     return this.state.name || this.state.username || this.state.email || '';

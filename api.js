@@ -96,6 +96,11 @@ const Api = {
     const config = this.getCacheConfig();
     const cleanPayload = { ...(payload || {}) };
     delete cleanPayload.authToken;
+    const cacheScope =
+      (typeof Session?.userId === 'function' && Session.userId()) ||
+      (typeof Session?.username === 'function' && Session.username()) ||
+      (typeof Session?.role === 'function' && Session.role()) ||
+      (Session?.state?.user_id || Session?.state?.username || Session?.state?.role || 'guest');
     const stableSerialize = value => {
       if (Array.isArray(value)) return `[${value.map(item => stableSerialize(item)).join(',')}]`;
       if (value && typeof value === 'object') {
@@ -107,7 +112,21 @@ const Api = {
       return JSON.stringify(value);
     };
     const serialized = stableSerialize(cleanPayload);
-    return `${config.prefix}:${resource}:${action}:${serialized}`;
+    return `${config.prefix}:${cacheScope}:${resource}:${action}:${serialized}`;
+  },
+  clearCache(prefix = '') {
+    const { prefix: cachePrefix } = this.getCacheConfig();
+    const needle = prefix ? `${cachePrefix}:${prefix}` : cachePrefix;
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.indexOf(needle) !== -1) keys.push(key);
+      }
+      keys.forEach(key => localStorage.removeItem(key));
+    } catch {
+      // Ignore storage access failures.
+    }
   },
   readCachedValue(cacheKey) {
     if (!cacheKey) return null;
