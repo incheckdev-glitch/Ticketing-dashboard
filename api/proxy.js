@@ -23,86 +23,65 @@ export default async function handler(req, res) {
             return req.body ?? {};
           }
         })();
+  const resource = String(payload?.resource || '').trim();
+  const action = String(payload?.action || '').trim();
+
+  console.log('[proxy] forwarding request', {
+    targetUrl,
+    resource,
+    action
+  });
 
   let upstream;
   try {
     upstream = await fetch(targetUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'text/plain;charset=utf-8'
       },
       body: JSON.stringify(payload)
     });
   } catch (error) {
+    console.error('[proxy] upstream fetch failed', {
+      targetUrl,
+      resource,
+      action,
+      error: String(error?.message || error)
+    });
     return res.status(502).json({
-      error: 'Failed to reach Apps Script backend.',
+      error: 'Failed to reach Apps Script backend',
+      upstreamStatus: 502,
+      targetUrl,
       details: String(error?.message || error)
     });
   }
 
   const raw = await upstream.text();
-  const parseLenientJson = value => {
-    const normalized = String(value || '').trim();
-    if (!normalized) return {};
+  const contentType = upstream.headers.get('content-type') || 'unknown';
+  let data = null;
+  let parsedJson = false;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+    parsedJson = true;
+  } catch {
+    parsedJson = false;
+  }
 
-    try {
-      return JSON.parse(normalized);
-    } catch {}
+  console.log('[proxy] upstream response', {
+    targetUrl,
+    resource,
+    action,
+    upstreamStatus: upstream.status,
+    parsedJson
+  });
 
-    const firstBrace = normalized.indexOf('{');
-    const lastBrace = normalized.lastIndexOf('}');
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      try {
-        return JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
-      } catch {}
-    }
-
-    if (normalized.includes('=') && !normalized.includes('<')) {
-      try {
-        const params = new URLSearchParams(normalized);
-        if (Array.from(params.keys()).length) {
-          const mapped = {};
-          params.forEach((entryValue, entryKey) => {
-            mapped[entryKey] = entryValue;
-          });
-          return mapped;
-        }
-      } catch {}
-    }
-
-    if (/^[A-Za-z0-9_.-]+\s*:\s*.+$/m.test(normalized) && !normalized.includes('<')) {
-      const mapped = {};
-      normalized.split(/\r?\n/).forEach(line => {
-        const idx = line.indexOf(':');
-        if (idx <= 0) return;
-        const key = line.slice(0, idx).trim();
-        const entryValue = line.slice(idx + 1).trim();
-        if (!key) return;
-        mapped[key] = entryValue;
-      });
-      if (Object.keys(mapped).length) return mapped;
-    }
-
-    return null;
-  };
-
-  const data = parseLenientJson(raw);
-  if (data === null) {
-    const contentType = upstream.headers.get('content-type') || 'unknown';
-    const looksLikeHtml = /<!doctype html|<html[\s>]/i.test(String(raw || '').trim());
-    const nonJsonError = {
-      error: 'Apps Script returned invalid JSON.',
+  if (!parsedJson) {
+    return res.status(upstream.status || 502).json({
+      error: 'Apps Script returned invalid JSON',
+      upstreamStatus: upstream.status || 502,
+      targetUrl,
       contentType,
-      sample: String(raw || '').slice(0, 500)
-    };
-
-    if (!upstream.ok || looksLikeHtml) {
-      return res.status(502).json(nonJsonError);
-    }
-
-    return res.status(upstream.status).json({
-      ok: true,
-      message: String(raw || '').trim() || 'Apps Script returned a non-JSON success response.'
+      upstreamBodySample: String(raw || '').slice(0, 1000)
     });
   }
 
