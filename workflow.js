@@ -155,6 +155,7 @@ const Workflow = {
     approvals: [],
     audit: [],
     loading: false,
+    loadError: '',
     loaded: false,
     lastLoadedAt: 0,
     cacheTtlMs: 2 * 60 * 1000
@@ -523,6 +524,10 @@ const Workflow = {
     if (infoEl) {
       infoEl.textContent = `Loaded ${allRows.length} workflow rule(s)` + (resourceFilter ? ` • filter: ${resourceFilter}` : '');
     }
+    if (this.state.loadError) {
+      E.workflowRulesTbody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
+      return;
+    }
     if (!allRows.length) {
       E.workflowRulesTbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">No workflow rules returned by API.</td></tr>';
       return;
@@ -605,6 +610,7 @@ const Workflow = {
       return;
     }
     this.state.loading = true;
+    this.state.loadError = '';
     try {
       if (window.RolesAdmin?.ensureRolesLoaded) {
         try {
@@ -635,6 +641,7 @@ const Workflow = {
       }
       console.log('[workflow] rules raw response', rulesResult.value);
       console.log('[workflow] normalized rules count', normalizedRules.length);
+      this.state.loadError = '';
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
       this.renderRules();
@@ -645,7 +652,11 @@ const Workflow = {
       this.populateRuleSelects();
     } catch (error) {
       console.warn('Workflow load failed', error);
-      UI.toast('Unable to load workflow data: ' + (error?.message || 'Unknown error'));
+      this.state.rules = [];
+      this.state.approvals = [];
+      this.state.audit = [];
+      this.state.loadError = `Unable to load workflow data. ${String(error?.message || 'Unknown error').trim()}`;
+      UI.toast(this.state.loadError);
       this.renderRules();
     } finally {
       this.state.loading = false;

@@ -53,9 +53,13 @@ const Api = {
     } catch (error) {
       throw buildNetworkRequestError(endpoint, error);
     }
-    const { data } = await readApiResponse(response, `Backend ${resource || 'api'}`);
+    const { data } = await readAppsScriptResponse(response, {
+      sourceName: `Backend ${resource || 'api'}`,
+      endpoint,
+      resource
+    });
     if (!response.ok) {
-      throw buildHttpResponseError(response, data, endpoint);
+      throw buildHttpResponseError(response, data, endpoint, { resource, action: 'get' });
     }
     if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
       throw new Error(data.error || data.message || 'Backend rejected request.');
@@ -575,9 +579,14 @@ async function apiPost(payload = {}) {
     throw buildNetworkRequestError(endpoint, error);
   }
 
-  const { data } = await readApiResponse(response, `Backend ${requestBody.resource || 'api'}`);
+  const { data } = await readAppsScriptResponse(response, {
+    sourceName: `Backend ${requestBody.resource || 'api'}`,
+    endpoint,
+    resource,
+    action
+  });
   if (!response.ok) {
-    throw buildHttpResponseError(response, data, endpoint);
+    throw buildHttpResponseError(response, data, endpoint, { resource, action });
   }
   if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
     throw new Error(data.error || data.message || 'Backend rejected request.');
@@ -598,13 +607,14 @@ function isDevEnvironment() {
   }
 }
 
-async function readApiResponse(response, sourceName = 'API') {
+async function readAppsScriptResponse(response, context = {}) {
+  const sourceName = context?.sourceName || 'API';
   const rawText = await response.text();
-  const data = parseApiJson(rawText, sourceName);
+  const data = parseAppsScriptJson(rawText, sourceName, context);
   return { data, rawText };
 }
 
-function parseApiJson(text, sourceName = 'API') {
+function parseAppsScriptJson(text, sourceName = 'API', context = {}) {
   if (!text || !String(text).trim()) return {};
   const raw = String(text).trim();
 
@@ -623,11 +633,20 @@ function parseApiJson(text, sourceName = 'API') {
 
   const looksLikeHtml = /<!doctype html|<html[\s>]/i.test(raw);
   if (looksLikeHtml) {
-    throw new Error(`${sourceName} returned HTML instead of JSON. Check API_BASE_URL/proxy.`);
+    const endpoint = String(context?.endpoint || API_BASE_URL || '').trim();
+    const resource = String(context?.resource || '').trim();
+    const action = String(context?.action || '').trim();
+    throw new Error(
+      `${sourceName} returned HTML instead of JSON. Check API_BASE_URL/proxy.` +
+      (endpoint ? ` endpoint=${endpoint}.` : '') +
+      (resource || action ? ` resource=${resource || '-'} action=${action || '-'}.` : '')
+    );
   }
 
   throw new Error(
-    `${sourceName} returned non-JSON response. Sample: ${raw.slice(0, 500)}`
+    `${sourceName} returned non-JSON response. ` +
+    `${context?.resource || context?.action ? `resource=${context?.resource || '-'} action=${context?.action || '-'}. ` : ''}` +
+    `Sample: ${raw.slice(0, 500)}`
   );
 }
 
@@ -660,11 +679,13 @@ function hasExplicitBackendFailure(data) {
   return ok === false || success === false;
 }
 
-function buildHttpResponseError(response, data, endpoint) {
+function buildHttpResponseError(response, data, endpoint, context = {}) {
   const status = Number(response?.status || 0);
   const statusText = String(response?.statusText || '').trim();
   const endpointLabel = String(endpoint || API_BASE_URL || 'backend endpoint');
   const backendMessage = String(data?.error || data?.message || '').trim();
+  const resource = String(context?.resource || data?.resource || '').trim();
+  const action = String(context?.action || data?.action || '').trim();
   const sample = String(
     data?.upstreamBodySample ||
       data?.sample ||
@@ -681,7 +702,10 @@ function buildHttpResponseError(response, data, endpoint) {
 
   const details = [
     `HTTP ${status || 'error'}${statusText ? ` ${statusText}` : ''} from ${endpointLabel}.`,
+    resource || action ? `Request: resource=${resource || '-'} action=${action || '-'}.` : '',
+    data?.upstreamStatus ? `Upstream status: ${data.upstreamStatus}.` : '',
     backendMessage ? `Backend message: ${backendMessage}.` : '',
+    data?.details ? `Details: ${String(data.details).slice(0, 500)}.` : '',
     sample ? `Upstream sample: ${sample.slice(0, 500)}` : ''
   ]
     .filter(Boolean)

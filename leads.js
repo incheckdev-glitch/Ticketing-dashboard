@@ -748,6 +748,21 @@ const Leads = {
       throw error;
     }
   },
+  formatLeadActionError(error, { resource = 'leads', action = 'unknown' } = {}) {
+    const statusMatch = String(error?.message || '').match(/\bHTTP\s+(\d{3})\b/i);
+    const proxyStatus = statusMatch ? statusMatch[1] : 'unknown';
+    const rawMessage = String(error?.message || '').trim() || 'Unknown error';
+    const backendMessageMatch = rawMessage.match(/Backend message:\s*([^.]*)/i);
+    const backendMessage = String(
+      backendMessageMatch?.[1] || error?.backendMessage || rawMessage
+    ).trim();
+    return [
+      `Unable to save lead.`,
+      `Proxy status: ${proxyStatus}.`,
+      `Backend: ${backendMessage}.`,
+      `Request: resource=${resource} action=${action}.`
+    ].join(' ');
+  },
   async submitForm() {
     if (!Permissions.canCreateLead()) {
       UI.toast('Login is required to manage leads.');
@@ -772,8 +787,8 @@ const Leads = {
     this.setFormBusy(true);
     try {
       if (mode === 'edit') {
-        const response = await this.updateLead(leadId, lead);
-        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
+        const result = await this.updateLeadWithVerification(leadId, lead);
+        const resolvedRow = result?.row || { ...lead, lead_id: leadId };
         this.upsertLocalRow(resolvedRow);
         UI.toast(result?.verifiedAfterError ? 'Lead updated (verified).' : 'Lead updated.');
       } else {
@@ -789,7 +804,7 @@ const Leads = {
         handleExpiredSession('Session expired. Please log in again.');
         return;
       }
-      UI.toast('Unable to save lead: ' + (error?.message || 'Unknown error'));
+      UI.toast(this.formatLeadActionError(error, { resource: 'leads', action: mode === 'edit' ? 'update' : 'create' }));
     } finally {
       this.setFormBusy(false);
     }
