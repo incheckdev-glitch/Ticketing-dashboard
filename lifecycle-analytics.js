@@ -684,68 +684,15 @@ const LifecycleAnalytics = {
     select.innerHTML = ['All', ...unique].map(v => `<option>${this.escape(v)}</option>`).join('');
     select.value = unique.includes(current) ? current : 'All';
   },
-  pickEntityId(payload, fallbackQuery = '') {
-    return this.text(
-      payload?.entity_id ||
-      payload?.entityId ||
-      payload?.id ||
-      payload?.record_id ||
-      payload?.recordId ||
-      payload?.entity?.entity_id ||
-      payload?.entity?.id ||
-      fallbackQuery
-    );
-  },
-  normalizeBackendGraph(raw = {}) {
-    const lead = raw?.lead || raw?.leads?.[0] || raw?.lead_record || null;
-    const deal = raw?.deal || raw?.deals?.[0] || raw?.deal_record || null;
-    const proposals = raw?.proposals || raw?.proposal_list || (raw?.proposal ? [raw.proposal] : []);
-    const agreements = raw?.agreements || raw?.agreement_list || (raw?.agreement ? [raw.agreement] : []);
-    const invoices = raw?.invoices || raw?.invoice_list || (raw?.invoice ? [raw.invoice] : []);
-    const receipts = raw?.receipts || raw?.receipt_list || (raw?.receipt ? [raw.receipt] : []);
-    return {
-      lead,
-      deal,
-      proposals: Array.isArray(proposals) ? proposals : [],
-      agreements: Array.isArray(agreements) ? agreements : [],
-      invoices: Array.isArray(invoices) ? invoices : [],
-      receipts: Array.isArray(receipts) ? receipts : []
-    };
-  },
-  hasGraphData(graph = {}) {
-    return Boolean(
-      graph?.lead ||
-      graph?.deal ||
-      (Array.isArray(graph?.proposals) && graph.proposals.length) ||
-      (Array.isArray(graph?.agreements) && graph.agreements.length) ||
-      (Array.isArray(graph?.invoices) && graph.invoices.length) ||
-      (Array.isArray(graph?.receipts) && graph.receipts.length)
-    );
-  },
-  normalizeTimelineEntries(timeline = []) {
-    return (timeline || []).map(item => ({
-      title: this.text(item.title || item.event_title || item.label || item.event || 'Lifecycle event'),
-      date: this.text(item.date || item.timestamp || item.created_at || item.updated_at),
-      recordId: this.text(item.record_id || item.related_record_id || item.id),
-      status: this.text(item.status || item.state),
-      user: this.text(item.user || item.actor || item.owner),
-      note: this.text(item.note || item.description),
-      stage: this.text(item.stage || item.resource || item.type || 'General'),
-      kind: this.text(item.kind || item.event_type || 'updated')
-    }))
-      .filter(item => item.date)
-      .sort((a, b) => this.toDate(a.date)?.getTime() - this.toDate(b.date)?.getTime());
-  },
   async resolveFromBackend(query, filters = {}) {
     const search = await Api.analyticsSearchEntity(query, filters);
     if (!search) return null;
-    const entityId = this.pickEntityId(search, query);
-    const lifecycle = await Api.analyticsGetLifecycle(entityId, filters);
-    const timeline = await Api.analyticsGetTimeline(entityId, filters);
-    const metrics = await Api.analyticsGetMetrics(entityId, filters);
+    const lifecycle = await Api.analyticsGetLifecycle(search.entity_id || search.id || query, filters);
+    const timeline = await Api.analyticsGetTimeline(search.entity_id || search.id || query, filters);
+    const metrics = await Api.analyticsGetMetrics(search.entity_id || search.id || query, filters);
     return {
       summary: lifecycle?.summary || lifecycle?.entity_summary || {},
-      graph: this.normalizeBackendGraph(lifecycle?.linked_records || lifecycle?.records || lifecycle?.data || {}),
+      graph: lifecycle?.linked_records || lifecycle?.records || {},
       timeline: Array.isArray(timeline?.events) ? timeline.events : this.extractRows(timeline),
       metrics: metrics?.metrics || metrics || {},
       insights: Array.isArray(metrics?.insights) ? metrics.insights : lifecycle?.insights || []
@@ -813,27 +760,33 @@ const LifecycleAnalytics = {
         resolved = await this.resolveLocal(query);
       }
 
-      let normalizedGraph = this.normalizeBackendGraph(resolved?.graph || {});
-      let normalizedTimeline = this.normalizeTimelineEntries(resolved?.timeline || []);
-
-      if ((!normalizedTimeline.length && !this.hasGraphData(normalizedGraph)) && resolved) {
-        const localResolved = await this.resolveLocal(query);
-        if (localResolved) {
-          resolved = localResolved;
-          normalizedGraph = this.normalizeBackendGraph(localResolved.graph || {});
-          normalizedTimeline = this.normalizeTimelineEntries(localResolved.timeline || []);
-        }
-      }
-
-      if (!normalizedTimeline.length && this.hasGraphData(normalizedGraph)) {
-        normalizedTimeline = this.normalizeTimelineEntries(this.buildTimeline(normalizedGraph));
-      }
-
-      if (!resolved || (!normalizedTimeline.length && !this.hasGraphData(normalizedGraph))) {
+      if (!resolved || !resolved.timeline || !resolved.timeline.length) {
         this.state.result = null;
         this.renderEmpty();
         return;
       }
+
+      const normalizedTimeline = (resolved.timeline || []).map(item => ({
+        title: this.text(item.title || item.event_title || item.label || item.event || 'Lifecycle event'),
+        date: this.text(item.date || item.timestamp || item.created_at || item.updated_at),
+        recordId: this.text(item.record_id || item.related_record_id || item.id),
+        status: this.text(item.status || item.state),
+        user: this.text(item.user || item.actor || item.owner),
+        note: this.text(item.note || item.description),
+        stage: this.text(item.stage || item.resource || item.type || 'General'),
+        kind: this.text(item.kind || item.event_type || 'updated')
+      }))
+      .filter(item => item.date)
+      .sort((a, b) => this.toDate(a.date)?.getTime() - this.toDate(b.date)?.getTime());
+
+      const normalizedGraph = {
+        lead: resolved.graph?.lead || null,
+        deal: resolved.graph?.deal || null,
+        proposals: Array.isArray(resolved.graph?.proposals) ? resolved.graph.proposals : [],
+        agreements: Array.isArray(resolved.graph?.agreements) ? resolved.graph.agreements : [],
+        invoices: Array.isArray(resolved.graph?.invoices) ? resolved.graph.invoices : [],
+        receipts: Array.isArray(resolved.graph?.receipts) ? resolved.graph.receipts : []
+      };
 
       const owners = [
         normalizedGraph.lead?.owner,
