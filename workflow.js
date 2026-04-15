@@ -250,19 +250,42 @@ const Workflow = {
       response,
       response?.items,
       response?.rows,
+      response?.rules,
+      response?.workflow_rules,
+      response?.records,
+      response?.entries,
+      response?.list,
       response?.data,
       response?.result,
       response?.payload,
       response?.data?.items,
       response?.data?.rows,
+      response?.data?.rules,
+      response?.data?.workflow_rules,
+      response?.data?.records,
+      response?.data?.entries,
       response?.result?.items,
       response?.result?.rows,
+      response?.result?.rules,
+      response?.result?.workflow_rules,
+      response?.result?.records,
+      response?.result?.entries,
       response?.payload?.items,
-      response?.payload?.rows
+      response?.payload?.rows,
+      response?.payload?.rules,
+      response?.payload?.workflow_rules,
+      response?.payload?.records,
+      response?.payload?.entries
     ];
     for (const candidate of candidates) {
       const rows = coerceRows(candidate);
       if (rows.length) return rows;
+    }
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      for (const value of Object.values(response)) {
+        const rows = coerceRows(value);
+        if (rows.length) return rows;
+      }
     }
     return [];
   },
