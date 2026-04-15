@@ -1933,7 +1933,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'receipts', 'clients', 'proposalCatalog', 'workflow', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'receipts', 'lifecycleAnalytics', 'clients', 'proposalCatalog', 'workflow', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1956,6 +1956,8 @@ function setActiveView(view) {
         ? E.invoicesTab
         : name === 'receipts'
         ? E.receiptsTab
+        : name === 'lifecycleAnalytics'
+        ? E.lifecycleAnalyticsTab
         : name === 'clients'
         ? E.clientsTab
         : name === 'proposalCatalog'
@@ -1988,6 +1990,8 @@ function setActiveView(view) {
         ? E.invoicesView
         : name === 'receipts'
         ? E.receiptsView
+        : name === 'lifecycleAnalytics'
+        ? E.lifecycleAnalyticsView
         : name === 'clients'
         ? E.clientsView
         : name === 'proposalCatalog'
@@ -2012,7 +2016,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'receipts' || view === 'clients' || view === 'proposalCatalog' || view === 'workflow' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'receipts' || view === 'lifecycleAnalytics' || view === 'clients' || view === 'proposalCatalog' || view === 'workflow' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -2028,6 +2032,7 @@ function setActiveView(view) {
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
   if (view === 'invoices' && window.Invoices?.refresh) Invoices.refresh();
   if (view === 'receipts' && window.Receipts?.refresh) Receipts.refresh();
+  if (view === 'lifecycleAnalytics' && window.LifecycleAnalytics?.init) LifecycleAnalytics.init();
   if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
   if (view === 'workflow' && window.Workflow?.loadAndRefresh) Workflow.loadAndRefresh(true);
@@ -4037,7 +4042,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.receiptsTab, E.clientsTab, E.proposalCatalogTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.receiptsTab, E.lifecycleAnalyticsTab, E.clientsTab, E.proposalCatalogTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });

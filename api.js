@@ -364,6 +364,18 @@ const Api = {
   async getClientAnalytics(clientId) {
     return this.postAuthenticated('clients', 'get_analytics', { client_id: clientId });
   },
+  async analyticsSearchEntity(query, filters = {}) {
+    return this.postAuthenticated('analytics', 'search_entity', { query, filters });
+  },
+  async analyticsGetLifecycle(entityId, filters = {}) {
+    return this.postAuthenticated('analytics', 'get_lifecycle', { entity_id: entityId, filters });
+  },
+  async analyticsGetTimeline(entityId, filters = {}) {
+    return this.postAuthenticated('analytics', 'get_timeline', { entity_id: entityId, filters });
+  },
+  async analyticsGetMetrics(entityId, filters = {}) {
+    return this.postAuthenticated('analytics', 'get_metrics', { entity_id: entityId, filters });
+  },
   async getClientTimeline(clientId) {
     return this.postAuthenticated('clients', 'get_timeline', { client_id: clientId });
   },
