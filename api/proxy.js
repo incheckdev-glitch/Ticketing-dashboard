@@ -1,13 +1,15 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method Not Allowed. Use POST.' });
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed. Use POST.' });
   }
 
   const targetUrl = String(process.env.APPS_SCRIPT_WEBAPP_URL || '').trim();
   if (!targetUrl) {
     return res.status(500).json({
-      error: 'Server is missing APPS_SCRIPT_WEBAPP_URL.'
+      ok: false,
+      error: 'Server is missing APPS_SCRIPT_WEBAPP_URL.',
+      targetUrl
     });
   }
 
@@ -49,6 +51,7 @@ export default async function handler(req, res) {
       error: String(error?.message || error)
     });
     return res.status(502).json({
+      ok: false,
       error: 'Failed to reach Apps Script backend',
       upstreamStatus: 502,
       targetUrl,
@@ -72,16 +75,20 @@ export default async function handler(req, res) {
     resource,
     action,
     upstreamStatus: upstream.status,
+    contentType,
     parsedJson
   });
 
   if (!parsedJson) {
     return res.status(upstream.status || 502).json({
+      ok: false,
       error: 'Apps Script returned invalid JSON',
       upstreamStatus: upstream.status || 502,
       targetUrl,
       contentType,
-      upstreamBodySample: String(raw || '').slice(0, 1000)
+      upstreamBodySample: String(raw || '').slice(0, 500),
+      resource,
+      action
     });
   }
 
