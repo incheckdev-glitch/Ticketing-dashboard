@@ -69,6 +69,13 @@ const Api = {
       unwrappedPayload
     });
   },
+  buildWorkflowSheetPayload(sheetName) {
+    const resolvedSheetName = String(sheetName || '').trim();
+    if (!resolvedSheetName) return {};
+    return {
+      sheetName: resolvedSheetName
+    };
+  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
