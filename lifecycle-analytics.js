@@ -300,162 +300,6 @@ const LifecycleAnalytics = {
       receipts: []
     };
   },
-  createEmptyAnalyticsRecords() {
-    return {
-      leads: [],
-      deals: [],
-      proposals: [],
-      agreements: [],
-      clients: [],
-      invoices: [],
-      receipts: [],
-      workflow_approvals: [],
-      workflow_audit: [],
-      csm: []
-    };
-  },
-  getAnalyticsBucketAliases() {
-    return {
-      leads: ['leads', 'lead'],
-      deals: ['deals', 'deal'],
-      proposals: ['proposals', 'proposal'],
-      agreements: ['agreements', 'agreement'],
-      clients: ['clients', 'client'],
-      invoices: ['invoices', 'invoice'],
-      receipts: ['receipts', 'receipt'],
-      workflow_approvals: ['workflow_approvals', 'workflowApprovals', 'approvals'],
-      workflow_audit: ['workflow_audit', 'workflowAudit', 'audit'],
-      csm: ['csm', 'customer_success', 'customerSuccess']
-    };
-  },
-  normalizeAnalyticsRecords(records = {}) {
-    const safe = records && typeof records === 'object' ? records : {};
-    const aliases = this.getAnalyticsBucketAliases();
-    const normalized = this.createEmptyAnalyticsRecords();
-    Object.entries(aliases).forEach(([bucket, keys]) => {
-      for (const key of keys) {
-        if (Array.isArray(safe[key])) {
-          normalized[bucket] = [...safe[key]];
-          break;
-        }
-      }
-    });
-    return normalized;
-  },
-  hasAnyAnalyticsRecords(records = {}) {
-    return Object.values(this.normalizeAnalyticsRecords(records)).some(rows => Array.isArray(rows) && rows.length > 0);
-  },
-  hasMeaningfulSummary(summary = {}) {
-    if (!summary || typeof summary !== 'object') return false;
-    const meaningfulKeys = [
-      'current_stage', 'currentStage',
-      'customer_company', 'customerCompany',
-      'owner', 'status',
-      'estimated_value', 'estimatedValue',
-      'lifecycle_duration', 'lifecycleDuration',
-      'last_activity', 'lastActivity',
-      'next_action', 'nextAction'
-    ];
-    return meaningfulKeys.some(key => {
-      const value = summary[key];
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'number') return Number.isFinite(value);
-      return this.text(value) !== '';
-    });
-  },
-  hasUsableAnalyticsData(payload = {}) {
-    const safe = payload && typeof payload === 'object' ? payload : {};
-    const records = this.normalizeAnalyticsRecords(safe.records || safe.linked_records || safe);
-    const timeline = Array.isArray(safe.timeline)
-      ? safe.timeline
-      : Array.isArray(safe.events)
-      ? safe.events
-      : this.extractRows(safe.timeline || safe.events || []);
-    const found = safe.found === true;
-    return found || this.hasAnyAnalyticsRecords(records) || timeline.length > 0 || this.hasMeaningfulSummary(safe.summary || safe.entity_summary);
-  },
-  normalizeAnalyticsPayload(rawPayload = {}) {
-    const safe = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
-    const payload = safe.data && typeof safe.data === 'object' && !Array.isArray(safe.data) ? safe.data : safe;
-    return {
-      found: payload.found === true,
-      primary_entity: payload.primary_entity || null,
-      summary: payload.summary || payload.entity_summary || {},
-      records: this.normalizeAnalyticsRecords(payload.records || payload.linked_records || payload),
-      timeline: Array.isArray(payload.timeline)
-        ? payload.timeline
-        : Array.isArray(payload.events)
-        ? payload.events
-        : this.extractRows(payload.timeline || payload.events || []),
-      metrics: payload.metrics && typeof payload.metrics === 'object' ? payload.metrics : {},
-      insights: Array.isArray(payload.insights) ? payload.insights : []
-    };
-  },
-  dedupeByRecordIdentity(rows = []) {
-    const map = new Map();
-    rows.forEach(row => {
-      if (!row || typeof row !== 'object') return;
-      const idKey = Object.keys(row).find(key => /(_id|^id$)/i.test(key) && this.text(row[key]));
-      const key = idKey
-        ? `${idKey}:${this.norm(row[idKey])}`
-        : `json:${JSON.stringify(row)}`;
-      map.set(key, row);
-    });
-    return [...map.values()];
-  },
-  mergeAnalyticsState(baseState = {}, patchState = {}) {
-    const base = baseState && typeof baseState === 'object' ? baseState : {};
-    const patch = patchState && typeof patchState === 'object' ? patchState : {};
-    const mergedRecords = this.createEmptyAnalyticsRecords();
-    const baseRecords = this.normalizeAnalyticsRecords(base.records);
-    const patchRecords = this.normalizeAnalyticsRecords(patch.records);
-    Object.keys(mergedRecords).forEach(bucket => {
-      const mergedRows = [...(baseRecords[bucket] || [])];
-      if (Array.isArray(patchRecords[bucket]) && patchRecords[bucket].length) {
-        mergedRows.push(...patchRecords[bucket]);
-      }
-      mergedRecords[bucket] = this.dedupeByRecordIdentity(mergedRows);
-    });
-
-    const mergedTimeline = this.dedupeByRecordIdentity([
-      ...(Array.isArray(base.timeline) ? base.timeline : []),
-      ...(Array.isArray(patch.timeline) ? patch.timeline : [])
-    ]);
-    const mergedInsights = [...new Set([
-      ...(Array.isArray(base.insights) ? base.insights : []),
-      ...(Array.isArray(patch.insights) ? patch.insights : [])
-    ])];
-
-    const mergedSummary = { ...(base.summary && typeof base.summary === 'object' ? base.summary : {}) };
-    if (patch.summary && typeof patch.summary === 'object') {
-      Object.entries(patch.summary).forEach(([key, value]) => {
-        if (value === null || value === undefined) return;
-        if (typeof value === 'string' && this.text(value) === '') return;
-        mergedSummary[key] = value;
-      });
-    }
-    const mergedMetrics = { ...(base.metrics && typeof base.metrics === 'object' ? base.metrics : {}) };
-    if (patch.metrics && typeof patch.metrics === 'object') {
-      Object.entries(patch.metrics).forEach(([key, value]) => {
-        const isObject = value && typeof value === 'object' && !Array.isArray(value);
-        const hasObjectValues = isObject && Object.keys(value).length > 0;
-        if (value === null || value === undefined) return;
-        if (typeof value === 'string' && this.text(value) === '') return;
-        if (isObject && !hasObjectValues) return;
-        mergedMetrics[key] = value;
-      });
-    }
-
-    return {
-      found: base.found === true || patch.found === true,
-      primary_entity: patch.primary_entity?.id || patch.primary_entity?.type ? patch.primary_entity : (base.primary_entity || null),
-      summary: mergedSummary,
-      records: mergedRecords,
-      timeline: mergedTimeline,
-      metrics: mergedMetrics,
-      insights: mergedInsights
-    };
-  },
   dedupeRecordsById(rows = [], idKey = 'id') {
     const map = new Map();
     rows.forEach(row => {
@@ -1131,18 +975,51 @@ const LifecycleAnalytics = {
     select.value = unique.includes(current) ? current : 'All';
   },
   backendAnalyticsToGraph(payload = {}) {
-    const records = this.normalizeAnalyticsRecords(payload?.records || payload?.linked_records || payload);
+    const records = payload?.records || payload?.linked_records || {};
+    if (!records || typeof records !== 'object') {
+      return {
+        lead: null,
+        deal: null,
+        proposals: [],
+        agreements: [],
+        invoices: [],
+        receipts: []
+      };
+    }
+    if ('lead' in records || 'deal' in records) {
+      return {
+        lead: records.lead || null,
+        deal: records.deal || null,
+        proposals: Array.isArray(records.proposals) ? records.proposals : [],
+        agreements: Array.isArray(records.agreements) ? records.agreements : [],
+        invoices: Array.isArray(records.invoices) ? records.invoices : [],
+        receipts: Array.isArray(records.receipts) ? records.receipts : []
+      };
+    }
     return {
-      lead: records.leads[0] || null,
-      deal: records.deals[0] || null,
-      proposals: records.proposals || [],
-      agreements: records.agreements || [],
-      invoices: records.invoices || [],
-      receipts: records.receipts || []
+      lead: Array.isArray(records.leads) ? records.leads[0] || null : null,
+      deal: Array.isArray(records.deals) ? records.deals[0] || null : null,
+      proposals: Array.isArray(records.proposals) ? records.proposals : [],
+      agreements: Array.isArray(records.agreements) ? records.agreements : [],
+      invoices: Array.isArray(records.invoices) ? records.invoices : [],
+      receipts: Array.isArray(records.receipts) ? records.receipts : []
     };
   },
   hasRenderableAnalyticsPayload(payload = {}) {
-    return this.hasUsableAnalyticsData(payload);
+    const graph = this.backendAnalyticsToGraph(payload);
+    const timeline = Array.isArray(payload?.timeline)
+      ? payload.timeline
+      : Array.isArray(payload?.events)
+      ? payload.events
+      : this.extractRows(payload?.timeline || payload?.events || payload);
+    return this.hasAnyRecords({
+      leads: graph.lead ? [graph.lead] : [],
+      deals: graph.deal ? [graph.deal] : [],
+      proposals: graph.proposals,
+      agreements: graph.agreements,
+      invoices: graph.invoices,
+      receipts: graph.receipts
+    }) || (Array.isArray(timeline) && timeline.length > 0);
   },
   sanitizeAnalyticsFilters(filters = {}) {
     const norm = value => {
@@ -1158,44 +1035,46 @@ const LifecycleAnalytics = {
   },
   async resolveFromBackend(query, filters = {}) {
     const cleanFilters = this.sanitizeAnalyticsFilters(filters);
-    const rawSearch = await Api.analyticsSearchEntity(query, cleanFilters);
-    this.log('search_entity raw response', rawSearch);
-    const searchState = this.normalizeAnalyticsPayload(rawSearch);
-    const acceptedSearch = this.hasUsableAnalyticsData(searchState);
-    this.log('search_entity accepted as source-of-truth', acceptedSearch);
+    const search = await Api.analyticsSearchEntity(query, cleanFilters);
+    if (!search) return null;
 
-    let mergedState = acceptedSearch ? searchState : this.mergeAnalyticsState({}, searchState);
-    const entityId = this.text(
-      searchState?.primary_entity?.id ||
-      rawSearch?.entity_id ||
-      rawSearch?.id ||
-      query
-    );
-    if (!entityId) return acceptedSearch ? mergedState : null;
-
-    const followUps = [
-      { name: 'get_lifecycle', fetch: () => Api.analyticsGetLifecycle(entityId, cleanFilters) },
-      { name: 'get_timeline', fetch: () => Api.analyticsGetTimeline(entityId, cleanFilters) },
-      { name: 'get_metrics', fetch: () => Api.analyticsGetMetrics(entityId, cleanFilters) }
-    ];
-
-    for (const followUp of followUps) {
-      try {
-        const rawPatch = await followUp.fetch();
-        this.log(`${followUp.name} raw response`, rawPatch);
-        const patchState = this.normalizeAnalyticsPayload(rawPatch);
-        const hasPatchData = this.hasUsableAnalyticsData(patchState);
-        if (!hasPatchData) {
-          this.log(`${followUp.name} ignored (empty/weaker result)`);
-          continue;
-        }
-        mergedState = this.mergeAnalyticsState(mergedState, patchState);
-      } catch (error) {
-        this.log(`${followUp.name} failed`, error);
-      }
+    if (this.hasRenderableAnalyticsPayload(search)) {
+      return {
+        found: search?.found !== false,
+        primary_entity: search?.primary_entity || null,
+        summary: search?.summary || search?.entity_summary || {},
+        graph: this.backendAnalyticsToGraph(search),
+        timeline: Array.isArray(search?.timeline) ? search.timeline : this.extractRows(search?.timeline || search),
+        metrics: search?.metrics || {},
+        insights: Array.isArray(search?.insights) ? search.insights : []
+      };
     }
 
-    return this.hasUsableAnalyticsData(mergedState) ? mergedState : null;
+    const entityId = this.text(search?.entity_id || search?.id || search?.primary_entity?.id || query);
+    const lifecycle = await Api.analyticsGetLifecycle(entityId, cleanFilters);
+    const timeline = await Api.analyticsGetTimeline(entityId, cleanFilters);
+    const metrics = await Api.analyticsGetMetrics(entityId, cleanFilters);
+    const lifecyclePayload = lifecycle?.data || lifecycle;
+    const timelinePayload = timeline?.data || timeline;
+    const metricsPayload = metrics?.data || metrics;
+
+    return {
+      found: lifecyclePayload?.found !== false,
+      primary_entity: lifecyclePayload?.primary_entity || search?.primary_entity || null,
+      summary: lifecyclePayload?.summary || lifecyclePayload?.entity_summary || {},
+      graph: this.backendAnalyticsToGraph(lifecyclePayload),
+      timeline: Array.isArray(timelinePayload?.events)
+        ? timelinePayload.events
+        : Array.isArray(timelinePayload?.timeline)
+        ? timelinePayload.timeline
+        : this.extractRows(timelinePayload),
+      metrics: metricsPayload?.metrics || metricsPayload || {},
+      insights: Array.isArray(metricsPayload?.insights)
+        ? metricsPayload.insights
+        : Array.isArray(lifecyclePayload?.insights)
+        ? lifecyclePayload.insights
+        : []
+    };
   },
   async resolveLocal(query) {
     const [leads, deals, proposals, agreements, invoices, receipts] = await Promise.all([
@@ -1259,14 +1138,24 @@ const LifecycleAnalytics = {
       }
 
       const backendHasData = resolved && (
-        this.hasUsableAnalyticsData(resolved)
+        this.hasRenderableAnalyticsPayload({
+          records: {
+            leads: resolved?.graph?.lead ? [resolved.graph.lead] : [],
+            deals: resolved?.graph?.deal ? [resolved.graph.deal] : [],
+            proposals: resolved?.graph?.proposals || [],
+            agreements: resolved?.graph?.agreements || [],
+            invoices: resolved?.graph?.invoices || [],
+            receipts: resolved?.graph?.receipts || []
+          },
+          timeline: resolved?.timeline || []
+        })
       );
 
       if (!backendHasData) {
         resolved = await this.resolveLocal(query);
       }
 
-      if (!resolved || !this.hasUsableAnalyticsData(resolved)) {
+      if (!resolved || !resolved.timeline || !resolved.timeline.length) {
         this.state.result = null;
         this.renderEmpty();
         return;
@@ -1285,7 +1174,14 @@ const LifecycleAnalytics = {
       .filter(item => item.date)
       .sort((a, b) => this.toDate(a.date)?.getTime() - this.toDate(b.date)?.getTime());
 
-      const normalizedGraph = this.backendAnalyticsToGraph(resolved);
+      const normalizedGraph = {
+        lead: resolved.graph?.lead || null,
+        deal: resolved.graph?.deal || null,
+        proposals: Array.isArray(resolved.graph?.proposals) ? resolved.graph.proposals : [],
+        agreements: Array.isArray(resolved.graph?.agreements) ? resolved.graph.agreements : [],
+        invoices: Array.isArray(resolved.graph?.invoices) ? resolved.graph.invoices : [],
+        receipts: Array.isArray(resolved.graph?.receipts) ? resolved.graph.receipts : []
+      };
 
       const owners = [
         normalizedGraph.lead?.owner,
