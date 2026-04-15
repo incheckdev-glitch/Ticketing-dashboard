@@ -503,7 +503,7 @@ const Api = {
   async listWorkflowRules(filters = {}, options = {}) {
     const response = await this.postAuthenticated('workflow', 'list', {
       filters,
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
     }, options);
     this.logWorkflowDebug('workflow', 'list', response);
     return response;
@@ -511,14 +511,14 @@ const Api = {
   async getWorkflowRule(workflowRuleId) {
     return this.postAuthenticated('workflow', 'get', {
       workflow_rule_id: workflowRuleId,
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
     });
   },
   async saveWorkflowRule(rule = {}) {
     const body = {
       rule,
       ...rule,
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
     };
     try {
       return await this.postAuthenticated('workflow', 'save_rule', body);
@@ -532,7 +532,7 @@ const Api = {
   async deleteWorkflowRule(workflowRuleId) {
     const body = {
       workflow_rule_id: workflowRuleId,
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
     };
     try {
       return await this.postAuthenticated('workflow', 'delete_rule', body);
@@ -546,7 +546,7 @@ const Api = {
   async validateWorkflowTransition(payload = {}) {
     return this.postAuthenticated('workflow', 'validate_transition', {
       ...payload,
-      sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
+      ...this.buildWorkflowSheetPayload(CONFIG.WORKFLOW_RULES_SHEET_NAME)
     });
   },
   async requestWorkflowApproval(payload = {}) {

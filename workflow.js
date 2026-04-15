@@ -255,8 +255,35 @@ const Workflow = {
       }
       return [];
     };
+    const findRowsDeep = value => {
+      const queue = [parseJsonIfNeeded(value)];
+      const seen = new Set();
+      while (queue.length) {
+        const current = queue.shift();
+        if (!current || typeof current !== 'object') continue;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        const rows = coerceRows(current);
+        if (rows.length) return rows;
+        if (Array.isArray(current)) {
+          current.forEach(item => {
+            if (item && typeof item === 'object') queue.push(item);
+          });
+          continue;
+        }
+        Object.values(current).forEach(item => {
+          const parsedItem = parseJsonIfNeeded(item);
+          if (parsedItem && typeof parsedItem === 'object') queue.push(parsedItem);
+        });
+      }
+      return [];
+    };
     const candidates = [
       response,
+      response?.rules,
+      response?.data?.rules,
+      response?.result?.rules,
+      response?.payload?.rules,
       response?.items,
       response?.rows,
       response?.data,
@@ -277,7 +304,7 @@ const Workflow = {
       const rows = coerceRows(candidate);
       if (rows.length) return rows;
     }
-    return [];
+    return findRowsDeep(response);
   },
   normalizeWorkflowRule(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
