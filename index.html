@@ -43,21 +43,11 @@
              placeholder="Search ID, title, description, log…  ( / to focus )"
              aria-label="Search issues" />
 
-      <div class="saved-views" aria-label="Saved views">
-        <select id="savedViews" class="select sm" aria-label="Saved views">
-          <option value="">Saved views</option>
-        </select>
-        <button id="saveViewBtn" class="btn ghost sm" type="button">Save view</button>
-        <button id="deleteViewBtn" class="btn ghost sm" type="button">Delete view</button>
-      </div>
-      
       <select id="themeSelect" class="select" aria-label="Theme">
         <option value="system">System</option>
         <option value="dark">Dark</option>
         <option value="light">Light</option>
       </select>
-
-      <input id="accentColor" class="input" type="color" aria-label="Accent color" />
 
       <button id="refreshNow" class="btn" aria-label="Refresh from source">
         <span class="icon" aria-hidden="true">🔄</span> Refresh
@@ -80,10 +70,6 @@
         Logout
       </button>
 
-      <div class="statusline">
-        <span class="chip" id="syncIssuesText">Issues: never</span><span class="dot err" id="syncIssuesDot"></span>
-        <span class="chip" id="syncEventsText">Events: never</span><span class="dot err" id="syncEventsDot"></span>
-      </div>
     </div>
   </header>
 
