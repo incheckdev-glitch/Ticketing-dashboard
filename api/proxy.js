@@ -1,3 +1,32 @@
+async function postWithRedirects(url, body, maxRedirects = 3) {
+  let currentUrl = url;
+  let redirects = 0;
+
+  while (redirects <= maxRedirects) {
+    const response = await fetch(currentUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body,
+      redirect: 'manual'
+    });
+
+    const status = Number(response.status || 0);
+    const isRedirect = [301, 302, 303, 307, 308].includes(status);
+    const location = response.headers.get('location');
+
+    if (!isRedirect || !location) {
+      return response;
+    }
+
+    currentUrl = new URL(location, currentUrl).toString();
+    redirects += 1;
+  }
+
+  throw new Error(`Too many redirects while contacting upstream service (${maxRedirects}).`);
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -24,15 +53,11 @@ export default async function handler(req, res) {
           }
         })();
 
+  const requestBody = JSON.stringify(payload);
+
   let upstream;
   try {
-    upstream = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    upstream = await postWithRedirects(targetUrl, requestBody, 3);
   } catch (error) {
     return res.status(502).json({
       error: 'Failed to reach Apps Script backend.',
