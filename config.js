@@ -24,6 +24,9 @@ function resolveApiEndpoint(endpoint = '') {
 }
 
 window.resolveApiEndpoint = resolveApiEndpoint;
+window.BACKEND_ENDPOINTS = Object.freeze({
+  proxyBaseUrl: API_BASE_URL
+});
 
 window.CONFIG = {
   DATA_VERSION: '5',
@@ -32,7 +35,7 @@ window.CONFIG = {
   SHEET_URL:
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRwAjNAQxiPP8uR15t_vx03JkjgEBjgUwp2bpx8rsHx-JJxVDBZyf5ap77rAKrYHfgkVMwLJVm6pGn/pub?output=csv',
 
-  CALENDAR_API_URL: runtimeConfig.CALENDAR_API_URL || API_BASE_URL,
+  CALENDAR_API_URL: runtimeConfig.CALENDAR_API_URL || window.BACKEND_ENDPOINTS.proxyBaseUrl,
   CALENDAR_SHEET_NAME: 'CalendarEvents',
   DEALS_SHEET_NAME: 'Deals',
   PROPOSAL_CATALOG_SHEET_NAME: runtimeConfig.PROPOSAL_CATALOG_SHEET_NAME || 'Proposal Catalog',
@@ -46,7 +49,7 @@ window.CONFIG = {
   WORKFLOW_APPROVALS_SHEET_NAME: runtimeConfig.WORKFLOW_APPROVALS_SHEET_NAME || 'Workflow Approvals',
   WORKFLOW_AUDIT_LOG_SHEET_NAME: runtimeConfig.WORKFLOW_AUDIT_LOG_SHEET_NAME || 'Workflow Audit Log',
 
-  ISSUE_API_URL: runtimeConfig.ISSUE_API_URL || API_BASE_URL,
+  ISSUE_API_URL: runtimeConfig.ISSUE_API_URL || window.BACKEND_ENDPOINTS.proxyBaseUrl,
 
   TREND_DAYS_RECENT: 7,
   TREND_DAYS_WINDOW: 14,
