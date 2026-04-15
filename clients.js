@@ -28,6 +28,9 @@ const Clients = {
     receipts: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
     search: '',
     status: 'All',
     sort: 'due_desc'
@@ -459,15 +462,20 @@ const Clients = {
   async loadAndRefresh(options = {}) {
     if (this.state.loading && !options.force) return;
     if (!Permissions.canViewClients()) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !options.force) {
+      this.render();
+      return;
+    }
     this.state.loading = true;
     this.state.loadError = '';
     if (E.clientsState) E.clientsState.textContent = 'Loading client intelligence…';
     try {
       const [clientsRes, agreementsRes, invoicesRes, receiptsRes] = await Promise.all([
-        Api.listClients(),
-        Api.listAgreements(),
-        Api.listInvoices(),
-        Api.listReceipts()
+        Api.postAuthenticatedCached('clients', 'list', { limit: 50, offset: 0, sort_by: 'updated_at', sort_dir: 'desc', search: this.state.search || '', summary_only: true }),
+        Api.postAuthenticatedCached('agreements', 'list', { summary_only: true, limit: 50, offset: 0 }),
+        Api.postAuthenticatedCached('invoices', 'list', { summary_only: true, limit: 50, offset: 0 }),
+        Api.postAuthenticatedCached('receipts', 'list', { summary_only: true, limit: 50, offset: 0 })
       ]);
       this.state.rows = this.extractRows(clientsRes).map(item => this.normalizeClient(item));
       this.state.agreements = this.extractRows(agreementsRes).map(item => this.normalizeAgreement(item));
@@ -483,6 +491,8 @@ const Clients = {
       if (!this.state.selectedClientId && this.state.rows[0]?.client_id) {
         this.state.selectedClientId = this.state.rows[0].client_id;
       }
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
       this.render();
     } catch (error) {
       this.state.rows = [];
@@ -602,9 +612,12 @@ const Clients = {
           return;
         }
         try {
-          await Api.createClientFromPayload(payload);
+          const response = await Api.createClientFromPayload(payload);
+          const created = response?.client || response?.data?.client || payload;
+          this.state.rows.unshift(this.normalizeClient(created));
+          this.state.selectedClientId = this.state.rows[0]?.client_id || this.state.selectedClientId;
           this.closeNewClientModal();
-          await this.loadAndRefresh({ force: true });
+          this.render();
           UI.toast('Client created successfully.');
         } catch (error) {
           UI.toast(error?.message || 'Failed to create client.');

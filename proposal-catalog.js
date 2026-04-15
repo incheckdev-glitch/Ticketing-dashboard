@@ -5,6 +5,9 @@ const ProposalCatalog = {
     filteredRows: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
     initialized: false,
     search: '',
     section: 'All',
@@ -79,8 +82,30 @@ const ProposalCatalog = {
     }
     return [];
   },
-  async listProposalCatalogItems() {
-    return Api.listProposalCatalogItems();
+  async listProposalCatalogItems(options = {}) {
+    return Api.postAuthenticatedCached('proposal_catalog', 'list', {
+      limit: Number(options.limit || 50),
+      offset: Number(options.offset || 0),
+      sort_by: options.sortBy || 'updated_at',
+      sort_dir: options.sortDir || 'desc',
+      search: this.state.search || '',
+      summary_only: true
+    }, { forceRefresh: options.forceRefresh === true });
+  },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeItem(row);
+    const idx = this.state.rows.findIndex(item => item.catalog_item_id === normalized.catalog_item_id);
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.applyFilters();
+    this.renderSummary();
+    this.render();
+  },
+  removeLocalRow(id) {
+    this.state.rows = this.state.rows.filter(item => item.catalog_item_id !== id);
+    this.applyFilters();
+    this.renderSummary();
+    this.render();
   },
   async getProposalCatalogItem(catalogItemId) {
     return Api.getProposalCatalogItem(catalogItemId);
@@ -231,14 +256,24 @@ const ProposalCatalog = {
   async loadAndRefresh({ force = false } = {}) {
     if (!Session.isAuthenticated()) return;
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.applyFilters();
+      this.renderSummary();
+      this.renderFilters();
+      this.render();
+      return;
+    }
 
     this.state.loading = true;
     this.state.loadError = '';
     this.render();
 
     try {
-      const response = await this.listProposalCatalogItems();
+      const response = await this.listProposalCatalogItems({ forceRefresh: force, limit: 50, offset: 0 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeItem(item));
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
       this.applyFilters();
       this.renderSummary();
       this.renderFilters();
@@ -334,7 +369,10 @@ const ProposalCatalog = {
   },
   setFormBusy(value) {
     const busy = !!value;
-    if (E.proposalCatalogFormSaveBtn) E.proposalCatalogFormSaveBtn.disabled = busy;
+    if (E.proposalCatalogFormSaveBtn) {
+      E.proposalCatalogFormSaveBtn.disabled = busy;
+      E.proposalCatalogFormSaveBtn.textContent = busy ? 'Saving…' : 'Save';
+    }
     if (E.proposalCatalogFormDeleteBtn) E.proposalCatalogFormDeleteBtn.disabled = busy;
   },
   async submitForm() {
@@ -358,14 +396,15 @@ const ProposalCatalog = {
     this.setFormBusy(true);
     try {
       if (mode === 'edit' && itemId) {
-        await this.updateProposalCatalogItem(itemId, payload);
+        const response = await this.updateProposalCatalogItem(itemId, payload);
+        this.upsertLocalRow(response?.item || response?.data?.item || { ...payload, catalog_item_id: itemId });
         UI.toast('Catalog item updated.');
       } else {
-        await this.createProposalCatalogItem(payload);
+        const response = await this.createProposalCatalogItem(payload);
+        this.upsertLocalRow(response?.item || response?.data?.item || response || payload);
         UI.toast('Catalog item created.');
       }
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -406,9 +445,9 @@ const ProposalCatalog = {
 
     try {
       await this.deleteProposalCatalogItem(catalogItemId);
+      this.removeLocalRow(catalogItemId);
       UI.toast('Catalog item deleted.');
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');

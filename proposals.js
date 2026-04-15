@@ -41,6 +41,9 @@ const Proposals = {
     filteredRows: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
     initialized: false,
     search: '',
     customer: '',
@@ -268,7 +271,35 @@ const Proposals = {
     };
   },
   async listProposals(options = {}) {
-    return Api.postAuthenticatedCached('proposals', 'list', {}, { forceRefresh: options.forceRefresh === true });
+    return Api.postAuthenticatedCached(
+      'proposals',
+      'list',
+      {
+        limit: Number(options.limit || 50),
+        offset: Number(options.offset || 0),
+        sort_by: options.sortBy || 'updated_at',
+        sort_dir: options.sortDir || 'desc',
+        search: this.state.search || '',
+        summary_only: true
+      },
+      { forceRefresh: options.forceRefresh === true }
+    );
+  },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeProposal(row);
+    const idx = this.state.rows.findIndex(item => String(item.proposal_id || '') === String(normalized.proposal_id || ''));
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.rerenderVisibleTable();
+  },
+  removeLocalRow(id) {
+    this.state.rows = this.state.rows.filter(item => String(item.proposal_id || '') !== String(id || ''));
+    this.rerenderVisibleTable();
+  },
+  rerenderVisibleTable() {
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
   },
   async getProposal(proposalId) {
     return Api.postAuthenticated('proposals', 'get', { proposal_id: proposalId });
@@ -404,13 +435,20 @@ const Proposals = {
   async loadAndRefresh({ force = false } = {}) {
     if (!Session.isAuthenticated()) return;
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.rerenderVisibleTable();
+      return;
+    }
     this.state.loading = true;
     this.state.loadError = '';
     this.render();
 
     try {
-      const response = await this.listProposals({ forceRefresh: force });
+      const response = await this.listProposals({ forceRefresh: force, limit: 50, offset: 0 });
       this.state.rows = this.extractRows(response).map(raw => this.normalizeProposal(raw));
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
       this.renderFilters();
       this.applyFilters();
       this.render();
@@ -905,8 +943,9 @@ const Proposals = {
 
       const parsed = this.extractProposalAndItems(response, proposalId);
       const savedId = parsed.proposal?.proposal_id || proposalId;
+      if (parsed?.proposal) this.upsertLocalRow(parsed.proposal);
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
-      await this.loadAndRefresh({ force: true });
+      this.rerenderVisibleTable();
 
       if (savedId) {
         await this.openProposalFormById(savedId);
@@ -935,9 +974,10 @@ const Proposals = {
     this.setFormBusy(true);
     try {
       await this.deleteProposal(proposalId);
+      this.removeLocalRow(proposalId);
       UI.toast('Proposal deleted.');
       this.closeProposalForm();
-      await this.loadAndRefresh({ force: true });
+      this.rerenderVisibleTable();
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');

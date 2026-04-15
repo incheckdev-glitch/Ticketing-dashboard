@@ -34,6 +34,9 @@ const Deals = {
     filteredRows: [],
     loading: false,
     loadError: '',
+    loaded: false,
+    lastLoadedAt: 0,
+    cacheTtlMs: 2 * 60 * 1000,
     initialized: false,
     search: '',
     stage: 'All',
@@ -153,8 +156,30 @@ const Deals = {
   async listDeals(options = {}) {
     return Api.postAuthenticatedCached('deals', 'list', {
       sheetName: CONFIG.DEALS_SHEET_NAME,
-      tabName: CONFIG.DEALS_SHEET_NAME
+      tabName: CONFIG.DEALS_SHEET_NAME,
+      limit: Number(options.limit || 50),
+      offset: Number(options.offset || 0),
+      sort_by: options.sortBy || 'updated_at',
+      sort_dir: options.sortDir || 'desc',
+      search: this.state.search || '',
+      summary_only: true
     }, { forceRefresh: options.forceRefresh === true });
+  },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeDeal(row);
+    const idx = this.state.rows.findIndex(item => item.deal_id === normalized.deal_id);
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.rerenderVisibleTable();
+  },
+  removeLocalRow(id) {
+    this.state.rows = this.state.rows.filter(item => item.deal_id !== id);
+    this.rerenderVisibleTable();
+  },
+  rerenderVisibleTable() {
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
   },
   async getDeal(id) {
     return Api.postAuthenticated('deals', 'get', { id });
@@ -544,7 +569,9 @@ const Deals = {
     if (this.state.loading) {
       E.dealsState.textContent = 'Loading deals…';
       this.renderDealAnalytics(this.computeDealAnalytics([]));
-      E.dealsTbody.innerHTML = '<tr><td colspan="21" class="muted" style="text-align:center;">Loading deals…</td></tr>';
+      E.dealsTbody.innerHTML = Array.from({ length: 6 })
+        .map(() => '<tr class="skeleton-row"><td colspan="21"><div class="skeleton-line" style="height:12px;margin:6px 0;"></div></td></tr>')
+        .join('');
       return;
     }
 
@@ -601,13 +628,20 @@ const Deals = {
   async loadAndRefresh({ force = false } = {}) {
     if (!Session.isAuthenticated()) return;
     if (this.state.loading && !force) return;
+    const hasWarmCache = this.state.loaded && Date.now() - this.state.lastLoadedAt <= this.state.cacheTtlMs;
+    if (hasWarmCache && !force) {
+      this.rerenderVisibleTable();
+      return;
+    }
     this.state.loading = true;
     this.state.loadError = '';
     this.render();
 
     try {
-      const response = await this.listDeals({ forceRefresh: force });
+      const response = await this.listDeals({ forceRefresh: force, limit: 50, offset: 0 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
+      this.state.loaded = true;
+      this.state.lastLoadedAt = Date.now();
       this.syncDealFormDropdowns();
       this.renderFilters();
       this.applyFilters();
@@ -628,7 +662,10 @@ const Deals = {
     }
   },
   setFormBusy(v) {
-    if (E.dealFormSaveBtn) E.dealFormSaveBtn.disabled = !!v;
+    if (E.dealFormSaveBtn) {
+      E.dealFormSaveBtn.disabled = !!v;
+      E.dealFormSaveBtn.textContent = v ? 'Saving…' : 'Save';
+    }
     if (E.dealFormDeleteBtn) E.dealFormDeleteBtn.disabled = !!v;
   },
   resetForm() {
@@ -745,14 +782,16 @@ const Deals = {
         const latest = await this.getDeal(dealId);
         const resolved = this.normalizeDeal(latest?.deal || latest?.data?.deal || latest || { deal_id: dealId });
         const id = resolved.deal_id || dealId;
-        await this.updateDeal(id, deal);
+        const response = await this.updateDeal(id, deal);
+        this.upsertLocalRow(response?.deal || response?.data?.deal || { ...deal, deal_id: id });
         UI.toast('Deal updated.');
       } else {
-        await this.createDeal(deal);
+        const response = await this.createDeal(deal);
+        this.upsertLocalRow(response?.deal || response?.data?.deal || response || deal);
         UI.toast('Deal created.');
       }
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
+      this.rerenderVisibleTable();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -774,9 +813,10 @@ const Deals = {
     this.setFormBusy(true);
     try {
       await this.deleteDeal(dealId);
+      this.removeLocalRow(dealId);
       UI.toast('Deal deleted.');
       this.closeForm();
-      await this.loadAndRefresh({ force: true });
+      this.rerenderVisibleTable();
     } catch (error) {
       if (isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');

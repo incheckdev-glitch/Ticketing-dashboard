@@ -96,7 +96,17 @@ const Api = {
     const config = this.getCacheConfig();
     const cleanPayload = { ...(payload || {}) };
     delete cleanPayload.authToken;
-    const serialized = JSON.stringify(cleanPayload, Object.keys(cleanPayload).sort());
+    const stableSerialize = value => {
+      if (Array.isArray(value)) return `[${value.map(item => stableSerialize(item)).join(',')}]`;
+      if (value && typeof value === 'object') {
+        return `{${Object.keys(value)
+          .sort()
+          .map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+          .join(',')}}`;
+      }
+      return JSON.stringify(value);
+    };
+    const serialized = stableSerialize(cleanPayload);
     return `${config.prefix}:${resource}:${action}:${serialized}`;
   },
   readCachedValue(cacheKey) {
@@ -184,7 +194,12 @@ const Api = {
     const incrementalPayload = {
       ...payload
     };
-    if (cached?.syncedAt) {
+    const isPaginatedQuery =
+      incrementalPayload.limit !== undefined ||
+      incrementalPayload.offset !== undefined ||
+      incrementalPayload.summary_only === true ||
+      incrementalPayload.fields !== undefined;
+    if (cached?.syncedAt && !isPaginatedQuery) {
       incrementalPayload.updated_after = cached.syncedAt;
       incrementalPayload.if_modified_since = cached.syncedAt;
     }
