@@ -53,8 +53,7 @@ const Api = {
     } catch (error) {
       throw buildNetworkRequestError(endpoint, error);
     }
-    const rawText = await response.text();
-    const data = parseApiJson(rawText, `Backend ${resource || 'api'}`);
+    const { data } = await readApiResponse(response, `Backend ${resource || 'api'}`);
     if (!response.ok) {
       throw buildHttpResponseError(response, data, endpoint);
     }
@@ -559,10 +558,16 @@ const Api = {
 async function apiPost(payload = {}) {
   const endpoint = Api.ensureBaseUrl();
   const requestBody = payload && typeof payload === 'object' ? payload : {};
+  const resource = String(requestBody?.resource || '').trim();
+  const action = String(requestBody?.action || '').trim();
+  if (isDevEnvironment()) {
+    console.log('[api] post', { endpoint, resource, action });
+  }
   let response;
   try {
     response = await fetch(endpoint, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
     });
@@ -570,8 +575,7 @@ async function apiPost(payload = {}) {
     throw buildNetworkRequestError(endpoint, error);
   }
 
-  const rawText = await response.text();
-  const data = parseApiJson(rawText, `Backend ${requestBody.resource || 'api'}`);
+  const { data } = await readApiResponse(response, `Backend ${requestBody.resource || 'api'}`);
   if (!response.ok) {
     throw buildHttpResponseError(response, data, endpoint);
   }
@@ -582,6 +586,49 @@ async function apiPost(payload = {}) {
     return data.data;
   }
   return data;
+}
+
+function isDevEnvironment() {
+  try {
+    if (window?.RUNTIME_CONFIG?.DEBUG_API === true) return true;
+    const hostname = String(window?.location?.hostname || '').toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+async function readApiResponse(response, sourceName = 'API') {
+  const rawText = await response.text();
+  const data = parseApiJson(rawText, sourceName);
+  return { data, rawText };
+}
+
+function parseApiJson(text, sourceName = 'API') {
+  if (!text || !String(text).trim()) return {};
+  const raw = String(text).trim();
+
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const candidate = raw.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  const looksLikeHtml = /<!doctype html|<html[\s>]/i.test(raw);
+  if (looksLikeHtml) {
+    throw new Error(`${sourceName} returned HTML instead of JSON. Check API_BASE_URL/proxy.`);
+  }
+
+  throw new Error(
+    `${sourceName} returned non-JSON response. Sample: ${raw.slice(0, 500)}`
+  );
 }
 
 function buildNetworkRequestError(url, originalError) {
@@ -614,12 +661,16 @@ function hasExplicitBackendFailure(data) {
 }
 
 function buildHttpResponseError(response, data, endpoint) {
-  const backendMessage = String(data?.error || data?.message || '').trim();
-  if (backendMessage) return new Error(backendMessage);
-
   const status = Number(response?.status || 0);
   const statusText = String(response?.statusText || '').trim();
   const endpointLabel = String(endpoint || API_BASE_URL || 'backend endpoint');
+  const backendMessage = String(data?.error || data?.message || '').trim();
+  const sample = String(
+    data?.upstreamBodySample ||
+      data?.sample ||
+      data?.raw ||
+      ''
+  ).trim();
 
   if (status === 404) {
     return new Error(
@@ -627,6 +678,15 @@ function buildHttpResponseError(response, data, endpoint) {
       'Verify API_BASE_URL points to a backend/proxy that implements auth.'
     );
   }
+
+  const details = [
+    `HTTP ${status || 'error'}${statusText ? ` ${statusText}` : ''} from ${endpointLabel}.`,
+    backendMessage ? `Backend message: ${backendMessage}.` : '',
+    sample ? `Upstream sample: ${sample.slice(0, 500)}` : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (details) return new Error(details);
 
   return new Error(
     `HTTP ${status || 'error'}${statusText ? ` ${statusText}` : ''} from ${endpointLabel}.`

@@ -1,6 +1,8 @@
 window.RUNTIME_CONFIG = window.RUNTIME_CONFIG || {};
 const runtimeConfig = window.RUNTIME_CONFIG;
 
+// Vercel serverless proxy expects APPS_SCRIPT_WEBAPP_URL, e.g.
+// APPS_SCRIPT_WEBAPP_URL=https://script.google.com/macros/s/.../exec
 window.API_BASE_URL = String(
   runtimeConfig.API_BASE_URL ||
     runtimeConfig.PROXY_API_BASE_URL ||
