@@ -772,8 +772,8 @@ const Leads = {
     this.setFormBusy(true);
     try {
       if (mode === 'edit') {
-        const result = await this.updateLeadWithVerification(leadId, lead);
-        const resolvedRow = result?.row || { ...lead, lead_id: leadId };
+        const response = await this.updateLead(leadId, lead);
+        const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
         this.upsertLocalRow(resolvedRow);
         UI.toast(result?.verifiedAfterError ? 'Lead updated (verified).' : 'Lead updated.');
       } else {
