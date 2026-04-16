@@ -662,7 +662,7 @@ const Clients = {
     `;
     return U.addIncheckDocumentLogo(html);
   },
-  exportStatementPdf() {
+  previewStatementPdf() {
     const client = this.state.rows.find(row => row.client_id === this.state.selectedClientId);
     if (!client) {
       UI.toast('Select a client first.');
@@ -671,23 +671,36 @@ const Clients = {
     const detailData = this.state.detailCache[client.client_id] || {};
     const rows = this.getFilteredStatementRows_(detailData.statementRows || []);
     const printableDoc = this.buildStatementExportHtml_(client, rows);
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=900');
-    if (!printWindow) {
-      UI.toast('Unable to open print window. Check popup settings.');
+    const clientName = client.customer_name || client.customer_legal_name || client.client_id || 'Client';
+    if (E.clientStatementPreviewTitle)
+      E.clientStatementPreviewTitle.textContent = `Statement of Account Preview · ${clientName}`;
+    if (E.clientStatementPreviewFrame) E.clientStatementPreviewFrame.srcdoc = printableDoc;
+    if (E.clientStatementPreviewModal) {
+      E.clientStatementPreviewModal.classList.add('open');
+      E.clientStatementPreviewModal.setAttribute('aria-hidden', 'false');
+    }
+  },
+  closeStatementPreviewModal() {
+    if (!E.clientStatementPreviewModal) return;
+    E.clientStatementPreviewModal.classList.remove('open');
+    E.clientStatementPreviewModal.setAttribute('aria-hidden', 'true');
+    if (E.clientStatementPreviewFrame) E.clientStatementPreviewFrame.srcdoc = '';
+  },
+  exportStatementPdf() {
+    const frame = E.clientStatementPreviewFrame;
+    const previewTitle = String(E.clientStatementPreviewTitle?.textContent || 'Statement of Account Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open statement preview first to extract PDF.');
       return;
     }
-    printWindow.document.write(printableDoc);
-    printWindow.document.close();
-    const printNow = () => {
-      printWindow.focus();
-      printWindow.print();
-      UI.toast('Print dialog opened. Choose "Save as PDF".');
-    };
-    if (printWindow.document.readyState === 'complete') {
-      setTimeout(printNow, 150);
-    } else {
-      printWindow.addEventListener('load', () => setTimeout(printNow, 150), { once: true });
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access statement preview content.');
+      return;
     }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
   },
   renderRenewalsSection_(detailData = {}, client = {}) {
     const rows = this.getFilteredRenewalRows_(detailData.renewalRows || []);
@@ -1080,7 +1093,18 @@ const Clients = {
       });
     }
     if (E.clientStatementExportPdfBtn) {
-      E.clientStatementExportPdfBtn.addEventListener('click', () => this.exportStatementPdf());
+      E.clientStatementExportPdfBtn.addEventListener('click', () => this.previewStatementPdf());
+    }
+    if (E.clientStatementPreviewCloseBtn) {
+      E.clientStatementPreviewCloseBtn.addEventListener('click', () => this.closeStatementPreviewModal());
+    }
+    if (E.clientStatementPreviewExportPdfBtn) {
+      E.clientStatementPreviewExportPdfBtn.addEventListener('click', () => this.exportStatementPdf());
+    }
+    if (E.clientStatementPreviewModal) {
+      E.clientStatementPreviewModal.addEventListener('click', event => {
+        if (event.target === E.clientStatementPreviewModal) this.closeStatementPreviewModal();
+      });
     }
     if (E.clientRenewalsApplyFiltersBtn) {
       E.clientRenewalsApplyFiltersBtn.addEventListener('click', async () => {
