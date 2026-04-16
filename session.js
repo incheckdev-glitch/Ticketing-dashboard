@@ -58,7 +58,9 @@ const Session = {
   },
   restore() {
     try {
-      const raw = sessionStorage.getItem(LS_KEYS.session);
+      const sessionRaw = sessionStorage.getItem(LS_KEYS.session);
+      const persistentRaw = localStorage.getItem(LS_KEYS.persistentSession);
+      const raw = sessionRaw || persistentRaw;
       if (!raw) return false;
       const parsed = JSON.parse(raw);
       const normalized = this.normalizeSessionPayload(
@@ -81,6 +83,9 @@ const Session = {
   persist() {
     try {
       sessionStorage.setItem(LS_KEYS.session, JSON.stringify(this.state));
+    } catch {}
+    try {
+      localStorage.setItem(LS_KEYS.persistentSession, JSON.stringify(this.state));
     } catch {}
   },
   async login(identifier = '', passcode = '') {
@@ -125,6 +130,9 @@ const Session = {
     };
     try {
       sessionStorage.removeItem(LS_KEYS.session);
+    } catch {}
+    try {
+      localStorage.removeItem(LS_KEYS.persistentSession);
     } catch {}
   },
   async validateSession() {
