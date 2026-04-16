@@ -142,48 +142,62 @@ const LifecycleAnalytics = {
     };
   },
   normalizeAgreement(raw = {}) {
+    const owner = this.text(raw.generated_by || raw.generatedBy || raw.assigned_to || raw.assignedTo || raw.owner);
     return {
       agreement_id: this.text(raw.agreement_id || raw.agreementId || raw.id),
       proposal_id: this.text(raw.proposal_id || raw.proposalId),
       deal_id: this.text(raw.deal_id || raw.dealId),
+      lead_id: this.text(raw.lead_id || raw.leadId),
       created_at: this.text(raw.created_at || raw.createdAt || raw.agreement_date),
       signed_at: this.text(raw.customer_sign_date || raw.signed_at || raw.signedAt),
-      customer_name: this.text(raw.customer_name || raw.company_name),
-      customer_contact_email: this.text(raw.customer_contact_email || raw.email),
-      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.phone),
-      status: this.text(raw.status || ''),
-      owner: this.text(raw.assigned_to || raw.owner),
+      customer_name: this.text(raw.customer_name || raw.customer_legal_name || raw.company_name),
+      customer_contact_name: this.text(raw.customer_contact_name || raw.contact_name || raw.full_name),
+      customer_contact_email: this.text(raw.customer_contact_email || raw.contact_email || raw.email),
+      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.contact_mobile || raw.phone || raw.mobile),
+      status: this.text(raw.status || raw.agreement_status),
+      owner,
       grand_total: this.num(raw.grand_total),
       source: raw
     };
   },
   normalizeInvoice(raw = {}) {
+    const owner = this.text(raw.generated_by || raw.generatedBy || raw.assigned_to || raw.assignedTo || raw.owner);
     return {
       invoice_id: this.text(raw.invoice_id || raw.invoiceId || raw.id),
       agreement_id: this.text(raw.agreement_id || raw.agreementId),
+      proposal_id: this.text(raw.proposal_id || raw.proposalId),
+      deal_id: this.text(raw.deal_id || raw.dealId),
+      lead_id: this.text(raw.lead_id || raw.leadId),
       created_at: this.text(raw.created_at || raw.createdAt || raw.issued_date),
-      customer_name: this.text(raw.customer_name || raw.company_name),
-      customer_contact_email: this.text(raw.customer_contact_email || raw.email),
-      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.phone),
-      status: this.text(raw.status || raw.payment_state),
-      owner: this.text(raw.generated_by || raw.owner),
-      grand_total: this.num(raw.grand_total),
-      amount_paid: this.num(raw.amount_paid),
+      customer_name: this.text(raw.customer_name || raw.customer_legal_name || raw.company_name),
+      customer_contact_name: this.text(raw.customer_contact_name || raw.contact_name || raw.full_name),
+      customer_contact_email: this.text(raw.customer_contact_email || raw.contact_email || raw.email),
+      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.contact_mobile || raw.phone || raw.mobile),
+      status: this.text(raw.status || raw.payment_state || raw.paymentState),
+      owner,
+      grand_total: this.num(raw.grand_total || raw.total_amount || raw.total),
+      amount_paid: this.num(raw.amount_paid || raw.received_amount || raw.paid_amount),
       discount_percent: this.num(raw.discount_percent),
       source: raw
     };
   },
   normalizeReceipt(raw = {}) {
+    const owner = this.text(raw.generated_by || raw.generatedBy || raw.assigned_to || raw.assignedTo || raw.owner);
     return {
       receipt_id: this.text(raw.receipt_id || raw.receiptId || raw.id),
       invoice_id: this.text(raw.invoice_id || raw.invoiceId),
+      agreement_id: this.text(raw.agreement_id || raw.agreementId),
+      proposal_id: this.text(raw.proposal_id || raw.proposalId),
+      deal_id: this.text(raw.deal_id || raw.dealId),
+      lead_id: this.text(raw.lead_id || raw.leadId),
       created_at: this.text(raw.created_at || raw.createdAt || raw.receipt_date),
-      customer_name: this.text(raw.customer_name || raw.company_name),
-      customer_contact_email: this.text(raw.customer_contact_email || raw.email),
-      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.phone),
-      status: this.text(raw.status || raw.payment_state),
-      owner: this.text(raw.generated_by || raw.owner),
-      received_amount: this.num(raw.received_amount || raw.amount_paid),
+      customer_name: this.text(raw.customer_name || raw.customer_legal_name || raw.company_name),
+      customer_contact_name: this.text(raw.customer_contact_name || raw.contact_name || raw.full_name),
+      customer_contact_email: this.text(raw.customer_contact_email || raw.contact_email || raw.email),
+      customer_contact_mobile: this.text(raw.customer_contact_mobile || raw.contact_mobile || raw.phone || raw.mobile),
+      status: this.text(raw.status || raw.payment_state || raw.paymentState),
+      owner,
+      received_amount: this.num(raw.received_amount || raw.amount_paid || raw.grand_total),
       source: raw
     };
   },
@@ -216,11 +230,11 @@ const LifecycleAnalytics = {
     return this.extractRows(response).map(item => this.normalizeAgreement(item));
   },
   async listInvoices(forceRefresh = false) {
-    const response = await Api.listInvoices({});
+    const response = await Api.listInvoices({ forceRefresh });
     return this.extractRows(response).map(item => this.normalizeInvoice(item));
   },
   async listReceipts(forceRefresh = false) {
-    const response = await Api.listReceipts({});
+    const response = await Api.listReceipts({ forceRefresh });
     return this.extractRows(response).map(item => this.normalizeReceipt(item));
   },
   findBestMatch(query, collections) {
