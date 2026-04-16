@@ -4475,13 +4475,30 @@ function wireDashboardGate() {
     event.preventDefault();
     const identifier = String(E.loginIdentifier.value || '');
     const passcode = String(E.loginPasscode.value || '');
+    const defaultLoginBtnLabel = E.loginBtn?.dataset?.defaultLabel || E.loginBtn?.textContent || 'LOG IN';
+    if (E.loginBtn) {
+      E.loginBtn.dataset.defaultLabel = defaultLoginBtnLabel;
+      E.loginBtn.disabled = true;
+      E.loginBtn.textContent = 'Logging in…';
+      E.loginBtn.setAttribute('aria-busy', 'true');
+    }
 
     if (!identifier.trim()) {
       UI.toast('Username or email is required.');
+      if (E.loginBtn) {
+        E.loginBtn.disabled = false;
+        E.loginBtn.textContent = defaultLoginBtnLabel;
+        E.loginBtn.removeAttribute('aria-busy');
+      }
       return;
     }
     if (!passcode.trim()) {
       UI.toast('Password is required.');
+      if (E.loginBtn) {
+        E.loginBtn.disabled = false;
+        E.loginBtn.textContent = defaultLoginBtnLabel;
+        E.loginBtn.removeAttribute('aria-busy');
+      }
       return;
     }
 
@@ -4506,6 +4523,12 @@ function wireDashboardGate() {
         UI.toast(`Login failed: ${error.message}`);
       }
       return;
+    } finally {
+      if (E.loginBtn) {
+        E.loginBtn.disabled = false;
+        E.loginBtn.textContent = defaultLoginBtnLabel;
+        E.loginBtn.removeAttribute('aria-busy');
+      }
     }
   });
 
