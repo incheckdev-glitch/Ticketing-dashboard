@@ -1554,6 +1554,8 @@ UI.Modals = {
 
 const IssueEditor = {
   issue: null,
+  isOpening: false,
+  isSaving: false,
   DEV_TEAM_STATUS_OPTIONS: [
     'Local',
     'Staging',
@@ -1688,6 +1690,17 @@ const IssueEditor = {
   }
 };
 
+function setButtonPendingState(buttonEl, isPending, pendingText, idleText) {
+  if (!buttonEl) return;
+  if (!buttonEl.dataset.defaultLabel) {
+    buttonEl.dataset.defaultLabel = idleText || buttonEl.textContent.trim();
+  }
+  const defaultLabel = buttonEl.dataset.defaultLabel;
+  buttonEl.disabled = !!isPending;
+  buttonEl.setAttribute('aria-busy', isPending ? 'true' : 'false');
+  buttonEl.textContent = isPending ? pendingText : defaultLabel;
+}
+
 const BulkEditor = {
   parseIds(raw = '') {
     return Array.from(
@@ -1768,9 +1781,9 @@ function applyIssueUpdate(savedIssue) {
 }
 
 async function onEditIssueSubmit(event) {
-  console.log('Edit form submitted');
   event.preventDefault();
   if (!requirePermission(() => Permissions.canEditTicket(), 'Only admin can edit tickets.')) return;
+  if (IssueEditor.isSaving) return;
 
   const id = (IssueEditor.issue?.id || '').trim();
   const title = (E.editIssueTitleInput?.value || '').trim();
@@ -1828,8 +1841,9 @@ const issueUpdate = {
     date
   };
 
-  console.log('Saving edit issue update', issueUpdate);
-
+  IssueEditor.isSaving = true;
+  const saveButton = event.target?.querySelector('button[type="submit"]');
+  setButtonPendingState(saveButton, true, 'Saving...');
   try {
     const updatedIssue = await saveIssueToSheet(issueUpdate, Session.authContext());
     if (!updatedIssue) {
@@ -1843,8 +1857,11 @@ const issueUpdate = {
   } catch (error) {
     console.error('Failed to update ticket', error);
     UI.toast(`Failed to update ticket: ${error.message}`);
+  } finally {
+    IssueEditor.isSaving = false;
+    setButtonPendingState(saveButton, false, 'Saving...');
   }
-  }
+}
 
 async function onBulkEditSubmit(event) {
   event.preventDefault();
@@ -4607,18 +4624,29 @@ function wireModals() {
   }
 
   if (E.editIssueBtn) {
-    E.editIssueBtn.addEventListener('click', e => {
+    E.editIssueBtn.addEventListener('click', async e => {
       e.preventDefault();
       e.stopPropagation();
+      if (IssueEditor.isOpening) return;
       if (!requirePermission(() => Permissions.canEditTicket(), 'Only admin can edit tickets.')) return;
+      IssueEditor.isOpening = true;
+      setButtonPendingState(E.editIssueBtn, true, 'Opening...');
       const selectedIssue =
         UI.Modals.selectedIssue ||
         DataStore.byId.get(E.editIssueBtn?.dataset?.id || '');
       if (!selectedIssue) {
         UI.toast('Open a ticket before editing.');
+        IssueEditor.isOpening = false;
+        setButtonPendingState(E.editIssueBtn, false, 'Opening...');
         return;
       }
-      IssueEditor.open(selectedIssue);
+      try {
+        await Promise.resolve();
+        IssueEditor.open(selectedIssue);
+      } finally {
+        IssueEditor.isOpening = false;
+        setButtonPendingState(E.editIssueBtn, false, 'Opening...');
+      }
     });
   }
 
