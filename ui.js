@@ -386,7 +386,7 @@ function cacheEls() {
     'clientStatementSearchDoc',
     'clientStatementApplyFiltersBtn',
     'clientStatementResetFiltersBtn',
-    'clientStatementPreviewBtn',
+    'clientStatementExportPdfBtn',
     'clientStatementTbody',
     'clientStatementPreviewModal',
     'clientStatementPreviewTitle',
