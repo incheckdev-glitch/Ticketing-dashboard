@@ -113,6 +113,9 @@ const UserAdmin = {
   },
   async refresh(force = false) {
     if (!Permissions.canManageUsers()) return;
+    if (!this.state.roles.length && !this.state.loadingRoles) {
+      await this.loadRoles();
+    }
     if (this.state.loading && !force) return;
     this.state.loading = true;
     this.state.error = '';
