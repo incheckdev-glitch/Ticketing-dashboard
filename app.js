@@ -4504,12 +4504,18 @@ function wireDashboardGate() {
 
     try {
       const user = await Session.login(identifier, passcode);
-      await Permissions.loadMatrix(true);
       UI.applyRolePermissions();
       E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
       unlockApp();
       UI.toast(`Logged in as ${user.role}.`);
+      Permissions.loadMatrix(true)
+        .then(() => {
+          UI.applyRolePermissions();
+        })
+        .catch(error => {
+          console.warn('Post-login permission matrix refresh failed', error);
+        });
       Promise.all([loadIssues(true), loadEvents(true)]).catch(error => {
         console.warn('Post-login data refresh failed', error);
         UI.toast('Logged in, but latest dashboard data could not be refreshed.');
