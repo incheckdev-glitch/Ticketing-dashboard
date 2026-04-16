@@ -931,32 +931,17 @@
                 <div class="muted">Reference-inspired layout with live filters, KPI cards, charts, and detailed submissions.</div>
               </div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <a
+                  href="https://forms.gle/EwutYftKANWFCgvt8"
+                  class="btn sm"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Add CSM activity through Google Form"
+                >
+                  <span class="icon" aria-hidden="true">➕</span> Add Activity
+                </a>
                 <span id="csmRowCount" class="chip">0 rows</span>
               </div>
-            </div>
-
-            <div class="card" aria-label="Add CSM activity form">
-              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-                <div>
-                  <strong>Add Activity</strong>
-                  <div class="muted" style="margin-top:4px;">
-                    Create a new CSM activity directly from this tab.
-                  </div>
-                </div>
-              </div>
-              <form id="csmInlineCreateForm" class="user-form-grid" style="margin-top:10px;" aria-label="Create CSM activity form">
-                <input id="csmInlineTimestamp" class="input" type="datetime-local" name="timestamp" placeholder="Timestamp *" required />
-                <input id="csmInlineMinutes" class="input" type="number" min="0" step="1" name="time_spent_minutes" placeholder="Time Spent (Minutes) *" required />
-                <input id="csmInlineCsmName" class="input" type="text" name="csm_name" placeholder="CSM Name *" required />
-                <input id="csmInlineClient" class="input" type="text" name="client" placeholder="Client *" required />
-                <input id="csmInlineSupportType" class="input" type="text" name="type_of_support" placeholder="Type of Support *" required />
-                <input id="csmInlineEffort" class="input" type="text" name="effort_requirement" placeholder="Effort Requirement *" required />
-                <input id="csmInlineChannel" class="input" type="text" name="support_channel" placeholder="Support Channel *" required />
-                <textarea id="csmInlineNotes" class="input" name="notes_optional" rows="3" placeholder="Notes (Optional)" style="grid-column:1 / -1;border-radius:12px;resize:vertical;"></textarea>
-                <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;">
-                  <button id="csmInlineSubmitBtn" type="submit" class="btn sm">Create Activity</button>
-                </div>
-              </form>
             </div>
 
             <div class="grid cols-4 csm-kpi-grid csm-kpi-grid-six">
