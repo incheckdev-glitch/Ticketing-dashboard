@@ -23,6 +23,7 @@ const Leads = {
     agreementNeeded: 'All',
     createdFrom: '',
     createdTo: '',
+    kpiFilter: 'total',
     initialized: false
   },
   normalizeBool(value) {
@@ -259,6 +260,7 @@ const Leads = {
         return false;
       if (this.state.agreementNeeded !== 'All' && row.agreement_needed !== this.state.agreementNeeded)
         return false;
+      if (!this.matchesKpiFilter(row)) return false;
       if (createdFrom || createdTo) {
         const rowDate = parseDateOnly(row.created_at);
         if (!rowDate) return false;
@@ -382,6 +384,39 @@ const Leads = {
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const status = this.normalizeText(row?.status);
+    const priority = this.normalizeText(row?.priority);
+    const estimatedValue = this.parseEstimatedValue(row?.estimated_value);
+    if (filter === 'total') return true;
+    if (filter === 'new') return status === 'new';
+    if (filter === 'qualified') return status === 'qualified';
+    if (filter === 'proposal-sent') return status === 'proposal sent';
+    if (filter === 'won' || filter === 'conversion-rate') return status === 'won';
+    if (filter === 'lost') return status === 'lost';
+    if (filter === 'high-priority') return priority === 'high' || priority === 'urgent';
+    if (filter === 'pipeline-value') return estimatedValue > 0;
+    if (filter === 'proposal-needed') return this.normalizeBool(row?.proposal_needed) === 'yes';
+    if (filter === 'agreement-needed') return this.normalizeBool(row?.agreement_needed) === 'yes';
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
+  },
+  syncKpiCardState() {
+    const cards = document.querySelectorAll('#leadsAnalyticsGrid [data-kpi-filter]');
+    cards.forEach(card => {
+      const isActive = (card.getAttribute('data-kpi-filter') || 'total') === (this.state.kpiFilter || 'total');
+      card.classList.toggle('kpi-filter-active', isActive);
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+  },
   computeLeadAnalytics(leads = []) {
     const rows = Array.isArray(leads) ? leads : [];
     const statusKeys = ['new', 'qualified', 'proposal sent', 'negotiation', 'won', 'lost', 'on hold'];
@@ -491,6 +526,7 @@ const Leads = {
         })
         .join('');
     }
+    this.syncKpiCardState();
   },
   canEditDelete() {
     return Permissions.canEditDeleteLead();
@@ -899,6 +935,7 @@ const Leads = {
         this.state.agreementNeeded = 'All';
         this.state.createdFrom = '';
         this.state.createdTo = '';
+        this.state.kpiFilter = 'total';
         this.applyFilters();
         this.renderFilters();
         this.render();
@@ -933,6 +970,25 @@ const Leads = {
         }
         const convertId = event.target?.getAttribute('data-lead-convert');
         if (convertId) this.convertLeadById(convertId);
+      });
+    }
+    const leadsAnalyticsGrid = document.getElementById('leadsAnalyticsGrid');
+    if (leadsAnalyticsGrid) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      leadsAnalyticsGrid.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      leadsAnalyticsGrid.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
       });
     }
 
