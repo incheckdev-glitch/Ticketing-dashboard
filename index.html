@@ -55,10 +55,6 @@
       <button id="exportCsv" class="btn" aria-label="Export filtered issues as Excel">
         <span class="icon" aria-hidden="true">📥</span> Export
       </button>
-      <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket">
-        <span class="icon" aria-hidden="true">➕</span> Create Ticket
-      </button>
-
       <button id="shortcutsHelp" class="btn ghost sm" type="button" title="Keyboard shortcuts">
         <span class="icon" aria-hidden="true">⌨️</span>
       </button>
@@ -382,6 +378,9 @@
               <div class="muted">Live feed from InCheck issues sheet.</div>
             </div>
           <div class="table-tools">
+              <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket" type="button">
+                <span class="icon" aria-hidden="true">➕</span> Create Ticket
+              </button>
               <span id="rowCount" class="muted" aria-live="polite"></span>
               <button id="bulkEditBtn" class="btn ghost sm" type="button">
                 Bulk edit
