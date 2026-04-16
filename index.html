@@ -930,7 +930,39 @@
                 <h2>InCheck CSM Activity Analytics</h2>
                 <div class="muted">Reference-inspired layout with live filters, KPI cards, charts, and detailed submissions.</div>
               </div>
-              <span id="csmRowCount" class="chip">0 rows</span>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span id="csmRowCount" class="chip">0 rows</span>
+              </div>
+            </div>
+
+            <div class="card" aria-label="Add CSM activity form">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                <div>
+                  <strong>Add Activity</strong>
+                  <div class="muted" style="margin-top:4px;">
+                    Fill in the activity details below (same structure as the CSM activity capture form), then submit via Google Form.
+                  </div>
+                </div>
+                <a
+                  href="https://forms.gle/EwutYftKANWFCgvt8"
+                  class="btn sm"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open Google Form to submit CSM activity"
+                >
+                  <span class="icon" aria-hidden="true">📝</span> Open Google Form
+                </a>
+              </div>
+              <form class="user-form-grid" style="margin-top:10px;" onsubmit="return false;" aria-label="CSM activity draft form">
+                <input class="input" type="datetime-local" name="timestamp" placeholder="Timestamp" />
+                <input class="input" type="number" min="0" step="1" name="time_spent_minutes" placeholder="Time Spent (Minutes)" />
+                <input class="input" type="text" name="csm_name" placeholder="CSM Name" />
+                <input class="input" type="text" name="client" placeholder="Client" />
+                <input class="input" type="text" name="type_of_support" placeholder="Type of Support" />
+                <input class="input" type="text" name="effort_requirement" placeholder="Effort Requirement" />
+                <input class="input" type="text" name="support_channel" placeholder="Support Channel" />
+                <textarea class="input" name="notes_optional" rows="3" placeholder="Notes (Optional)" style="grid-column:1 / -1;border-radius:12px;resize:vertical;"></textarea>
+              </form>
             </div>
 
             <div class="grid cols-4 csm-kpi-grid csm-kpi-grid-six">
