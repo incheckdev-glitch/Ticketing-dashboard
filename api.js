@@ -554,8 +554,19 @@ const Api = {
     }
   },
   async validateWorkflowTransition(payload = {}) {
+    const targetResource = String(
+      payload?.target_workflow_resource ||
+      payload?.target_resource ||
+      payload?.workflow_resource ||
+      payload?.resource ||
+      ''
+    ).trim();
     return this.postAuthenticated('workflow', 'validate_transition', {
       ...payload,
+      resource: undefined,
+      target_workflow_resource: targetResource,
+      target_resource: targetResource,
+      workflow_resource: targetResource,
       sheetName: CONFIG.WORKFLOW_RULES_SHEET_NAME
     });
   },
