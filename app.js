@@ -3084,7 +3084,9 @@ async function saveIssueToSheet(issue, auth = {}, options = {}) {
         });
         UI.toast('Issue updated');
         const returnedIssue = result?.issue || result || {};
-        return normalizeIssueForStore({ ...payload, ...returnedIssue });
+        // Prefer the just-submitted payload for immediate UI consistency; some
+        // backends may echo a stale row while Google Sheet propagation completes.
+        return normalizeIssueForStore({ ...returnedIssue, ...payload });
       } catch (error) {
         if (isAuthError(error)) throw error;
       }
