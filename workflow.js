@@ -1,4 +1,19 @@
 const WorkflowEngine = {
+  processingRequests: 0,
+  beginRequestProcessing(message = 'Processing request…') {
+    this.processingRequests += 1;
+    if (this.processingRequests !== 1) return;
+
+    if (typeof UI !== 'undefined' && typeof UI.spinner === 'function') UI.spinner(true);
+    const statusNode = typeof E !== 'undefined' ? E.loadingStatus : null;
+    if (statusNode) statusNode.textContent = message;
+  },
+  endRequestProcessing() {
+    if (this.processingRequests > 0) this.processingRequests -= 1;
+    if (this.processingRequests !== 0) return;
+
+    if (typeof UI !== 'undefined' && typeof UI.spinner === 'function') UI.spinner(false);
+  },
   toBool(value) {
     if (typeof value === 'boolean') return value;
     const normalized = String(value || '').trim().toLowerCase();
@@ -85,6 +100,7 @@ const WorkflowEngine = {
     return Api.validateWorkflowTransition({ resource, record, requested_changes: requestedChanges });
   },
   async enforceBeforeSave(resource, record, requestedChanges = {}) {
+    this.beginRequestProcessing('Checking workflow approval request…');
     try {
       const validation = await this.validateWorkflowTransition(resource, record, requestedChanges);
       const allowed = this.toBool(validation?.allowed ?? validation?.is_allowed ?? true);
@@ -127,6 +143,8 @@ const WorkflowEngine = {
         reason,
         response: null
       };
+    } finally {
+      this.endRequestProcessing();
     }
   },
   getWorkflowBadgeHtml(status) {
