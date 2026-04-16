@@ -694,6 +694,20 @@ const LifecycleAnalytics = {
   },
   buildSummary(graph, timeline, metrics) {
     const latest = timeline[timeline.length - 1] || null;
+    const activityDates = [
+      graph.lead?.created_at,
+      graph.deal?.created_at,
+      ...graph.proposals.map(item => item.sent_at || item.created_at),
+      ...graph.agreements.map(item => item.signed_at || item.created_at),
+      ...graph.invoices.map(item => item.created_at),
+      ...graph.receipts.map(item => item.created_at)
+    ]
+      .filter(Boolean)
+      .map(value => this.toDate(value))
+      .filter(Boolean)
+      .sort((a, b) => a.getTime() - b.getTime());
+    const latestActivityFromGraph = activityDates.length ? activityDates[activityDates.length - 1].toISOString() : '';
+
     const currentStage = graph.receipts.length
       ? 'Receipt'
       : graph.invoices.length
@@ -720,10 +734,15 @@ const LifecycleAnalytics = {
       current_stage: currentStage,
       customer_company:
         graph.lead?.company_name ||
+        graph.lead?.full_name ||
         graph.deal?.company_name ||
+        graph.deal?.full_name ||
         graph.proposals[0]?.customer_name ||
+        graph.proposals[0]?.customer_legal_name ||
         graph.agreements[0]?.customer_name ||
+        graph.agreements[0]?.customer_legal_name ||
         graph.invoices[0]?.customer_name ||
+        graph.invoices[0]?.customer_legal_name ||
         '—',
       owner:
         graph.deal?.owner ||
@@ -734,8 +753,8 @@ const LifecycleAnalytics = {
         '—',
       status: latest?.status || graph.invoices[0]?.status || graph.agreements[0]?.status || graph.proposals[0]?.status || graph.deal?.status || graph.lead?.status || '—',
       estimated_value: estimated,
-      lifecycle_duration: metrics.total_cycle_duration_days,
-      last_activity: latest?.date || '',
+      lifecycle_duration: metrics.total_cycle_duration_days ?? metrics.lifecycle_duration_days ?? metrics.lifecycle_duration ?? null,
+      last_activity: latest?.date || latestActivityFromGraph || '',
       next_action: graph.invoices.length && !graph.receipts.length ? 'Follow up for payment receipt' : graph.agreements.length && !graph.invoices.length ? 'Generate invoice from agreement' : graph.proposals.length && !graph.agreements.length ? 'Move proposal to agreement' : 'Monitor status updates'
     };
   },
@@ -1212,18 +1231,22 @@ const LifecycleAnalytics = {
         ? resolved.metrics
         : this.buildMetrics(normalizedGraph, normalizedTimeline);
 
+      const fallbackSummary = this.buildSummary(normalizedGraph, normalizedTimeline, computedMetrics);
       const computedSummary = resolved.summary && Object.keys(resolved.summary).length
         ? {
-            current_stage: resolved.summary.current_stage || resolved.summary.currentStage,
-            customer_company: resolved.summary.customer_company || resolved.summary.customerCompany,
-            owner: resolved.summary.owner,
-            status: resolved.summary.status,
-            estimated_value: this.num(resolved.summary.estimated_value || resolved.summary.estimatedValue),
-            lifecycle_duration: resolved.summary.lifecycle_duration || resolved.summary.lifecycleDuration,
-            last_activity: resolved.summary.last_activity || resolved.summary.lastActivity,
-            next_action: resolved.summary.next_action || resolved.summary.nextAction
+            current_stage: resolved.summary.current_stage || resolved.summary.currentStage || fallbackSummary.current_stage,
+            customer_company: resolved.summary.customer_company || resolved.summary.customerCompany || fallbackSummary.customer_company,
+            owner: resolved.summary.owner || fallbackSummary.owner,
+            status: resolved.summary.status || fallbackSummary.status,
+            estimated_value:
+              resolved.summary.estimated_value != null || resolved.summary.estimatedValue != null
+                ? this.num(resolved.summary.estimated_value ?? resolved.summary.estimatedValue)
+                : fallbackSummary.estimated_value,
+            lifecycle_duration: resolved.summary.lifecycle_duration || resolved.summary.lifecycleDuration || fallbackSummary.lifecycle_duration,
+            last_activity: resolved.summary.last_activity || resolved.summary.lastActivity || fallbackSummary.last_activity,
+            next_action: resolved.summary.next_action || resolved.summary.nextAction || fallbackSummary.next_action
           }
-        : this.buildSummary(normalizedGraph, normalizedTimeline, computedMetrics);
+        : fallbackSummary;
 
       const computedInsights = Array.isArray(resolved.insights) && resolved.insights.length
         ? resolved.insights
