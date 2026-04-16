@@ -1319,6 +1319,7 @@
             </div>
           </div>
           <div id="clientsState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div id="clientsGlobalRenewals" class="muted" style="margin-bottom:8px;"></div>
           <div class="table-wrap" role="region" aria-label="Clients table">
             <table id="clientsTable">
               <thead>
@@ -1355,41 +1356,85 @@
               </div>
             </div>
             <div id="clientDetailOverview" class="muted" style="margin:10px 0 14px;"></div>
-            <details open>
-              <summary><strong>Analytics</strong></summary>
-              <div id="clientAnalyticsCards" class="grid cols-4" style="margin-top:8px;"></div>
-            </details>
-            <div style="margin-top:14px;">
-              <strong>Related Agreements</strong>
-              <div class="table-wrap" style="margin-top:6px;">
+            <div id="clientDetailTabButtons" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <button class="btn ghost sm" type="button" data-client-detail-tab="overview">Overview</button>
+              <button class="btn ghost sm" type="button" data-client-detail-tab="statement">Statement of Account</button>
+              <button class="btn ghost sm" type="button" data-client-detail-tab="renewals">Renewals &amp; Payments Timeline</button>
+            </div>
+            <section id="clientOverviewSection">
+              <details open>
+                <summary><strong>Analytics</strong></summary>
+                <div id="clientAnalyticsCards" class="grid cols-4" style="margin-top:8px;"></div>
+              </details>
+              <div style="margin-top:14px;">
+                <strong>Related Agreements</strong>
+                <div class="table-wrap" style="margin-top:6px;">
+                  <table>
+                    <thead><tr><th>Agreement #</th><th>Status</th><th>Value</th><th>Start Date</th><th>End Date</th><th>Actions</th></tr></thead>
+                    <tbody id="clientRelatedAgreementsTbody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div style="margin-top:14px;">
+                <strong>Related Invoices</strong>
+                <div class="table-wrap" style="margin-top:6px;">
+                  <table>
+                    <thead><tr><th>Invoice #</th><th>Status</th><th>Grand Total</th><th>Amount Paid</th><th>Pending Amount</th><th>Actions</th></tr></thead>
+                    <tbody id="clientRelatedInvoicesTbody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div style="margin-top:14px;">
+                <strong>Related Receipts</strong>
+                <div class="table-wrap" style="margin-top:6px;">
+                  <table>
+                    <thead><tr><th>Receipt #</th><th>Payment State</th><th>Received Amount</th><th>Pending Amount</th><th>Actions</th></tr></thead>
+                    <tbody id="clientRelatedReceiptsTbody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div style="margin-top:14px;">
+                <strong>Timeline</strong>
+                <ul id="clientTimeline" style="margin:8px 0 0 18px;"></ul>
+              </div>
+            </section>
+            <section id="clientStatementSection" style="display:none;">
+              <div id="clientStatementCards" class="grid cols-5" style="gap:8px;"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <select id="clientStatementFiltersStatus" class="select">
+                  <option value="all">All</option>
+                  <option value="open">Open Only</option>
+                  <option value="overdue">Overdue Only</option>
+                </select>
+                <input id="clientStatementDateFrom" class="input" type="date" />
+                <input id="clientStatementDateTo" class="input" type="date" />
+                <input id="clientStatementSearchDoc" class="input" type="search" placeholder="Search document #" />
+                <button id="clientStatementApplyFiltersBtn" class="btn ghost sm" type="button">Apply</button>
+                <button id="clientStatementResetFiltersBtn" class="btn ghost sm" type="button">Reset</button>
+              </div>
+              <div class="table-wrap" style="margin-top:8px;">
                 <table>
-                  <thead><tr><th>Agreement #</th><th>Status</th><th>Value</th><th>Start Date</th><th>End Date</th><th>Actions</th></tr></thead>
-                  <tbody id="clientRelatedAgreementsTbody"></tbody>
+                  <thead><tr><th>Date</th><th>Type</th><th>Document No</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Running Balance</th><th>Due Date</th><th>Status</th><th>Notes</th></tr></thead>
+                  <tbody id="clientStatementTbody"></tbody>
                 </table>
               </div>
-            </div>
-            <div style="margin-top:14px;">
-              <strong>Related Invoices</strong>
-              <div class="table-wrap" style="margin-top:6px;">
+            </section>
+            <section id="clientRenewalsSection" style="display:none;">
+              <div id="clientRenewalEvents" class="grid cols-4" style="gap:8px;"></div>
+              <div id="clientRenewalBuckets" class="grid cols-5" style="gap:8px;margin-top:8px;"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <input id="clientRenewalsDateFrom" class="input" type="date" />
+                <input id="clientRenewalsDateTo" class="input" type="date" />
+                <button id="clientRenewalsApplyFiltersBtn" class="btn ghost sm" type="button">Apply</button>
+                <button id="clientRenewalsResetFiltersBtn" class="btn ghost sm" type="button">Reset</button>
+              </div>
+              <div class="table-wrap" style="margin-top:8px;">
                 <table>
-                  <thead><tr><th>Invoice #</th><th>Status</th><th>Grand Total</th><th>Amount Paid</th><th>Pending Amount</th><th>Actions</th></tr></thead>
-                  <tbody id="clientRelatedInvoicesTbody"></tbody>
+                  <thead><tr><th>Agreement No</th><th>Invoice No</th><th>Client</th><th>Start Date</th><th>End Date</th><th>Due Date</th><th>Renewal Date</th><th>Days Left</th><th>Amount Due</th><th>Status</th></tr></thead>
+                  <tbody id="clientRenewalsTbody"></tbody>
                 </table>
               </div>
-            </div>
-            <div style="margin-top:14px;">
-              <strong>Related Receipts</strong>
-              <div class="table-wrap" style="margin-top:6px;">
-                <table>
-                  <thead><tr><th>Receipt #</th><th>Payment State</th><th>Received Amount</th><th>Pending Amount</th><th>Actions</th></tr></thead>
-                  <tbody id="clientRelatedReceiptsTbody"></tbody>
-                </table>
-              </div>
-            </div>
-            <div style="margin-top:14px;">
-              <strong>Timeline</strong>
-              <ul id="clientTimeline" style="margin:8px 0 0 18px;"></ul>
-            </div>
+            </section>
           </div>
         </div>
       </section>
