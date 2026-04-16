@@ -378,7 +378,8 @@ const Clients = {
       credit: 0,
       due_date: item.due_date || '',
       status: this.getPaymentStatus(item),
-      notes: item.notes || ''
+      notes: item.notes || '',
+      currency: String(item.currency || '').trim() || 'USD'
     }));
     const receiptRows = receipts.map(item => ({
       date: item.receipt_date || item.updated_at,
@@ -390,7 +391,8 @@ const Clients = {
       credit: this.toNumberSafe(item.received_amount),
       due_date: '',
       status: item.payment_state || 'Received',
-      notes: item.notes || ''
+      notes: item.notes || '',
+      currency: String(item.currency || '').trim() || 'USD'
     }));
     return this.computeRunningBalance([...invoiceRows, ...receiptRows]).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   },
@@ -434,7 +436,8 @@ const Clients = {
       credit: this.toNumberSafe(this.getField(raw, 'credit', 'amount_credit', 'amount_paid')),
       due_date: String(this.getField(raw, 'due_date', 'dueDate') || '').trim(),
       status: String(this.getField(raw, 'status', 'payment_state') || '').trim(),
-      notes: String(this.getField(raw, 'notes', 'description') || '').trim()
+      notes: String(this.getField(raw, 'notes', 'description') || '').trim(),
+      currency: String(this.getField(raw, 'currency', 'currency_code', 'currencyCode') || '').trim() || 'USD'
     };
   },
   normalizeRenewalRow(raw = {}) {
@@ -581,6 +584,7 @@ const Clients = {
               <td>${U.escapeHtml(row.type || '—')}</td>
               <td>${U.escapeHtml(row.document_no || '—')}</td>
               <td>${U.escapeHtml(row.reference || '—')}</td>
+              <td>${U.escapeHtml(row.currency || 'USD')}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
@@ -589,7 +593,7 @@ const Clients = {
               <td>${U.escapeHtml(row.notes || '—')}</td>
             </tr>`)
             .join('')
-        : '<tr><td colspan="10" class="muted" style="text-align:center;">No statement rows found.</td></tr>';
+        : '<tr><td colspan="11" class="muted" style="text-align:center;">No statement rows found.</td></tr>';
     }
   },
   buildStatementExportHtml_(client = {}, rows = []) {
@@ -604,6 +608,7 @@ const Clients = {
             <td>${U.escapeHtml(row.type || '—')}</td>
             <td>${U.escapeHtml(row.document_no || '—')}</td>
             <td>${U.escapeHtml(row.reference || '—')}</td>
+            <td>${U.escapeHtml(row.currency || 'USD')}</td>
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
@@ -612,7 +617,7 @@ const Clients = {
             <td>${U.escapeHtml(row.notes || '—')}</td>
           </tr>`)
           .join('')
-      : '<tr><td colspan="10" style="text-align:center;">No statement rows found.</td></tr>';
+      : '<tr><td colspan="11" style="text-align:center;">No statement rows found.</td></tr>';
     const totalDebit = rows.reduce((sum, item) => sum + this.toNumberSafe(item.debit), 0);
     const totalCredit = rows.reduce((sum, item) => sum + this.toNumberSafe(item.credit), 0);
     const balance = Math.max(totalDebit - totalCredit, 0);
@@ -648,7 +653,7 @@ const Clients = {
           </div>
           <table>
             <thead>
-              <tr><th>Date</th><th>Type</th><th>Document No</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Running Balance</th><th>Due Date</th><th>Status</th><th>Notes</th></tr>
+              <tr><th>Date</th><th>Type</th><th>Document No</th><th>Reference</th><th>Currency</th><th>Debit</th><th>Credit</th><th>Running Balance</th><th>Due Date</th><th>Status</th><th>Notes</th></tr>
             </thead>
             <tbody>${bodyRows}</tbody>
           </table>
