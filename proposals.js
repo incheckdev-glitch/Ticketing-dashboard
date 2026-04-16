@@ -70,6 +70,19 @@ const Proposals = {
     const num = this.toNumberSafe(value);
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
   },
+  formatMoneyWithCurrency(value, currency = '', hasMixedCurrencies = false) {
+    const numericValue = Number.isFinite(value) ? value : 0;
+    if (currency && !hasMixedCurrencies) {
+      let formatted = numericValue.toLocaleString(undefined, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2
+      });
+      if (formatted === 'NaN') formatted = `${currency} ${numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      return formatted;
+    }
+    return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  },
   normalizeText(value) {
     return String(value ?? '').trim().toLowerCase();
   },
@@ -365,6 +378,155 @@ const Proposals = {
       return true;
     });
   },
+  normalizeStatusLabel(value = '') {
+    const status = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (!status) return 'Unspecified';
+    if (status.includes('draft')) return 'Draft';
+    if (status.includes('sent') || status.includes('submitted')) return 'Sent';
+    if (status.includes('approve') || status.includes('accept') || status.includes('won'))
+      return 'Approved';
+    if (status.includes('reject') || status.includes('declin') || status.includes('lost'))
+      return 'Rejected';
+    if (status.includes('expire')) return 'Expired';
+    return String(value || '').trim() || 'Unspecified';
+  },
+  incrementMap(map, key) {
+    const label = String(key || '').trim() || 'Unspecified';
+    map[label] = (map[label] || 0) + 1;
+  },
+  buildTopBreakdown(map = {}, max = 7) {
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, max);
+  },
+  computeProposalAnalytics(proposals = []) {
+    const rows = Array.isArray(proposals) ? proposals : [];
+    const statusBreakdown = {};
+    const currencyBreakdown = {};
+    const generatedByBreakdown = {};
+    const customers = new Set();
+    const currencies = new Set();
+    let draftCount = 0;
+    let sentCount = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
+    let expiredCount = 0;
+    let linkedDeals = 0;
+    let grandTotal = 0;
+    let saasTotal = 0;
+    let oneTimeTotal = 0;
+    let rowsWithGrandTotal = 0;
+
+    rows.forEach(row => {
+      const statusLabel = this.normalizeStatusLabel(row?.status);
+      if (statusLabel === 'Draft') draftCount += 1;
+      if (statusLabel === 'Sent') sentCount += 1;
+      if (statusLabel === 'Approved') approvedCount += 1;
+      if (statusLabel === 'Rejected') rejectedCount += 1;
+      if (statusLabel === 'Expired') expiredCount += 1;
+      this.incrementMap(statusBreakdown, statusLabel);
+
+      const grand = this.toNumberSafe(row?.grand_total);
+      const saas = this.toNumberSafe(row?.saas_total);
+      const oneTime = this.toNumberSafe(row?.one_time_total);
+      grandTotal += grand;
+      saasTotal += saas;
+      oneTimeTotal += oneTime;
+      if (grand > 0) rowsWithGrandTotal += 1;
+
+      if (String(row?.deal_id || '').trim()) linkedDeals += 1;
+      if (String(row?.customer_name || '').trim()) customers.add(String(row.customer_name).trim().toLowerCase());
+
+      const currency = String(row?.currency || '')
+        .trim()
+        .toUpperCase();
+      this.incrementMap(currencyBreakdown, currency || 'Unspecified');
+      if (currency) currencies.add(currency);
+
+      this.incrementMap(generatedByBreakdown, row?.generated_by || 'Unspecified');
+    });
+
+    return {
+      total: rows.length,
+      draftCount,
+      sentCount,
+      approvedCount,
+      rejectedCount,
+      expiredCount,
+      uniqueCustomers: customers.size,
+      linkedDeals,
+      grandTotal,
+      saasTotal,
+      oneTimeTotal,
+      avgGrandTotal: rowsWithGrandTotal > 0 ? grandTotal / rowsWithGrandTotal : 0,
+      statusBreakdown: this.buildTopBreakdown(statusBreakdown, 10),
+      currencyBreakdown: this.buildTopBreakdown(currencyBreakdown, 8),
+      generatedByBreakdown: this.buildTopBreakdown(generatedByBreakdown, 8),
+      pipelineCurrency: currencies.size === 1 ? [...currencies][0] : '',
+      hasMixedCurrencies: currencies.size > 1
+    };
+  },
+  renderDistribution(el, entries = [], total = 0) {
+    if (!el) return;
+    if (!entries.length) {
+      el.innerHTML = '<div class="muted">No data for current filters.</div>';
+      return;
+    }
+    el.innerHTML = entries
+      .map(([label, count]) => {
+        const percent = total > 0 ? (count / total) * 100 : 0;
+        return `<div class="deals-status-row">
+          <div class="deals-status-label">${U.escapeHtml(label)}</div>
+          <div class="leads-status-track"><span class="deals-status-fill" style="width:${Math.min(100, percent).toFixed(1)}%"></span></div>
+          <div class="deals-status-meta">${count} · ${percent.toFixed(1)}%</div>
+        </div>`;
+      })
+      .join('');
+  },
+  renderProposalAnalytics(analytics) {
+    const safe = analytics || this.computeProposalAnalytics([]);
+    const setText = (el, value) => {
+      if (el) el.textContent = value;
+    };
+    setText(E.proposalsKpiTotal, String(safe.total || 0));
+    setText(E.proposalsKpiDraft, String(safe.draftCount || 0));
+    setText(E.proposalsKpiSent, String(safe.sentCount || 0));
+    setText(E.proposalsKpiApproved, String(safe.approvedCount || 0));
+    setText(E.proposalsKpiRejected, String(safe.rejectedCount || 0));
+    setText(E.proposalsKpiExpired, String(safe.expiredCount || 0));
+    setText(E.proposalsKpiUniqueCustomers, String(safe.uniqueCustomers || 0));
+    setText(E.proposalsKpiLinkedDeals, String(safe.linkedDeals || 0));
+    setText(
+      E.proposalsKpiAvgGrandTotal,
+      this.formatMoneyWithCurrency(safe.avgGrandTotal, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+    setText(
+      E.proposalsKpiGrandTotal,
+      this.formatMoneyWithCurrency(safe.grandTotal, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+    setText(
+      E.proposalsKpiSaasTotal,
+      this.formatMoneyWithCurrency(safe.saasTotal, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+    setText(
+      E.proposalsKpiOneTimeTotal,
+      this.formatMoneyWithCurrency(safe.oneTimeTotal, safe.pipelineCurrency, safe.hasMixedCurrencies)
+    );
+
+    const currencySuffix = safe.pipelineCurrency && !safe.hasMixedCurrencies
+      ? ` (${safe.pipelineCurrency})`
+      : safe.hasMixedCurrencies
+        ? ' (mixed currencies)'
+        : '';
+    setText(E.proposalsKpiGrandTotalSub, `Sum of grand total${currencySuffix}`);
+    setText(E.proposalsKpiSaasTotalSub, `Sum of SaaS totals${currencySuffix}`);
+    setText(E.proposalsKpiOneTimeTotalSub, `Sum of one-time totals${currencySuffix}`);
+    this.renderDistribution(E.proposalsStatusDistribution, safe.statusBreakdown, safe.total || 0);
+    this.renderDistribution(E.proposalsCurrencyDistribution, safe.currencyBreakdown, safe.total || 0);
+    this.renderDistribution(E.proposalsGeneratedByDistribution, safe.generatedByBreakdown, safe.total || 0);
+  },
   renderFilters() {
     const statusValues = [...new Set(this.state.rows.map(row => String(row.status || '').trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
@@ -382,12 +544,14 @@ const Proposals = {
 
     if (this.state.loading) {
       E.proposalsState.textContent = 'Loading proposals…';
+      this.renderProposalAnalytics(this.computeProposalAnalytics([]));
       E.proposalsTbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;">Loading proposals…</td></tr>';
       return;
     }
 
     if (this.state.loadError) {
       E.proposalsState.textContent = this.state.loadError;
+      this.renderProposalAnalytics(this.computeProposalAnalytics([]));
       E.proposalsTbody.innerHTML = `<tr><td colspan="14" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(
         this.state.loadError
       )}</td></tr>`;
@@ -395,6 +559,7 @@ const Proposals = {
     }
 
     const rows = this.state.filteredRows;
+    this.renderProposalAnalytics(this.computeProposalAnalytics(rows));
     E.proposalsState.textContent = `${rows.length} proposal${rows.length === 1 ? '' : 's'}`;
     if (!rows.length) {
       E.proposalsTbody.innerHTML =
