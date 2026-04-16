@@ -4516,7 +4516,7 @@ function wireDashboardGate() {
         .catch(error => {
           console.warn('Post-login permission matrix refresh failed', error);
         });
-      Promise.all([loadIssues(true), loadEvents(true)]).catch(error => {
+      Promise.all([loadIssues(false), loadEvents(false)]).catch(error => {
         console.warn('Post-login data refresh failed', error);
         UI.toast('Logged in, but latest dashboard data could not be refreshed.');
       });
