@@ -1688,6 +1688,55 @@ const IssueEditor = {
   }
 };
 
+const IssueCreator = {
+  open() {
+    if (!E.createIssueModal) return;
+    this.reset();
+    this.syncCategoryOptions();
+    E.createIssueModal.style.display = 'flex';
+    E.createIssueName?.focus?.();
+  },
+  close() {
+    if (E.createIssueModal) E.createIssueModal.style.display = 'none';
+  },
+  reset() {
+    if (!E.createIssueForm) return;
+    E.createIssueForm.reset();
+    if (E.createIssueDate) E.createIssueDate.value = toLocalDateValue(new Date());
+  },
+  syncCategoryOptions(selected = '') {
+    if (!E.createIssueType) return;
+    const categories = buildIssueCategoryOptions(selected ? [selected] : []);
+    E.createIssueType.innerHTML = ['<option value="">Select category</option>']
+      .concat(categories.map(v => `<option value="${U.escapeAttr(v)}">${U.escapeHtml(v)}</option>`))
+      .join('');
+    E.createIssueType.value = selected && categories.includes(selected) ? selected : '';
+  },
+  collectForm() {
+    return {
+      id: `TK-${Date.now()}`,
+      name: (E.createIssueName?.value || '').trim(),
+      department: (E.createIssueDepartment?.value || '').trim(),
+      title: (E.createIssueTitle?.value || '').trim(),
+      desc: (E.createIssueDesc?.value || '').trim(),
+      module: (E.createIssueModule?.value || '').trim() || 'Unspecified',
+      priority: E.createIssuePriority?.value || '',
+      status: E.createIssueStatus?.value || '',
+      type: (E.createIssueType?.value || '').trim(),
+      emailAddressee: (E.createIssueEmail?.value || '').trim(),
+      file: (E.createIssueFile?.value || '').trim(),
+      date: E.createIssueDate?.value || toLocalDateValue(new Date()),
+      log: (E.createIssueLog?.value || '').trim(),
+      notificationSent: '',
+      notificationUnderReview: '',
+      youtrackReference: '',
+      devTeamStatus: '',
+      issueRelated: '',
+      notes: ''
+    };
+  }
+};
+
 const BulkEditor = {
   parseIds(raw = '') {
     return Array.from(
@@ -1845,6 +1894,81 @@ const issueUpdate = {
     UI.toast(`Failed to update ticket: ${error.message}`);
   }
   }
+
+async function createIssueInSheet(issue, auth = {}, options = {}) {
+  if (!CONFIG.ISSUE_API_URL) {
+    UI.toast('Issue endpoint is not configured.');
+    return null;
+  }
+
+  const useSpinner = !options.silent;
+  if (useSpinner) UI.spinner(true);
+  try {
+    const payload = normalizeIssueForStore(issue, { includeRestrictedFields: Permissions.isAdmin() });
+    const requestBodies = [
+      { issue: payload },
+      { ticket: payload },
+      {
+        id: payload.id,
+        ticket_id: payload.id,
+        ...buildIssueUpdateFields(payload, payload.id)
+      }
+    ];
+    const actions = ['create', 'upsert', 'add', 'update'];
+
+    for (const action of actions) {
+      for (const body of requestBodies) {
+        try {
+          const result = await Api.postAuthenticated('tickets', action, body, { requireAuth: true });
+          const returnedIssue = result?.issue || result?.ticket || result || {};
+          UI.toast('Ticket created');
+          return normalizeIssueForStore({ ...payload, ...returnedIssue });
+        } catch (error) {
+          if (isAuthError(error)) throw error;
+        }
+      }
+    }
+    throw new Error('Ticket create rejected by backend.');
+  } catch (e) {
+    if (isAuthError(e)) {
+      await handleExpiredSession('Session expired while creating ticket.');
+      return null;
+    }
+    UI.toast('Error creating ticket: ' + e.message);
+    throw e;
+  } finally {
+    if (useSpinner) UI.spinner(false);
+  }
+}
+
+async function onCreateIssueSubmit(event) {
+  event.preventDefault();
+  if (!requirePermission(() => Permissions.canCreateTicket(), 'Login is required to create a ticket.'))
+    return;
+
+  const payload = IssueCreator.collectForm();
+  const missingFields = [];
+  if (!payload.name) missingFields.push('Name');
+  if (!payload.title) missingFields.push('Title');
+  if (!payload.desc) missingFields.push('Description');
+  if (!payload.module) missingFields.push('Module');
+  if (!payload.priority) missingFields.push('Priority');
+  if (!payload.status) missingFields.push('Status');
+  if (missingFields.length) {
+    UI.toast(`Please fill the required fields: ${missingFields.join(', ')}`);
+    return;
+  }
+
+  try {
+    const createdIssue = await createIssueInSheet(payload, Session.authContext());
+    if (!createdIssue) throw new Error('Ticket create did not return a response.');
+    applyIssueUpdate(createdIssue);
+    IssueCreator.close();
+    UI.refreshAll();
+  } catch (error) {
+    UI.toast(`Failed to create ticket: ${error.message}`);
+  }
+}
 
 async function onBulkEditSubmit(event) {
   event.preventDefault();
@@ -4167,11 +4291,11 @@ function wireCore() {
         Invoices.openInvoice(Invoices.emptyInvoice(), [], { readOnly: false });
         return;
       }
-      window.open(
-        isCsmView ? 'https://forms.gle/jV7XLrquc8beyi228' : 'https://forms.gle/PPnEP1AQneoBT79s5',
-        '_blank',
-        'noopener,noreferrer'
-      );
+      if (isCsmView) {
+        window.open('https://forms.gle/jV7XLrquc8beyi228', '_blank', 'noopener,noreferrer');
+        return;
+      }
+      IssueCreator.open();
     });
 
   if (E.shortcutsHelp) {
@@ -4642,9 +4766,22 @@ function wireModals() {
     });
   }
 
- const editIssueForm = document.getElementById('editIssueForm');
+  const editIssueForm = document.getElementById('editIssueForm');
   if (editIssueForm) {
     editIssueForm.addEventListener('submit', onEditIssueSubmit);
+  }
+  if (E.createIssueForm) {
+    E.createIssueForm.addEventListener('submit', onCreateIssueSubmit);
+  }
+  if (E.createIssueClose) E.createIssueClose.addEventListener('click', () => IssueCreator.close());
+  if (E.createIssueCancel) E.createIssueCancel.addEventListener('click', () => IssueCreator.close());
+  if (E.createIssueModal) {
+    E.createIssueModal.addEventListener('click', e => {
+      if (e.target === E.createIssueModal) IssueCreator.close();
+    });
+    E.createIssueModal.addEventListener('keydown', e => {
+      if (e.key === 'Escape') IssueCreator.close();
+    });
   }
   if (E.bulkEditBtn) {
     E.bulkEditBtn.addEventListener('click', () => {
