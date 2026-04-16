@@ -302,6 +302,57 @@ const Api = {
       agreement_id: agreementId
     });
   },
+  async sendAgreementToOperations(agreementId) {
+    return this.postAuthenticated('agreements', 'send_to_operations', {
+      agreement_id: agreementId
+    });
+  },
+  async getAgreementOnboarding(agreementId) {
+    return this.postAuthenticated('agreements', 'get_onboarding', {
+      agreement_id: agreementId
+    });
+  },
+  async requestAgreementTechnicalAdmin(agreementId, request = {}) {
+    return this.postAuthenticated('agreements', 'request_technical_admin', {
+      agreement_id: agreementId,
+      request_type: request.request_type,
+      request_details: request.request_details,
+      priority: request.priority
+    });
+  },
+  async assignAgreementCsm(agreementId, assignment = {}) {
+    return this.postAuthenticated('agreements', 'assign_csm', {
+      agreement_id: agreementId,
+      csm_assigned_to: assignment.csm_assigned_to,
+      handover_note: assignment.handover_note
+    });
+  },
+  async updateAgreementOnboardingStatus(agreementId, update = {}) {
+    return this.postAuthenticated('agreements', 'update_onboarding_status', {
+      agreement_id: agreementId,
+      onboarding_status: update.onboarding_status,
+      notes: update.notes
+    });
+  },
+  async listOperationsOnboarding(filters = {}) {
+    return this.postAuthenticatedCached('operations_onboarding', 'list', {
+      filters
+    });
+  },
+  async getOperationsOnboarding(payload = {}) {
+    return this.postAuthenticated('operations_onboarding', 'get', payload);
+  },
+  async saveOperationsOnboarding(onboarding = {}) {
+    return this.postAuthenticated('operations_onboarding', 'save', {
+      onboarding
+    });
+  },
+  async updateOperationsOnboarding(onboardingId, updates = {}) {
+    return this.postAuthenticated('operations_onboarding', 'update', {
+      onboarding_id: onboardingId,
+      updates
+    });
+  },
 
   async listInvoices(filters = {}) {
     return this.postAuthenticatedCached('invoices', 'list', { filters });

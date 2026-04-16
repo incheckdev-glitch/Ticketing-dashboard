@@ -8,6 +8,7 @@ const Permissions = {
     deals: 'deals',
     proposals: 'proposals',
     agreements: 'agreements',
+    operationsOnboarding: 'operations_onboarding',
     invoices: 'invoices',
     receipts: 'receipts',
     lifecycleAnalytics: 'analytics',
@@ -237,6 +238,24 @@ const Permissions = {
   },
   canCreateAgreementFromProposal() {
     return this.can('agreements', 'create_from_proposal', { fallback: this.canCreateAgreement() });
+  },
+  canViewOperationsOnboarding() {
+    return this.can('operations_onboarding', 'list', { fallback: Session.isAuthenticated() });
+  },
+  canManageOperationsOnboarding() {
+    return this.isAdmin() || this.isDev() || this.isHoo();
+  },
+  canSendAgreementToOperations() {
+    return this.can('agreements', 'send_to_operations', { fallback: this.canManageOperationsOnboarding() });
+  },
+  canRequestAgreementTechnicalAdmin() {
+    return this.can('agreements', 'request_technical_admin', { fallback: this.canManageOperationsOnboarding() });
+  },
+  canAssignAgreementCsm() {
+    return this.can('agreements', 'assign_csm', { fallback: this.canManageOperationsOnboarding() });
+  },
+  canUpdateAgreementOnboardingStatus() {
+    return this.can('agreements', 'update_onboarding_status', { fallback: this.canManageOperationsOnboarding() });
   },
 
   canViewInvoices() {
