@@ -5432,7 +5432,6 @@ const CSMActivity = {
     const averageMinutes = totalActivities ? totalMinutes / totalActivities : 0;
     const byCsm = new Map();
     const clients = new Set();
-    const effortScoreByLabel = { low: 1, medium: 2, high: 3 };
     let weightedLoadScore = 0;
     let highEffortCount = 0;
     list.forEach(row => {
@@ -5440,9 +5439,9 @@ const CSMActivity = {
       byCsm.set(csmName, (byCsm.get(csmName) || 0) + (Number(row.timeSpentMinutes) || 0));
       if (row.client) clients.add(row.client);
       const effort = String(row.effortRequirement || '').trim().toLowerCase();
-      const effortScore = effortScoreByLabel[effort] || 0;
+      const effortScore = effort.startsWith('h') ? 3 : effort.startsWith('m') ? 2 : effort.startsWith('l') ? 1 : 0;
       weightedLoadScore += effortScore;
-      if (effort === 'high') highEffortCount += 1;
+      if (effort.startsWith('h')) highEffortCount += 1;
     });
     const activeCsmCount = byCsm.size;
     const activeClientCount = clients.size;
