@@ -5080,12 +5080,19 @@ const CSMActivity = {
     this.isSaving = !!v;
     const saveBtn = E.csmFormSaveBtn;
     const deleteBtn = E.csmFormDeleteBtn;
+    const inlineSubmitBtn = E.csmInlineSubmitBtn;
     if (saveBtn) {
       saveBtn.disabled = !!v;
       saveBtn.textContent = v ? 'Saving…' : 'Save';
     }
     if (deleteBtn) deleteBtn.disabled = !!v;
+    if (inlineSubmitBtn) {
+      inlineSubmitBtn.disabled = !!v;
+      inlineSubmitBtn.textContent = v ? 'Saving…' : 'Create Activity';
+    }
     ['csmFormTimestamp','csmFormCsmName','csmFormClient','csmFormMinutes','csmFormSupportType','csmFormEffort','csmFormChannel','csmFormNotes']
+      .forEach(id => { if (E[id]) E[id].disabled = !!v; });
+    ['csmInlineTimestamp','csmInlineCsmName','csmInlineClient','csmInlineMinutes','csmInlineSupportType','csmInlineEffort','csmInlineChannel','csmInlineNotes']
       .forEach(id => { if (E[id]) E[id].disabled = !!v; });
   },
   canCreate() {
@@ -5516,6 +5523,12 @@ const CSMActivity = {
     }
   },
   refresh() {
+    const canCreate = this.canCreate();
+    if (E.csmInlineSubmitBtn) {
+      E.csmInlineSubmitBtn.style.display = canCreate ? '' : 'none';
+    }
+    ['csmInlineTimestamp','csmInlineCsmName','csmInlineClient','csmInlineMinutes','csmInlineSupportType','csmInlineEffort','csmInlineChannel','csmInlineNotes']
+      .forEach(id => { if (E[id]) E[id].disabled = !canCreate || this.isSaving; });
     const filtered = this.applyFilters();
     this.renderKPIs(filtered);
     this.renderInsights(filtered);
@@ -5557,6 +5570,23 @@ const CSMActivity = {
       notes: String(E.csmFormNotes?.value || '').trim()
     };
   },
+  readInlineFormValues() {
+    return {
+      timestamp: String(E.csmInlineTimestamp?.value || '').trim(),
+      csmName: String(E.csmInlineCsmName?.value || '').trim(),
+      client: String(E.csmInlineClient?.value || '').trim(),
+      timeSpentMinutes: Number(E.csmInlineMinutes?.value || 0),
+      supportType: String(E.csmInlineSupportType?.value || '').trim(),
+      effortRequirement: String(E.csmInlineEffort?.value || '').trim(),
+      supportChannel: String(E.csmInlineChannel?.value || '').trim(),
+      notes: String(E.csmInlineNotes?.value || '').trim()
+    };
+  },
+  clearInlineForm() {
+    if (E.csmInlineCreateForm && typeof E.csmInlineCreateForm.reset === 'function') {
+      E.csmInlineCreateForm.reset();
+    }
+  },
   validateForm(activity) {
     if (!activity.timestamp || !activity.csmName || !activity.client || !activity.supportType || !activity.effortRequirement || !activity.supportChannel) {
       return 'Please complete all required fields.';
@@ -5594,6 +5624,33 @@ const CSMActivity = {
         return;
       }
       UI.toast('Unable to save CSM activity: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setBusySaving(false);
+    }
+  },
+  async submitInlineForm() {
+    if (!Permissions.canCreateCsmActivity()) {
+      UI.toast('You do not have permission to create CSM activity.');
+      return;
+    }
+    const activity = this.readInlineFormValues();
+    const validationError = this.validateForm(activity);
+    if (validationError) {
+      UI.toast(validationError);
+      return;
+    }
+    this.setBusySaving(true);
+    try {
+      await Api.postAuthenticated('csm', 'create', { activity: this.viewToBackendActivity(activity) }, { requireAuth: true });
+      UI.toast('CSM activity created.');
+      this.clearInlineForm();
+      await this.loadAndRefresh({ force: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        await handleExpiredSession('Session expired while creating CSM activity.');
+        return;
+      }
+      UI.toast('Unable to create CSM activity: ' + (error?.message || 'Unknown error'));
     } finally {
       this.setBusySaving(false);
     }
@@ -5678,6 +5735,12 @@ function wireCSMActivity() {
     E.csmFormDeleteBtn.addEventListener('click', () => {
       const id = String(E.csmForm?.dataset.id || '').trim();
       if (id) CSMActivity.deleteActivity(id);
+    });
+  }
+  if (E.csmInlineCreateForm) {
+    E.csmInlineCreateForm.addEventListener('submit', event => {
+      event.preventDefault();
+      CSMActivity.submitInlineForm();
     });
   }
 }
