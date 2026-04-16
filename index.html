@@ -55,10 +55,6 @@
       <button id="exportCsv" class="btn" aria-label="Export filtered issues as Excel">
         <span class="icon" aria-hidden="true">📥</span> Export
       </button>
-      <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket">
-        <span class="icon" aria-hidden="true">➕</span> Create Ticket
-      </button>
-
       <button id="shortcutsHelp" class="btn ghost sm" type="button" title="Keyboard shortcuts">
         <span class="icon" aria-hidden="true">⌨️</span>
       </button>
@@ -382,6 +378,9 @@
               <div class="muted">Live feed from InCheck issues sheet.</div>
             </div>
           <div class="table-tools">
+              <button id="createTicketBtn" class="btn primary" aria-label="Create new ticket" type="button">
+                <span class="icon" aria-hidden="true">➕</span> Create Ticket
+              </button>
               <span id="rowCount" class="muted" aria-live="polite"></span>
               <button id="bulkEditBtn" class="btn ghost sm" type="button">
                 Bulk edit
@@ -1818,6 +1817,92 @@
         </div>
       </div>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Edit Issue Modal -->
+  <div id="createIssueModal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="createIssueTitleHeading" aria-describedby="createIssueBody">
+    <div class="modal-content" style="max-width:780px">
+      <div class="header">
+        <h2 id="createIssueTitleHeading" style="margin:0;font-size:20px">Create Ticket</h2>
+        <div class="actions">
+          <button class="modal-close" id="createIssueClose" aria-label="Close create ticket dialog">✕</button>
+        </div>
+      </div>
+      <form id="createIssueForm">
+        <div id="createIssueBody">
+          <div class="two-col" style="margin-top:8px;gap:12px;">
+            <div>
+              <label class="muted" for="createIssueName">Name</label>
+              <input id="createIssueName" class="input" type="text" required />
+            </div>
+            <div>
+              <label class="muted" for="createIssueDepartment">Department</label>
+              <input id="createIssueDepartment" class="input" type="text" />
+            </div>
+            <div>
+              <label class="muted" for="createIssueTitle">Title</label>
+              <input id="createIssueTitle" class="input" type="text" required />
+            </div>
+            <div>
+              <label class="muted" for="createIssueModule">Module</label>
+              <input id="createIssueModule" class="input" type="text" required />
+            </div>
+            <div style="grid-column:1 / -1;">
+              <label class="muted" for="createIssueDesc">Description</label>
+              <textarea id="createIssueDesc" class="input" rows="3" required></textarea>
+            </div>
+            <div>
+              <label class="muted" for="createIssuePriority">Priority</label>
+              <select id="createIssuePriority" class="select" required>
+                <option value="">Select priority</option>
+                <option>Critical</option>
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </div>
+            <div>
+              <label class="muted" for="createIssueStatus">Status</label>
+              <select id="createIssueStatus" class="select" required>
+                <option value="">Select status</option>
+                <option>Open</option>
+                <option>In Progress</option>
+                <option>Under review</option>
+                <option>Done</option>
+                <option>Not Planned</option>
+              </select>
+            </div>
+            <div>
+              <label class="muted" for="createIssueType">Category</label>
+              <select id="createIssueType" class="select">
+                <option value="">Select category</option>
+              </select>
+            </div>
+            <div>
+              <label class="muted" for="createIssueEmail">Email Addressee</label>
+              <input id="createIssueEmail" class="input" type="email" />
+            </div>
+            <div>
+              <label class="muted" for="createIssueFile">Link</label>
+              <input id="createIssueFile" class="input" type="url" />
+            </div>
+            <div>
+              <label class="muted" for="createIssueDate">Date</label>
+              <input id="createIssueDate" class="input" type="date" />
+            </div>
+            <div style="grid-column:1 / -1;">
+              <label class="muted" for="createIssueLog">Log</label>
+              <textarea id="createIssueLog" class="input" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" class="btn ghost" id="createIssueCancel">Cancel</button>
+            <button type="submit" class="btn primary">Create Ticket</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
