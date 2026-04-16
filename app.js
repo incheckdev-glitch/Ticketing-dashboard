@@ -4536,8 +4536,8 @@ function wireDashboardGate() {
   });
 
   if (E.logoutBtn) {
-    E.logoutBtn.addEventListener('click', async () => {
-      await Session.logout();
+    E.logoutBtn.addEventListener('click', () => {
+      Session.logout();
       Permissions.reset();
       UI.applyRolePermissions();
       E.loginIdentifier.value = '';

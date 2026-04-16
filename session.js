@@ -101,16 +101,15 @@ const Session = {
     this.applySessionPayload(normalized);
     return this.user();
   },
-  async logout() {
+  logout() {
     const authToken = this.state.authToken || '';
-    if (authToken) {
-      try {
-        await Api.post('auth', 'logout', { authToken });
-      } catch (error) {
-        console.warn('Auth logout request failed', error);
-      }
-    }
     this.clearClientSession();
+
+    if (authToken) {
+      Api.post('auth', 'logout', { authToken }).catch(error => {
+        console.warn('Auth logout request failed', error);
+      });
+    }
   },
   clearClientSession() {
     if (this.state.role) {
