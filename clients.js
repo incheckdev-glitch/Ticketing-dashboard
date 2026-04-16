@@ -592,6 +592,116 @@ const Clients = {
         : '<tr><td colspan="10" class="muted" style="text-align:center;">No statement rows found.</td></tr>';
     }
   },
+  buildStatementPreviewHtml_(client = {}, rows = []) {
+    const generatedOn = new Date();
+    const customerName = client.customer_name || client.customer_legal_name || 'Client';
+    const title = `Statement of Account · ${customerName}`;
+    const baseHref = U.escapeAttr(window.location.href);
+    const bodyRows = rows.length
+      ? rows
+          .map(row => `<tr>
+            <td>${U.escapeHtml(U.fmtDate(row.date) || '—')}</td>
+            <td>${U.escapeHtml(row.type || '—')}</td>
+            <td>${U.escapeHtml(row.document_no || '—')}</td>
+            <td>${U.escapeHtml(row.reference || '—')}</td>
+            <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
+            <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
+            <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
+            <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
+            <td>${U.escapeHtml(row.status || this.getPaymentStatus(row))}</td>
+            <td>${U.escapeHtml(row.notes || '—')}</td>
+          </tr>`)
+          .join('')
+      : '<tr><td colspan="10" style="text-align:center;">No statement rows found.</td></tr>';
+    const totalDebit = rows.reduce((sum, item) => sum + this.toNumberSafe(item.debit), 0);
+    const totalCredit = rows.reduce((sum, item) => sum + this.toNumberSafe(item.credit), 0);
+    const balance = Math.max(totalDebit - totalCredit, 0);
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${U.escapeHtml(title)}</title>
+          <base href="${baseHref}" />
+          <link rel="stylesheet" href="styles.css" />
+          <style>
+            body { margin: 20px; background: #fff; color: #111; font-family: Inter, system-ui, -apple-system, sans-serif; }
+            .meta { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 10px; }
+            .meta span { padding: 4px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; vertical-align: top; }
+            th { background: #f5f5f5; text-align: left; }
+            .totals { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 8px; }
+            .totals .item { border:1px solid #ddd; border-radius:8px; padding:8px; }
+            .totals .label { font-size: 11px; color:#666; }
+            .totals .value { font-weight: 700; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <h2 style="margin:0 0 6px;">Statement of Account</h2>
+          <div style="margin-bottom:10px;">${U.escapeHtml(customerName)}</div>
+          <div class="meta">
+            <span>Generated: ${U.escapeHtml(U.fmtDate(generatedOn.toISOString().slice(0, 10)) || '—')}</span>
+            <span>Client ID: ${U.escapeHtml(client.client_id || '—')}</span>
+            <span>Rows: ${U.escapeHtml(String(rows.length))}</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Document No</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Running Balance</th><th>Due Date</th><th>Status</th><th>Notes</th></tr>
+            </thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+          <div class="totals">
+            <div class="item"><div class="label">Total Invoiced</div><div class="value">${U.escapeHtml(U.fmtNumber(totalDebit))}</div></div>
+            <div class="item"><div class="label">Total Paid</div><div class="value">${U.escapeHtml(U.fmtNumber(totalCredit))}</div></div>
+            <div class="item"><div class="label">Balance Due</div><div class="value">${U.escapeHtml(U.fmtNumber(balance))}</div></div>
+          </div>
+        </body>
+      </html>
+    `;
+    return U.addIncheckDocumentLogo(html);
+  },
+  openStatementPreview() {
+    const client = this.state.rows.find(row => row.client_id === this.state.selectedClientId);
+    if (!client) {
+      UI.toast('Select a client first.');
+      return;
+    }
+    const detailData = this.state.detailCache[client.client_id] || {};
+    const rows = this.getFilteredStatementRows_(detailData.statementRows || []);
+    const previewHtml = this.buildStatementPreviewHtml_(client, rows);
+    if (E.clientStatementPreviewTitle) {
+      E.clientStatementPreviewTitle.textContent = `Statement of Account Preview · ${client.customer_name || client.customer_legal_name || client.client_id || 'Client'}`;
+    }
+    if (E.clientStatementPreviewFrame) E.clientStatementPreviewFrame.srcdoc = previewHtml;
+    if (E.clientStatementPreviewModal) {
+      E.clientStatementPreviewModal.classList.add('open');
+      E.clientStatementPreviewModal.setAttribute('aria-hidden', 'false');
+    }
+  },
+  closeStatementPreview() {
+    if (!E.clientStatementPreviewModal) return;
+    E.clientStatementPreviewModal.classList.remove('open');
+    E.clientStatementPreviewModal.setAttribute('aria-hidden', 'true');
+    if (E.clientStatementPreviewFrame) E.clientStatementPreviewFrame.srcdoc = '';
+  },
+  exportStatementPreviewPdf() {
+    const frame = E.clientStatementPreviewFrame;
+    const previewTitle = String(E.clientStatementPreviewTitle?.textContent || 'Statement of Account Preview').trim();
+    if (!frame || !String(frame.srcdoc || '').trim()) {
+      UI.toast('Open statement preview first to extract PDF.');
+      return;
+    }
+    const frameWindow = frame.contentWindow;
+    if (!frameWindow) {
+      UI.toast('Unable to access statement preview content.');
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    UI.toast(`Print dialog opened for ${previewTitle}. Choose "Save as PDF" to extract.`);
+  },
   renderRenewalsSection_(detailData = {}, client = {}) {
     const rows = this.getFilteredRenewalRows_(detailData.renewalRows || []);
     const buckets = { d7: 0, d30: 0, d60: 0, overdueRenewals: 0, overduePayments: 0 };
@@ -980,6 +1090,20 @@ const Clients = {
         if (E.clientStatementSearchDoc) E.clientStatementSearchDoc.value = '';
         if (this.state.selectedClientId) await this.loadClientDetailData_(this.state.selectedClientId, { force: true });
         this.render();
+      });
+    }
+    if (E.clientStatementPreviewBtn) {
+      E.clientStatementPreviewBtn.addEventListener('click', () => this.openStatementPreview());
+    }
+    if (E.clientStatementPreviewExportPdfBtn) {
+      E.clientStatementPreviewExportPdfBtn.addEventListener('click', () => this.exportStatementPreviewPdf());
+    }
+    if (E.clientStatementPreviewCloseBtn) {
+      E.clientStatementPreviewCloseBtn.addEventListener('click', () => this.closeStatementPreview());
+    }
+    if (E.clientStatementPreviewModal) {
+      E.clientStatementPreviewModal.addEventListener('click', event => {
+        if (event.target === E.clientStatementPreviewModal) this.closeStatementPreview();
       });
     }
     if (E.clientRenewalsApplyFiltersBtn) {
