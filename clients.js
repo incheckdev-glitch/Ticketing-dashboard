@@ -33,7 +33,17 @@ const Clients = {
     cacheTtlMs: 2 * 60 * 1000,
     search: '',
     status: 'All',
-    sort: 'due_desc'
+    sort: 'due_desc',
+    detailCache: {},
+    detailCacheTtlMs: 90 * 1000,
+    detailLoading: false,
+    activeDetailTab: 'overview',
+    statementFilters: { status: 'all', dateFrom: '', dateTo: '', searchDoc: '' },
+    renewalsFilters: { dateFrom: '', dateTo: '' }
+  },
+  getField(raw = {}, ...keys) {
+    const found = keys.find(key => raw[key] !== undefined && raw[key] !== null);
+    return found ? raw[found] : '';
   },
   normalizeText(value) {
     return String(value || '').trim().toLowerCase();
@@ -109,6 +119,8 @@ const Clients = {
       service_start_date: String(raw.service_start_date || raw.serviceStartDate || raw.effective_date || '').trim(),
       service_end_date: String(raw.service_end_date || raw.serviceEndDate || '').trim(),
       end_date: String(raw.end_date || raw.endDate || '').trim(),
+      due_date: String(raw.due_date || raw.dueDate || '').trim(),
+      renewal_date: String(raw.renewal_date || raw.renewalDate || raw.next_renewal_date || raw.nextRenewalDate || '').trim(),
       customer_sign_date: String(raw.customer_sign_date || raw.customerSignDate || '').trim(),
       agreement_date: String(raw.agreement_date || raw.agreementDate || '').trim(),
       location_name: String(raw.location_name || raw.locationName || '').trim()
@@ -128,6 +140,9 @@ const Clients = {
       pending_amount: this.toNumberSafe(raw.pending_amount ?? raw.pendingAmount),
       updated_at: String(raw.updated_at || raw.updatedAt || '').trim(),
       issued_date: String(raw.issued_date || raw.invoice_date || '').trim(),
+      due_date: String(raw.due_date || raw.dueDate || '').trim(),
+      reference: String(raw.reference || raw.ref || '').trim(),
+      notes: String(raw.notes || '').trim(),
       location_name: String(raw.location_name || raw.locationName || '').trim()
     };
   },
@@ -143,7 +158,9 @@ const Clients = {
       received_amount: this.toNumberSafe(raw.received_amount ?? raw.receivedAmount ?? raw.amount_paid),
       pending_amount: this.toNumberSafe(raw.pending_amount ?? raw.pendingAmount),
       updated_at: String(raw.updated_at || raw.updatedAt || '').trim(),
-      receipt_date: String(raw.receipt_date || raw.received_date || '').trim()
+      receipt_date: String(raw.receipt_date || raw.received_date || '').trim(),
+      reference: String(raw.reference || raw.ref || '').trim(),
+      notes: String(raw.notes || '').trim()
     };
   },
   matchesClient_(record = {}, client = {}) {
@@ -304,6 +321,140 @@ const Clients = {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 20);
   },
+  getDaysLeft(date) {
+    const value = String(date || '').trim();
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    parsed.setHours(0, 0, 0, 0);
+    return Math.round((parsed.getTime() - today.getTime()) / 86400000);
+  },
+  getPaymentStatus(row = {}) {
+    const pending = this.toNumberSafe(row.pending_amount ?? row.amount_due ?? row.balance ?? 0);
+    const paid = this.toNumberSafe(row.amount_paid ?? row.credit ?? 0);
+    const dueDate = String(row.due_date || row.dueDate || '').trim();
+    const daysLeft = this.getDaysLeft(dueDate);
+    if (pending <= 0 && paid > 0) return 'Paid';
+    if (paid > 0 && pending > 0) return 'Partially Paid';
+    if (daysLeft !== null && daysLeft < 0 && pending > 0) return 'Overdue';
+    if (pending > 0) return 'Open';
+    return 'Pending';
+  },
+  getRenewalStatus(row = {}) {
+    const days = this.getDaysLeft(row.renewal_date || row.renewalDate || row.end_date || row.service_end_date);
+    const paymentStatus = this.getPaymentStatus(row);
+    if (days === null) return paymentStatus || 'Unknown';
+    if (days < 0) return 'Renewal Overdue';
+    if (days <= 7) return 'Renewal Due in 7 days';
+    if (days <= 30) return 'Renewal Due in 30 days';
+    if (days <= 60) return 'Renewal Due in 60 days';
+    return paymentStatus === 'Overdue' ? 'Payment Overdue' : 'Scheduled';
+  },
+  computeRunningBalance(rows = []) {
+    let running = 0;
+    return rows
+      .slice()
+      .sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime())
+      .map(row => {
+        const debit = this.toNumberSafe(row.debit);
+        const credit = this.toNumberSafe(row.credit);
+        running += debit - credit;
+        return { ...row, debit, credit, running_balance: running };
+      });
+  },
+  buildClientStatementRows(client) {
+    const clientId = String(client?.client_id || '').trim();
+    const invoices = this.listClientRelatedInvoices_(clientId);
+    const receipts = this.listClientRelatedReceipts_(clientId);
+    const invoiceRows = invoices.map(item => ({
+      date: item.issued_date || item.updated_at,
+      type: 'Invoice',
+      document_no: item.invoice_number || item.invoice_id || '—',
+      document_id: item.invoice_id,
+      reference: item.reference || item.agreement_id || '',
+      debit: this.toNumberSafe(item.grand_total),
+      credit: 0,
+      due_date: item.due_date || '',
+      status: this.getPaymentStatus(item),
+      notes: item.notes || ''
+    }));
+    const receiptRows = receipts.map(item => ({
+      date: item.receipt_date || item.updated_at,
+      type: 'Receipt',
+      document_no: item.receipt_number || item.receipt_id || '—',
+      document_id: item.receipt_id,
+      reference: item.reference || item.invoice_id || '',
+      debit: 0,
+      credit: this.toNumberSafe(item.received_amount),
+      due_date: '',
+      status: item.payment_state || 'Received',
+      notes: item.notes || ''
+    }));
+    return this.computeRunningBalance([...invoiceRows, ...receiptRows]).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  },
+  buildClientRenewalRows(client) {
+    const clientId = String(client?.client_id || '').trim();
+    const agreements = this.listClientRelatedAgreements_(clientId);
+    const invoices = this.listClientRelatedInvoices_(clientId);
+    const invoiceByAgreement = new Map();
+    invoices.forEach(item => {
+      const key = String(item.agreement_id || '').trim();
+      if (key && !invoiceByAgreement.has(key)) invoiceByAgreement.set(key, item);
+    });
+    return agreements.map(agreement => {
+      const invoice = invoiceByAgreement.get(String(agreement.agreement_id || '').trim()) || {};
+      const renewalDate = agreement.renewal_date || agreement.end_date || agreement.service_end_date || '';
+      return {
+        agreement_id: agreement.agreement_id,
+        agreement_number: agreement.agreement_number || agreement.agreement_id || '—',
+        invoice_id: invoice.invoice_id || '',
+        invoice_number: invoice.invoice_number || '—',
+        client_name: client.customer_name || client.customer_legal_name || '—',
+        start_date: agreement.service_start_date || '',
+        end_date: agreement.end_date || agreement.service_end_date || '',
+        due_date: invoice.due_date || agreement.due_date || '',
+        renewal_date: renewalDate,
+        days_left: this.getDaysLeft(renewalDate),
+        amount_due: this.toNumberSafe(invoice.pending_amount),
+        payment_status: this.getPaymentStatus(invoice),
+        status: this.getRenewalStatus({ ...agreement, ...invoice, renewal_date: renewalDate })
+      };
+    });
+  },
+  normalizeStatementRow(raw = {}) {
+    return {
+      date: String(this.getField(raw, 'date', 'entry_date', 'created_at') || '').trim(),
+      type: String(this.getField(raw, 'type', 'entry_type') || '').trim(),
+      document_no: String(this.getField(raw, 'document_no', 'documentNo', 'document_number', 'invoice_number', 'receipt_number') || '').trim(),
+      document_id: String(this.getField(raw, 'document_id', 'documentId', 'invoice_id', 'receipt_id') || '').trim(),
+      reference: String(this.getField(raw, 'reference', 'ref') || '').trim(),
+      debit: this.toNumberSafe(this.getField(raw, 'debit', 'amount_debit')),
+      credit: this.toNumberSafe(this.getField(raw, 'credit', 'amount_credit', 'amount_paid')),
+      due_date: String(this.getField(raw, 'due_date', 'dueDate') || '').trim(),
+      status: String(this.getField(raw, 'status', 'payment_state') || '').trim(),
+      notes: String(this.getField(raw, 'notes', 'description') || '').trim()
+    };
+  },
+  normalizeRenewalRow(raw = {}) {
+    const renewalDate = String(this.getField(raw, 'renewal_date', 'renewalDate', 'next_renewal_date', 'nextRenewalDate', 'service_end_date', 'serviceEndDate') || '').trim();
+    return {
+      agreement_id: String(this.getField(raw, 'agreement_id', 'agreementId') || '').trim(),
+      agreement_number: String(this.getField(raw, 'agreement_number', 'agreementNo', 'agreementNumber') || '').trim(),
+      invoice_id: String(this.getField(raw, 'invoice_id', 'invoiceId') || '').trim(),
+      invoice_number: String(this.getField(raw, 'invoice_no', 'invoiceNo', 'invoice_number', 'invoiceNumber') || '').trim(),
+      client_name: String(this.getField(raw, 'client', 'client_name', 'customer_name', 'customerName') || '').trim(),
+      start_date: String(this.getField(raw, 'start_date', 'service_start_date', 'serviceStartDate') || '').trim(),
+      end_date: String(this.getField(raw, 'end_date', 'service_end_date', 'serviceEndDate') || '').trim(),
+      due_date: String(this.getField(raw, 'due_date', 'dueDate') || '').trim(),
+      renewal_date: renewalDate,
+      days_left: this.getDaysLeft(renewalDate),
+      amount_due: this.toNumberSafe(this.getField(raw, 'amount_due', 'pending_amount', 'pendingAmount')),
+      status: String(this.getField(raw, 'status') || '').trim(),
+      payment_status: this.getPaymentStatus(raw)
+    };
+  },
   applyFilters() {
     const terms = String(this.state.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
     const status = String(this.state.status || 'All');
@@ -332,6 +483,170 @@ const Clients = {
     if (due <= 0 && paid > 0) return 'online';
     if (paid > 0 && due > 0) return 'offline';
     return '';
+  },
+  setDetailTab(tab = 'overview') {
+    this.state.activeDetailTab = ['overview', 'statement', 'renewals'].includes(tab) ? tab : 'overview';
+    if (E.clientOverviewSection) E.clientOverviewSection.style.display = this.state.activeDetailTab === 'overview' ? '' : 'none';
+    if (E.clientStatementSection) E.clientStatementSection.style.display = this.state.activeDetailTab === 'statement' ? '' : 'none';
+    if (E.clientRenewalsSection) E.clientRenewalsSection.style.display = this.state.activeDetailTab === 'renewals' ? '' : 'none';
+    if (E.clientDetailTabButtons) {
+      E.clientDetailTabButtons.querySelectorAll('[data-client-detail-tab]').forEach(btn => {
+        const selected = btn.getAttribute('data-client-detail-tab') === this.state.activeDetailTab;
+        btn.classList.toggle('primary', selected);
+        btn.classList.toggle('ghost', !selected);
+      });
+    }
+  },
+  async loadClientDetailData_(clientId, { force = false } = {}) {
+    const cache = this.state.detailCache[clientId];
+    if (!force && cache && Date.now() - cache.loadedAt <= this.state.detailCacheTtlMs) return cache;
+    const safeRequest = async (action, payload = {}) => {
+      try {
+        return await Api.postAuthenticated('clients', action, { client_id: clientId, ...payload });
+      } catch {
+        return null;
+      }
+    };
+    const [detailRes, analyticsRes, timelineRes, statementRes, renewalsRes] = await Promise.all([
+      safeRequest('get'),
+      safeRequest('get_analytics'),
+      safeRequest('get_timeline'),
+      safeRequest('get_statement', { filters: this.state.statementFilters }),
+      safeRequest('get_renewals', { filters: this.state.renewalsFilters })
+    ]);
+    const client = this.state.rows.find(row => row.client_id === clientId);
+    const normalizedStatement = this.extractRows(statementRes).map(item => this.normalizeStatementRow(item));
+    const normalizedRenewals = this.extractRows(renewalsRes).map(item => this.normalizeRenewalRow(item));
+    const fallbackTimeline = this.buildTimeline_(clientId);
+    const detailBundle = {
+      detail: detailRes || {},
+      analytics: analyticsRes || client?.analytics || {},
+      timeline: this.extractRows(timelineRes).length ? this.extractRows(timelineRes) : fallbackTimeline,
+      statementRows: normalizedStatement.length ? this.computeRunningBalance(normalizedStatement) : this.buildClientStatementRows(client),
+      renewalRows: normalizedRenewals.length ? normalizedRenewals : this.buildClientRenewalRows(client),
+      loadedAt: Date.now()
+    };
+    this.state.detailCache[clientId] = detailBundle;
+    return detailBundle;
+  },
+  getFilteredStatementRows_(rows = []) {
+    const { status, dateFrom, dateTo, searchDoc } = this.state.statementFilters;
+    return rows.filter(row => {
+      const rowStatus = this.normalizeText(row.status || this.getPaymentStatus(row));
+      if (status === 'open' && !rowStatus.includes('open') && !rowStatus.includes('partial')) return false;
+      if (status === 'overdue' && !rowStatus.includes('overdue')) return false;
+      const rowDate = String(row.date || '').trim();
+      if (dateFrom && rowDate && new Date(rowDate).getTime() < new Date(dateFrom).getTime()) return false;
+      if (dateTo && rowDate && new Date(rowDate).getTime() > new Date(dateTo).getTime()) return false;
+      if (searchDoc && !String(row.document_no || '').toLowerCase().includes(String(searchDoc).toLowerCase())) return false;
+      return true;
+    });
+  },
+  getFilteredRenewalRows_(rows = []) {
+    const { dateFrom, dateTo } = this.state.renewalsFilters;
+    return rows.filter(row => {
+      const dateValue = String(row.renewal_date || '').trim();
+      if (!dateValue) return true;
+      if (dateFrom && new Date(dateValue).getTime() < new Date(dateFrom).getTime()) return false;
+      if (dateTo && new Date(dateValue).getTime() > new Date(dateTo).getTime()) return false;
+      return true;
+    });
+  },
+  renderStatementSection_(detailData = {}) {
+    const rows = this.getFilteredStatementRows_(detailData.statementRows || []);
+    const totalInvoiced = rows.reduce((sum, item) => sum + this.toNumberSafe(item.debit), 0);
+    const totalPaid = rows.reduce((sum, item) => sum + this.toNumberSafe(item.credit), 0);
+    const totalDue = Math.max(totalInvoiced - totalPaid, 0);
+    const lastPayment = rows.find(item => this.toNumberSafe(item.credit) > 0)?.date || '';
+    const nextRenewal = (detailData.renewalRows || [])
+      .map(item => item.renewal_date)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+    if (E.clientStatementCards) {
+      E.clientStatementCards.innerHTML = [
+        ['Total Invoiced', U.fmtNumber(totalInvoiced)],
+        ['Total Paid', U.fmtNumber(totalPaid)],
+        ['Total Due', U.fmtNumber(totalDue)],
+        ['Last Payment Date', U.fmtDate(lastPayment) || '—'],
+        ['Next Renewal Date', U.fmtDate(nextRenewal) || '—']
+      ]
+        .map(([label, value]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`)
+        .join('');
+    }
+    if (E.clientStatementTbody) {
+      E.clientStatementTbody.innerHTML = rows.length
+        ? rows
+            .map(row => `<tr>
+              <td>${U.escapeHtml(U.fmtDate(row.date) || '—')}</td>
+              <td>${U.escapeHtml(row.type || '—')}</td>
+              <td>${U.escapeHtml(row.document_no || '—')}</td>
+              <td>${U.escapeHtml(row.reference || '—')}</td>
+              <td>${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
+              <td>${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
+              <td>${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
+              <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
+              <td>${U.escapeHtml(row.status || this.getPaymentStatus(row))}</td>
+              <td>${U.escapeHtml(row.notes || '—')}</td>
+            </tr>`)
+            .join('')
+        : '<tr><td colspan="10" class="muted" style="text-align:center;">No statement rows found.</td></tr>';
+    }
+  },
+  renderRenewalsSection_(detailData = {}, client = {}) {
+    const rows = this.getFilteredRenewalRows_(detailData.renewalRows || []);
+    const buckets = { d7: 0, d30: 0, d60: 0, overdueRenewals: 0, overduePayments: 0 };
+    rows.forEach(row => {
+      const days = this.getDaysLeft(row.renewal_date);
+      if (days !== null && days <= 7 && days >= 0) buckets.d7 += 1;
+      if (days !== null && days <= 30 && days >= 0) buckets.d30 += 1;
+      if (days !== null && days <= 60 && days >= 0) buckets.d60 += 1;
+      if (days !== null && days < 0) buckets.overdueRenewals += 1;
+      if (this.getPaymentStatus(row).includes('Overdue')) buckets.overduePayments += 1;
+    });
+    if (E.clientRenewalBuckets) {
+      E.clientRenewalBuckets.innerHTML = [
+        ['Due in 7 days', buckets.d7],
+        ['Due in 30 days', buckets.d30],
+        ['Due in 60 days', buckets.d60],
+        ['Overdue renewals', buckets.overdueRenewals],
+        ['Overdue payments', buckets.overduePayments]
+      ]
+        .map(([label, value]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`)
+        .join('');
+    }
+    if (E.clientRenewalsTbody) {
+      E.clientRenewalsTbody.innerHTML = rows.length
+        ? rows
+            .map(row => `<tr>
+              <td>${U.escapeHtml(row.agreement_number || '—')}</td>
+              <td>${U.escapeHtml(row.invoice_number || '—')}</td>
+              <td>${U.escapeHtml(row.client_name || client.customer_name || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDate(row.start_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDate(row.end_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDate(row.renewal_date) || '—')}</td>
+              <td>${U.escapeHtml(row.days_left === null ? '—' : String(row.days_left))}</td>
+              <td>${U.escapeHtml(U.fmtNumber(row.amount_due || 0))}</td>
+              <td>${U.escapeHtml(row.status || this.getRenewalStatus(row))}</td>
+            </tr>`)
+            .join('')
+        : '<tr><td colspan="10" class="muted" style="text-align:center;">No renewals or payments timeline rows.</td></tr>';
+    }
+    if (E.clientRenewalEvents) {
+      const events = [
+        ['Agreement signed', 'agreement_date'],
+        ['Service start', 'service_start_date'],
+        ['Service end', 'service_end_date'],
+        ['Invoice issued', 'invoice_issued_date'],
+        ['Invoice due', 'due_date'],
+        ['Receipt received', 'receipt_date'],
+        ['Renewal due soon', 'next_renewal_date'],
+        ['Renewal overdue', 'overdue_renewal_date']
+      ];
+      E.clientRenewalEvents.innerHTML = events
+        .map(([label, key]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(U.fmtDate(detailData?.detail?.[key] || detailData?.analytics?.[key]) || '—')}</div></div>`)
+        .join('');
+    }
   },
   renderList() {
     if (!E.clientsTbody) return;
@@ -371,6 +686,13 @@ const Clients = {
     if (E.clientsDetailEmpty) E.clientsDetailEmpty.style.display = 'none';
     if (E.clientsDetailPanel) E.clientsDetailPanel.style.display = '';
     const analytics = client.analytics || {};
+    const detailData = this.state.detailCache[client.client_id] || {};
+    if (E.clientStatementFiltersStatus) E.clientStatementFiltersStatus.value = this.state.statementFilters.status || 'all';
+    if (E.clientStatementDateFrom) E.clientStatementDateFrom.value = this.state.statementFilters.dateFrom || '';
+    if (E.clientStatementDateTo) E.clientStatementDateTo.value = this.state.statementFilters.dateTo || '';
+    if (E.clientStatementSearchDoc) E.clientStatementSearchDoc.value = this.state.statementFilters.searchDoc || '';
+    if (E.clientRenewalsDateFrom) E.clientRenewalsDateFrom.value = this.state.renewalsFilters.dateFrom || '';
+    if (E.clientRenewalsDateTo) E.clientRenewalsDateTo.value = this.state.renewalsFilters.dateTo || '';
     if (E.clientDetailName) E.clientDetailName.textContent = client.customer_name || '—';
     if (E.clientDetailMeta) E.clientDetailMeta.textContent = `${client.customer_legal_name || 'No legal name'} • ${client.primary_contact_name || 'No contact'} • ${client.primary_contact_email || 'No email'}`;
     if (E.clientDetailStatus) E.clientDetailStatus.textContent = client.status || 'Unknown';
@@ -440,11 +762,16 @@ const Clients = {
     }
 
     if (E.clientTimeline) {
-      const timeline = this.buildTimeline_(client.client_id);
+      const timeline = (detailData.timeline || this.buildTimeline_(client.client_id)).slice(0, 20);
       E.clientTimeline.innerHTML = timeline.length
-        ? timeline.map(item => `<li><strong>${U.escapeHtml(U.fmtDate(item.date))}</strong> — ${U.escapeHtml(item.label)}</li>`).join('')
+        ? timeline
+            .map(item => `<li><strong>${U.escapeHtml(U.fmtDate(item.date || item.event_date) || '—')}</strong> — ${U.escapeHtml(item.label || item.title || item.type || 'Activity')}</li>`)
+            .join('')
         : '<li class="muted">No timeline activity yet.</li>';
     }
+    this.renderStatementSection_(detailData);
+    this.renderRenewalsSection_(detailData, client);
+    this.setDetailTab(this.state.activeDetailTab);
   },
   render() {
     this.applyFilters();
@@ -457,6 +784,37 @@ const Clients = {
       const statuses = ['All', ...new Set(this.state.rows.map(item => item.status).filter(Boolean))];
       E.clientsStatusFilter.innerHTML = statuses.map(status => `<option>${U.escapeHtml(status)}</option>`).join('');
       E.clientsStatusFilter.value = statuses.includes(this.state.status) ? this.state.status : 'All';
+    }
+    if (E.clientsGlobalRenewals) {
+      const allRenewals = this.state.rows.flatMap(client => this.buildClientRenewalRows(client));
+      const overdueRenewals = allRenewals.filter(row => (this.getDaysLeft(row.renewal_date) ?? 1) < 0).length;
+      const dueSoon = allRenewals.filter(row => {
+        const days = this.getDaysLeft(row.renewal_date);
+        return days !== null && days >= 0 && days <= 30;
+      }).length;
+      const overduePayments = allRenewals.filter(row => this.getPaymentStatus(row) === 'Overdue').length;
+      E.clientsGlobalRenewals.textContent = `Global renewals snapshot: ${dueSoon} due in 30 days, ${overdueRenewals} overdue renewals, ${overduePayments} overdue payments.`;
+    }
+  },
+  renderDetailSkeletons_() {
+    if (E.clientStatementTbody) {
+      E.clientStatementTbody.innerHTML = '<tr><td colspan="10"><div class="skeleton" style="height:30px;"></div></td></tr>';
+    }
+    if (E.clientRenewalsTbody) {
+      E.clientRenewalsTbody.innerHTML = '<tr><td colspan="10"><div class="skeleton" style="height:30px;"></div></td></tr>';
+    }
+  },
+  async selectClient(clientId, options = {}) {
+    this.state.selectedClientId = String(clientId || '').trim();
+    this.render();
+    if (!this.state.selectedClientId) return;
+    this.state.detailLoading = true;
+    this.renderDetailSkeletons_();
+    try {
+      await this.loadClientDetailData_(this.state.selectedClientId, options);
+    } finally {
+      this.state.detailLoading = false;
+      this.render();
     }
   },
   async loadAndRefresh(options = {}) {
@@ -488,12 +846,11 @@ const Clients = {
       this.state.rows.forEach(client => {
         client.analytics = this.computeClientAnalytics_(client);
       });
-      if (!this.state.selectedClientId && this.state.rows[0]?.client_id) {
-        this.state.selectedClientId = this.state.rows[0].client_id;
-      }
+      if (!this.state.selectedClientId && this.state.rows[0]?.client_id) this.state.selectedClientId = this.state.rows[0].client_id;
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
       this.render();
+      if (this.state.selectedClientId) await this.selectClient(this.state.selectedClientId, { force: options.force });
     } catch (error) {
       this.state.rows = [];
       this.state.loadError = error?.message || 'Failed to load clients.';
@@ -590,9 +947,55 @@ const Clients = {
       E.clientsTbody.addEventListener('click', event => {
         const row = event.target?.closest?.('[data-client-row]');
         if (row) {
-          this.state.selectedClientId = String(row.getAttribute('data-client-row') || '').trim();
-          this.render();
+          const selectedId = String(row.getAttribute('data-client-row') || '').trim();
+          this.selectClient(selectedId);
         }
+      });
+    }
+    if (E.clientDetailTabButtons) {
+      E.clientDetailTabButtons.addEventListener('click', event => {
+        const trigger = event.target?.closest?.('[data-client-detail-tab]');
+        if (!trigger) return;
+        this.setDetailTab(trigger.getAttribute('data-client-detail-tab'));
+      });
+    }
+    if (E.clientStatementApplyFiltersBtn) {
+      E.clientStatementApplyFiltersBtn.addEventListener('click', async () => {
+        this.state.statementFilters = {
+          status: E.clientStatementFiltersStatus?.value || 'all',
+          dateFrom: E.clientStatementDateFrom?.value || '',
+          dateTo: E.clientStatementDateTo?.value || '',
+          searchDoc: E.clientStatementSearchDoc?.value || ''
+        };
+        if (this.state.selectedClientId) await this.loadClientDetailData_(this.state.selectedClientId, { force: true });
+        this.render();
+      });
+    }
+    if (E.clientStatementResetFiltersBtn) {
+      E.clientStatementResetFiltersBtn.addEventListener('click', async () => {
+        this.state.statementFilters = { status: 'all', dateFrom: '', dateTo: '', searchDoc: '' };
+        if (E.clientStatementFiltersStatus) E.clientStatementFiltersStatus.value = 'all';
+        if (E.clientStatementDateFrom) E.clientStatementDateFrom.value = '';
+        if (E.clientStatementDateTo) E.clientStatementDateTo.value = '';
+        if (E.clientStatementSearchDoc) E.clientStatementSearchDoc.value = '';
+        if (this.state.selectedClientId) await this.loadClientDetailData_(this.state.selectedClientId, { force: true });
+        this.render();
+      });
+    }
+    if (E.clientRenewalsApplyFiltersBtn) {
+      E.clientRenewalsApplyFiltersBtn.addEventListener('click', async () => {
+        this.state.renewalsFilters = { dateFrom: E.clientRenewalsDateFrom?.value || '', dateTo: E.clientRenewalsDateTo?.value || '' };
+        if (this.state.selectedClientId) await this.loadClientDetailData_(this.state.selectedClientId, { force: true });
+        this.render();
+      });
+    }
+    if (E.clientRenewalsResetFiltersBtn) {
+      E.clientRenewalsResetFiltersBtn.addEventListener('click', async () => {
+        this.state.renewalsFilters = { dateFrom: '', dateTo: '' };
+        if (E.clientRenewalsDateFrom) E.clientRenewalsDateFrom.value = '';
+        if (E.clientRenewalsDateTo) E.clientRenewalsDateTo.value = '';
+        if (this.state.selectedClientId) await this.loadClientDetailData_(this.state.selectedClientId, { force: true });
+        this.render();
       });
     }
     if (E.clientsCreateBtn) E.clientsCreateBtn.addEventListener('click', () => this.openNewClientModal());
@@ -628,6 +1031,30 @@ const Clients = {
     if (E.clientActionAgreementBtn) E.clientActionAgreementBtn.addEventListener('click', () => this.runClientAction('agreement'));
     if (E.clientActionInvoiceBtn) E.clientActionInvoiceBtn.addEventListener('click', () => this.runClientAction('invoice'));
     if (E.clientActionCloneBtn) E.clientActionCloneBtn.addEventListener('click', () => this.runClientAction('clone'));
+    if (E.clientsDetailPanel) {
+      E.clientsDetailPanel.addEventListener('click', event => {
+        const agreementBtn = event.target?.closest?.('[data-agreement-view]');
+        if (agreementBtn) {
+          const id = agreementBtn.getAttribute('data-agreement-view');
+          if (typeof setActiveView === 'function') setActiveView('agreements');
+          if (id && window.Agreements?.openAgreementFormById) window.Agreements.openAgreementFormById(id, { readOnly: true });
+          return;
+        }
+        const invoiceBtn = event.target?.closest?.('[data-invoice-view]');
+        if (invoiceBtn) {
+          const id = invoiceBtn.getAttribute('data-invoice-view');
+          if (typeof setActiveView === 'function') setActiveView('invoices');
+          if (id && window.Invoices?.openInvoiceById) window.Invoices.openInvoiceById(id, { readOnly: true });
+          return;
+        }
+        const receiptBtn = event.target?.closest?.('[data-receipt-view]');
+        if (receiptBtn) {
+          const id = receiptBtn.getAttribute('data-receipt-view');
+          if (typeof setActiveView === 'function') setActiveView('receipts');
+          if (id && window.Receipts?.openReceiptById) window.Receipts.openReceiptById(id, { readOnly: true });
+        }
+      });
+    }
   }
 };
 
