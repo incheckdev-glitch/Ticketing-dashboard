@@ -58,7 +58,9 @@ const Session = {
   },
   restore() {
     try {
-      const raw = sessionStorage.getItem(LS_KEYS.session);
+      const sessionRaw = sessionStorage.getItem(LS_KEYS.session);
+      const persistentRaw = localStorage.getItem(LS_KEYS.persistentSession);
+      const raw = sessionRaw || persistentRaw;
       if (!raw) return false;
       const parsed = JSON.parse(raw);
       const normalized = this.normalizeSessionPayload(
@@ -82,6 +84,9 @@ const Session = {
     try {
       sessionStorage.setItem(LS_KEYS.session, JSON.stringify(this.state));
     } catch {}
+    try {
+      localStorage.setItem(LS_KEYS.persistentSession, JSON.stringify(this.state));
+    } catch {}
   },
   async login(identifier = '', passcode = '') {
     const enteredIdentifier = String(identifier || '').trim();
@@ -101,9 +106,9 @@ const Session = {
     this.applySessionPayload(normalized);
     return this.user();
   },
-  logout() {
+  logout({ preserveCache = true } = {}) {
     const authToken = this.state.authToken || '';
-    this.clearClientSession();
+    this.clearClientSession({ clearRoleCache: !preserveCache });
 
     if (authToken) {
       Api.post('auth', 'logout', { authToken }).catch(error => {
@@ -111,8 +116,8 @@ const Session = {
       });
     }
   },
-  clearClientSession() {
-    if (this.state.role) {
+  clearClientSession({ clearRoleCache = true } = {}) {
+    if (clearRoleCache && this.state.role) {
       this.clearRoleScopedCache();
     }
     this.state = {
@@ -125,6 +130,9 @@ const Session = {
     };
     try {
       sessionStorage.removeItem(LS_KEYS.session);
+    } catch {}
+    try {
+      localStorage.removeItem(LS_KEYS.persistentSession);
     } catch {}
   },
   async validateSession() {

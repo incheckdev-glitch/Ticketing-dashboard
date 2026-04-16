@@ -205,6 +205,7 @@ window.LS_KEYS = {
   columns: 'incheckColumns',
   freezeWindows: 'incheckFreezeWindows',
   session: 'incheckSession',
+  persistentSession: 'incheckPersistentSession',
   csmActivity: 'incheckCsmActivity'
 };
 
