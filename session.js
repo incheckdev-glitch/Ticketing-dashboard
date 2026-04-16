@@ -106,9 +106,9 @@ const Session = {
     this.applySessionPayload(normalized);
     return this.user();
   },
-  logout() {
+  logout({ preserveCache = true } = {}) {
     const authToken = this.state.authToken || '';
-    this.clearClientSession();
+    this.clearClientSession({ clearRoleCache: !preserveCache });
 
     if (authToken) {
       Api.post('auth', 'logout', { authToken }).catch(error => {
@@ -116,8 +116,8 @@ const Session = {
       });
     }
   },
-  clearClientSession() {
-    if (this.state.role) {
+  clearClientSession({ clearRoleCache = true } = {}) {
+    if (clearRoleCache && this.state.role) {
       this.clearRoleScopedCache();
     }
     this.state = {
