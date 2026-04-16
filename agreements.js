@@ -57,6 +57,7 @@ const Agreements = {
     search: '',
     status: 'All',
     proposalOrDeal: '',
+    kpiFilter: 'total',
     formReadOnly: false,
     currentItems: []
   },
@@ -402,6 +403,7 @@ const Agreements = {
     const relationTerms = String(this.state.proposalOrDeal || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
     this.state.filteredRows = this.state.rows.filter(row => {
       if (this.state.status !== 'All' && String(row.status || '').trim() !== this.state.status) return false;
+      if (!this.matchesKpiFilter(row)) return false;
       const hay = [row.agreement_id, row.agreement_number, row.customer_name, row.customer_contact_email, row.agreement_title, row.proposal_id, row.deal_id, row.status]
         .filter(Boolean).join(' ').toLowerCase();
       if (terms.length && !terms.every(t => hay.includes(t))) return false;
@@ -411,6 +413,26 @@ const Agreements = {
       }
       return true;
     });
+  },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const status = this.normalizeText(row?.status);
+    if (filter === 'total') return true;
+    if (filter === 'draft') return status === 'draft';
+    if (filter === 'sent-review-awaiting')
+      return ['sent', 'under review', 'awaiting signature'].some(token => status.includes(token));
+    if (filter === 'signed-active') return ['signed', 'active'].some(token => status.includes(token));
+    if (filter === 'expired-cancelled')
+      return ['expired', 'cancelled', 'canceled'].some(token => status.includes(token));
+    if (filter === 'contract-value') return this.toNumberSafe(row?.grand_total) > 0;
+    if (filter === 'proposal-linked') return !!String(row?.proposal_id || '').trim();
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
   },
   renderSummary() {
     if (!E.agreementsSummary) return;
@@ -424,15 +446,20 @@ const Agreements = {
     const proposalLinked = countBy(row => String(row.proposal_id || '').trim());
     const draftCount = countBy(row => this.normalizeText(row.status) === 'draft');
     const cards = [
-      ['Total Agreements', rows.length],
-      ['Draft Agreements', draftCount],
-      ['Sent / Under Review / Awaiting Signature', sentReviewAwaiting],
-      ['Signed / Active', signedActive],
-      ['Expired / Cancelled', expiredCancelled],
-      ['Total Contract Value', this.formatMoney(totalValue)],
-      ['Proposal-linked Agreements', proposalLinked]
+      ['Total Agreements', rows.length, 'total'],
+      ['Draft Agreements', draftCount, 'draft'],
+      ['Sent / Under Review / Awaiting Signature', sentReviewAwaiting, 'sent-review-awaiting'],
+      ['Signed / Active', signedActive, 'signed-active'],
+      ['Expired / Cancelled', expiredCancelled, 'expired-cancelled'],
+      ['Total Contract Value', this.formatMoney(totalValue), 'contract-value'],
+      ['Proposal-linked Agreements', proposalLinked, 'proposal-linked']
     ];
-    E.agreementsSummary.innerHTML = cards.map(([label, value]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`).join('');
+    E.agreementsSummary.innerHTML = cards
+      .map(([label, value, filter]) => {
+        const active = (this.state.kpiFilter || 'total') === filter;
+        return `<div class="card kpi${active ? ' kpi-filter-active' : ''}" data-kpi-filter="${U.escapeAttr(filter)}" role="button" tabindex="0" aria-pressed="${active ? 'true' : 'false'}"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`;
+      })
+      .join('');
   },
   renderFilters() {
     const statuses = [...new Set(this.state.rows.map(r => String(r.status || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -860,6 +887,24 @@ const Agreements = {
       el.addEventListener('input', sync);
       el.addEventListener('change', sync);
     };
+    if (E.agreementsSummary) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      E.agreementsSummary.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      E.agreementsSummary.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
+      });
+    }
     bindState(E.agreementsSearchInput, 'search');
     bindState(E.agreementsStatusFilter, 'status');
     bindState(E.agreementsProposalDealFilter, 'proposalOrDeal');

@@ -31,6 +31,7 @@ const Invoices = {
     initialized: false,
     search: '',
     status: 'All',
+    kpiFilter: 'total',
     selectedInvoice: null,
     items: [],
     catalogLoading: false
@@ -439,6 +440,7 @@ const Invoices = {
     const terms = String(this.state.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
     this.state.filteredRows = this.state.rows.filter(row => {
       if (this.state.status !== 'All' && String(row.status || '').trim() !== this.state.status) return false;
+      if (!this.matchesKpiFilter(row)) return false;
       const hay = [row.invoice_id, row.invoice_number, row.customer_name, row.agreement_id, row.status, row.currency]
         .filter(Boolean)
         .join(' ')
@@ -447,20 +449,40 @@ const Invoices = {
       return true;
     });
   },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const status = this.normalizeText(row?.status);
+    if (filter === 'total') return true;
+    if (filter === 'draft') return status === 'draft';
+    if (filter === 'issued') return status === 'issued';
+    if (filter === 'partially-paid') return status === 'partially paid';
+    if (filter === 'paid') return status === 'paid';
+    if (filter === 'overdue') return status === 'overdue';
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
+  },
   renderSummary() {
     if (!E.invoiceSummary) return;
     const rows = this.state.filteredRows;
     const count = label => rows.filter(row => this.normalizeText(row.status) === label.toLowerCase()).length;
     const cards = [
-      ['Total Invoices', rows.length],
-      ['Draft', count('draft')],
-      ['Issued', count('issued')],
-      ['Partially Paid', count('partially paid')],
-      ['Paid', count('paid')],
-      ['Overdue', count('overdue')]
+      ['Total Invoices', rows.length, 'total'],
+      ['Draft', count('draft'), 'draft'],
+      ['Issued', count('issued'), 'issued'],
+      ['Partially Paid', count('partially paid'), 'partially-paid'],
+      ['Paid', count('paid'), 'paid'],
+      ['Overdue', count('overdue'), 'overdue']
     ];
     E.invoiceSummary.innerHTML = cards
-      .map(([label, value]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`)
+      .map(([label, value, filter]) => {
+        const active = (this.state.kpiFilter || 'total') === filter;
+        return `<div class="card kpi${active ? ' kpi-filter-active' : ''}" data-kpi-filter="${U.escapeAttr(filter)}" role="button" tabindex="0" aria-pressed="${active ? 'true' : 'false'}"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`;
+      })
       .join('');
   },
   renderFilters() {
@@ -1141,6 +1163,24 @@ const Invoices = {
     };
     bindState(E.invoicesSearchInput, 'search');
     bindState(E.invoicesStatusFilter, 'status');
+    if (E.invoiceSummary) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      E.invoiceSummary.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      E.invoiceSummary.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
+      });
+    }
 
     if (E.invoicesRefreshBtn) E.invoicesRefreshBtn.addEventListener('click', () => this.refresh(true));
     if (E.invoicesCreateBtn) {

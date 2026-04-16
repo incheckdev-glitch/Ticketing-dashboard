@@ -48,6 +48,7 @@ const Proposals = {
     search: '',
     customer: '',
     status: 'All',
+    kpiFilter: 'total',
     formMode: 'create',
     formReadOnly: false,
     currentProposalId: '',
@@ -354,6 +355,7 @@ const Proposals = {
     this.state.filteredRows = this.state.rows.filter(row => {
       const status = String(row?.status || '').trim();
       if (this.state.status !== 'All' && status !== this.state.status) return false;
+      if (!this.matchesKpiFilter(row)) return false;
 
       const hay = [
         row.proposal_id,
@@ -376,6 +378,41 @@ const Proposals = {
       )
         return false;
       return true;
+    });
+  },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const statusLabel = this.normalizeStatusLabel(row?.status);
+    const grandTotal = this.toNumberSafe(row?.grand_total);
+    const saasTotal = this.toNumberSafe(row?.saas_total);
+    const oneTimeTotal = this.toNumberSafe(row?.one_time_total);
+    if (filter === 'total') return true;
+    if (filter === 'draft') return statusLabel === 'Draft';
+    if (filter === 'sent') return statusLabel === 'Sent';
+    if (filter === 'approved') return statusLabel === 'Approved';
+    if (filter === 'rejected') return statusLabel === 'Rejected';
+    if (filter === 'expired') return statusLabel === 'Expired';
+    if (filter === 'unique-customers') return !!String(row?.customer_name || '').trim();
+    if (filter === 'linked-deals') return !!String(row?.deal_id || '').trim();
+    if (filter === 'avg-grand-total' || filter === 'grand-total') return grandTotal > 0;
+    if (filter === 'saas-total') return saasTotal > 0;
+    if (filter === 'one-time-total') return oneTimeTotal > 0;
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
+  },
+  syncKpiCardState() {
+    const cards = document.querySelectorAll('#proposalsAnalyticsGrid [data-kpi-filter]');
+    cards.forEach(card => {
+      const isActive = (card.getAttribute('data-kpi-filter') || 'total') === (this.state.kpiFilter || 'total');
+      card.classList.toggle('kpi-filter-active', isActive);
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
   },
   normalizeStatusLabel(value = '') {
@@ -523,6 +560,7 @@ const Proposals = {
     setText(E.proposalsKpiGrandTotalSub, `Sum of grand total${currencySuffix}`);
     setText(E.proposalsKpiSaasTotalSub, `Sum of SaaS totals${currencySuffix}`);
     setText(E.proposalsKpiOneTimeTotalSub, `Sum of one-time totals${currencySuffix}`);
+    this.syncKpiCardState();
     this.renderDistribution(E.proposalsStatusDistribution, safe.statusBreakdown, safe.total || 0);
     this.renderDistribution(E.proposalsCurrencyDistribution, safe.currencyBreakdown, safe.total || 0);
     this.renderDistribution(E.proposalsGeneratedByDistribution, safe.generatedByBreakdown, safe.total || 0);
@@ -1348,6 +1386,25 @@ const Proposals = {
         }
         const deleteId = getActionValue('data-proposal-delete');
         if (deleteId) this.deleteById(deleteId);
+      });
+    }
+    const proposalsAnalyticsGrid = document.getElementById('proposalsAnalyticsGrid');
+    if (proposalsAnalyticsGrid) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      proposalsAnalyticsGrid.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      proposalsAnalyticsGrid.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
       });
     }
 

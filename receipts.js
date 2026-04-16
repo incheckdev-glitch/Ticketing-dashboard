@@ -39,6 +39,7 @@ const Receipts = {
     invoiceNumber: '',
     customerName: '',
     status: 'All',
+    kpiFilter: 'total',
     selectedReceipt: null,
     items: []
   },
@@ -170,11 +171,27 @@ const Receipts = {
     const customerQ = this.normalizeText(this.state.customerName);
     this.state.filteredRows = this.state.rows.filter(row => {
       if (this.state.status !== 'All' && String(row.status || '').trim() !== this.state.status) return false;
+      if (!this.matchesKpiFilter(row)) return false;
       if (q && !this.normalizeText(row.receipt_number).includes(q)) return false;
       if (invoiceQ && !this.normalizeText(row.invoice_number).includes(invoiceQ)) return false;
       if (customerQ && !this.normalizeText(row.customer_name).includes(customerQ)) return false;
       return true;
     });
+  },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const status = this.normalizeText(row?.status);
+    if (filter === 'total') return true;
+    if (filter === 'issued') return status === 'issued';
+    if (filter === 'paid') return status === 'paid';
+    if (filter === 'grand-total') return this.toNumberSafe(row?.grand_total) > 0;
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
   },
   renderSummary() {
     if (!E.receiptSummary) return;
@@ -183,12 +200,15 @@ const Receipts = {
     const paid = this.state.rows.filter(r => this.normalizeText(r.status) === 'paid').length;
     const totalAmount = this.state.rows.reduce((sum, row) => sum + this.toNumberSafe(row.grand_total), 0);
     E.receiptSummary.innerHTML = [
-      { label: 'Total Receipts', value: total },
-      { label: 'Issued', value: issued },
-      { label: 'Paid', value: paid },
-      { label: 'Grand Total', value: this.formatMoney(totalAmount) }
+      { label: 'Total Receipts', value: total, filter: 'total' },
+      { label: 'Issued', value: issued, filter: 'issued' },
+      { label: 'Paid', value: paid, filter: 'paid' },
+      { label: 'Grand Total', value: this.formatMoney(totalAmount), filter: 'grand-total' }
     ]
-      .map(card => `<div class="card kpi"><div class="label">${U.escapeHtml(card.label)}</div><div class="value">${U.escapeHtml(String(card.value))}</div></div>`)
+      .map(card => {
+        const active = (this.state.kpiFilter || 'total') === card.filter;
+        return `<div class="card kpi${active ? ' kpi-filter-active' : ''}" data-kpi-filter="${U.escapeAttr(card.filter)}" role="button" tabindex="0" aria-pressed="${active ? 'true' : 'false'}"><div class="label">${U.escapeHtml(card.label)}</div><div class="value">${U.escapeHtml(String(card.value))}</div></div>`;
+      })
       .join('');
   },
   renderFilters() {
@@ -473,6 +493,24 @@ const Receipts = {
     bind(E.receiptsInvoiceFilter, 'invoiceNumber');
     bind(E.receiptsCustomerFilter, 'customerName');
     bind(E.receiptsStatusFilter, 'status');
+    if (E.receiptSummary) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      E.receiptSummary.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      E.receiptSummary.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
+      });
+    }
 
     if (E.receiptsRefreshBtn) E.receiptsRefreshBtn.addEventListener('click', () => this.refresh(true));
     if (E.receiptsTbody) {
