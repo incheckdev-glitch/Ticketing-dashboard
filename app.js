@@ -4509,8 +4509,11 @@ function wireDashboardGate() {
       E.loginIdentifier.value = '';
       E.loginPasscode.value = '';
       unlockApp();
-      await Promise.all([loadIssues(true), loadEvents(true)]);
       UI.toast(`Logged in as ${user.role}.`);
+      Promise.all([loadIssues(true), loadEvents(true)]).catch(error => {
+        console.warn('Post-login data refresh failed', error);
+        UI.toast('Logged in, but latest dashboard data could not be refreshed.');
+      });
     } catch (error) {
       const message = String(error?.message || '').toLowerCase();
       if (/invalid|credential|password|passcode|identifier|unauthorized/.test(message)) {
