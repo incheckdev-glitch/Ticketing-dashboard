@@ -797,18 +797,22 @@ body.auth-locked .login-hint{
   gap:10px;
 }
 .leads-kpi-card{
-  cursor:default;
+  cursor:pointer;
   min-height:94px;
   display:flex;
   flex-direction:column;
   justify-content:center;
 }
 .deals-kpi-card{
-  cursor:default;
+  cursor:pointer;
   min-height:94px;
   display:flex;
   flex-direction:column;
   justify-content:center;
+}
+.kpi-filter-active{
+  border-color:rgba(37,99,235,.75);
+  box-shadow:0 0 0 2px rgba(37,99,235,.2);
 }
 .leads-kpi-card .value{
   font-size:22px;

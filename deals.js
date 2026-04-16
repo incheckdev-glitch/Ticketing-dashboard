@@ -48,7 +48,8 @@ const Deals = {
     proposalNeeded: 'All',
     agreementNeeded: 'All',
     convertedFrom: '',
-    convertedTo: ''
+    convertedTo: '',
+    kpiFilter: 'total'
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -316,6 +317,43 @@ const Deals = {
     }
     return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
   },
+  matchesKpiFilter(row = {}) {
+    const filter = this.state.kpiFilter || 'total';
+    const status = this.normalizeText(row?.status);
+    const priority = this.normalizeText(row?.priority);
+    const value = this.toNumberSafe(row?.estimated_value);
+    if (filter === 'total') return true;
+    if (filter === 'open') return this.matchesOpenStatus(status);
+    if (filter === 'won' || filter === 'win-rate' || filter === 'average-won-deal-size')
+      return this.matchesWonStatus(status);
+    if (filter === 'lost') return this.matchesLostStatus(status);
+    if (filter === 'proposal-needed') return this.normalizeBool(row?.proposal_needed) === 'yes';
+    if (filter === 'agreement-needed') return this.normalizeBool(row?.agreement_needed) === 'yes';
+    if (filter === 'high-priority') return priority === 'high' || priority === 'urgent';
+    if (filter === 'pipeline-value' || filter === 'weighted-pipeline' || filter === 'average-deal-size')
+      return value > 0;
+    if (filter === 'converted-from-leads')
+      return !!String(row?.lead_id || '').trim() || !!String(row?.converted_at || '').trim();
+    if (filter === 'unique-companies') return !!String(row?.company_name || '').trim();
+    if (filter === 'unique-assignees') return !!String(row?.assigned_to || '').trim();
+    return true;
+  },
+  applyKpiFilter(filter) {
+    const nextFilter = String(filter || 'total').trim() || 'total';
+    this.state.kpiFilter = this.state.kpiFilter === nextFilter ? 'total' : nextFilter;
+    this.applyFilters();
+    this.render();
+  },
+  syncKpiCardState() {
+    const cards = document.querySelectorAll('#dealsAnalyticsGrid [data-kpi-filter]');
+    cards.forEach(card => {
+      const isActive = (card.getAttribute('data-kpi-filter') || 'total') === (this.state.kpiFilter || 'total');
+      card.classList.toggle('kpi-filter-active', isActive);
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+  },
   incrementMap(map, key) {
     const label = String(key || '').trim() || 'Unspecified';
     map[label] = (map[label] || 0) + 1;
@@ -497,6 +535,7 @@ const Deals = {
     this.renderDistribution(E.dealsAssigneeBreakdown, safe.assigneeBreakdown || [], safe.totalDeals || 0);
     this.renderDistribution(E.dealsServiceBreakdown, safe.serviceBreakdown || [], safe.totalDeals || 0);
     this.renderDistribution(E.dealsSourceBreakdown, safe.sourceBreakdown || [], safe.totalDeals || 0);
+    this.syncKpiCardState();
   },
   applyFilters() {
     const convertedFrom = this.parseDateOnly(this.state.convertedFrom);
@@ -519,6 +558,7 @@ const Deals = {
         return false;
       if (this.state.agreementNeeded !== 'All' && row.agreement_needed !== this.state.agreementNeeded)
         return false;
+      if (!this.matchesKpiFilter(row)) return false;
       if (convertedFrom || convertedTo) {
         const rowDate = this.parseDateOnly(row.converted_at);
         if (!rowDate) return false;
@@ -871,6 +911,7 @@ const Deals = {
         this.state.agreementNeeded = 'All';
         this.state.convertedFrom = '';
         this.state.convertedTo = '';
+        this.state.kpiFilter = 'total';
         this.applyFilters();
         this.renderFilters();
         this.render();
@@ -905,6 +946,25 @@ const Deals = {
         if (createProposalDealId && window.Proposals?.createFromDealFlow) {
           Proposals.createFromDealFlow(createProposalDealId, { openAfterCreate: true });
         }
+      });
+    }
+    const dealsAnalyticsGrid = document.getElementById('dealsAnalyticsGrid');
+    if (dealsAnalyticsGrid) {
+      const activate = card => {
+        if (!card) return;
+        const filter = card.getAttribute('data-kpi-filter');
+        if (!filter) return;
+        this.applyKpiFilter(filter);
+      };
+      dealsAnalyticsGrid.addEventListener('click', event => {
+        activate(event.target?.closest?.('[data-kpi-filter]'));
+      });
+      dealsAnalyticsGrid.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target?.closest?.('[data-kpi-filter]');
+        if (!card) return;
+        event.preventDefault();
+        activate(card);
       });
     }
 

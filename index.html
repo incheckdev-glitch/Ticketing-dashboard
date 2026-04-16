@@ -1152,17 +1152,17 @@
 
           <div id="leadsAnalytics" class="leads-analytics" aria-label="Leads analytics widgets">
             <div id="leadsAnalyticsGrid" class="grid leads-analytics-grid">
-              <article class="card kpi leads-kpi-card"><div class="label">Total Leads</div><div id="leadsKpiTotal" class="value">0</div><div class="sub">Loaded leads</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">New Leads</div><div id="leadsKpiNew" class="value">0</div><div class="sub">Status = New</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Qualified Leads</div><div id="leadsKpiQualified" class="value">0</div><div class="sub">Status = Qualified</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Proposal Sent</div><div id="leadsKpiProposalSent" class="value">0</div><div class="sub">Status = Proposal Sent</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Won Leads</div><div id="leadsKpiWon" class="value">0</div><div class="sub">Closed won</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Lost Leads</div><div id="leadsKpiLost" class="value">0</div><div class="sub">Closed lost</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">High Priority Leads</div><div id="leadsKpiHighPriority" class="value">0</div><div class="sub">High or Urgent</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Estimated Pipeline Value</div><div id="leadsKpiPipelineValue" class="value">0</div><div id="leadsKpiPipelineSub" class="sub">Total estimated value</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Proposal Needed</div><div id="leadsKpiProposalNeeded" class="value">0</div><div class="sub">proposal_needed = Yes</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Agreement Needed</div><div id="leadsKpiAgreementNeeded" class="value">0</div><div class="sub">agreement_needed = Yes</div></article>
-              <article class="card kpi leads-kpi-card"><div class="label">Conversion Rate</div><div id="leadsKpiConversionRate" class="value">0%</div><div class="sub">Won / Total</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="total"><div class="label">Total Leads</div><div id="leadsKpiTotal" class="value">0</div><div class="sub">Loaded leads</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="new"><div class="label">New Leads</div><div id="leadsKpiNew" class="value">0</div><div class="sub">Status = New</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="qualified"><div class="label">Qualified Leads</div><div id="leadsKpiQualified" class="value">0</div><div class="sub">Status = Qualified</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="proposal-sent"><div class="label">Proposal Sent</div><div id="leadsKpiProposalSent" class="value">0</div><div class="sub">Status = Proposal Sent</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="won"><div class="label">Won Leads</div><div id="leadsKpiWon" class="value">0</div><div class="sub">Closed won</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="lost"><div class="label">Lost Leads</div><div id="leadsKpiLost" class="value">0</div><div class="sub">Closed lost</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="high-priority"><div class="label">High Priority Leads</div><div id="leadsKpiHighPriority" class="value">0</div><div class="sub">High or Urgent</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="pipeline-value"><div class="label">Estimated Pipeline Value</div><div id="leadsKpiPipelineValue" class="value">0</div><div id="leadsKpiPipelineSub" class="sub">Total estimated value</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="proposal-needed"><div class="label">Proposal Needed</div><div id="leadsKpiProposalNeeded" class="value">0</div><div class="sub">proposal_needed = Yes</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="agreement-needed"><div class="label">Agreement Needed</div><div id="leadsKpiAgreementNeeded" class="value">0</div><div class="sub">agreement_needed = Yes</div></article>
+              <article class="card kpi leads-kpi-card" data-kpi-filter="conversion-rate"><div class="label">Conversion Rate</div><div id="leadsKpiConversionRate" class="value">0%</div><div class="sub">Won / Total</div></article>
             </div>
 
             <div class="card leads-status-card" aria-label="Leads status distribution">
@@ -1224,21 +1224,21 @@
           </div>
           <div id="dealsAnalytics" class="deals-analytics" aria-label="Deals analytics widgets">
             <div id="dealsAnalyticsGrid" class="grid deals-analytics-grid">
-              <article class="card kpi deals-kpi-card"><div class="label">Total Deals</div><div id="dealsKpiTotal" class="value">0</div><div class="sub">Visible deals</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Open Deals</div><div id="dealsKpiOpen" class="value">0</div><div class="sub">Open / Active / In Progress</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Won Deals</div><div id="dealsKpiWon" class="value">0</div><div class="sub">Status matched as won</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Lost Deals</div><div id="dealsKpiLost" class="value">0</div><div class="sub">Status matched as lost</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Proposal Needed</div><div id="dealsKpiProposalNeeded" class="value">0</div><div class="sub">proposal_needed = Yes</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Agreement Needed</div><div id="dealsKpiAgreementNeeded" class="value">0</div><div class="sub">agreement_needed = Yes</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">High Priority Deals</div><div id="dealsKpiHighPriority" class="value">0</div><div class="sub">High or Urgent</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Total Pipeline Value</div><div id="dealsKpiPipelineValue" class="value">0</div><div id="dealsKpiPipelineSub" class="sub">Visible estimated value</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Weighted Pipeline</div><div id="dealsKpiWeightedPipelineValue" class="value">0</div><div id="dealsKpiWeightedPipelineSub" class="sub">Stage probability weighted</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Win Rate</div><div id="dealsKpiWinRate" class="value">0%</div><div class="sub">Won / (Won + Lost)</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Average Deal Size</div><div id="dealsKpiAverageDealSize" class="value">0</div><div class="sub">Across valid values</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Average Won Deal Size</div><div id="dealsKpiAverageWonDealSize" class="value">0</div><div class="sub">Won deals only</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Converted from Leads</div><div id="dealsKpiConvertedFromLeads" class="value">0</div><div class="sub">lead_id or converted_at</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Unique Companies</div><div id="dealsKpiUniqueCompanies" class="value">0</div><div class="sub">Distinct companies</div></article>
-              <article class="card kpi deals-kpi-card"><div class="label">Unique Assignees</div><div id="dealsKpiUniqueAssignees" class="value">0</div><div class="sub">Distinct owners</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="total"><div class="label">Total Deals</div><div id="dealsKpiTotal" class="value">0</div><div class="sub">Visible deals</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="open"><div class="label">Open Deals</div><div id="dealsKpiOpen" class="value">0</div><div class="sub">Open / Active / In Progress</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="won"><div class="label">Won Deals</div><div id="dealsKpiWon" class="value">0</div><div class="sub">Status matched as won</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="lost"><div class="label">Lost Deals</div><div id="dealsKpiLost" class="value">0</div><div class="sub">Status matched as lost</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="proposal-needed"><div class="label">Proposal Needed</div><div id="dealsKpiProposalNeeded" class="value">0</div><div class="sub">proposal_needed = Yes</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="agreement-needed"><div class="label">Agreement Needed</div><div id="dealsKpiAgreementNeeded" class="value">0</div><div class="sub">agreement_needed = Yes</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="high-priority"><div class="label">High Priority Deals</div><div id="dealsKpiHighPriority" class="value">0</div><div class="sub">High or Urgent</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="pipeline-value"><div class="label">Total Pipeline Value</div><div id="dealsKpiPipelineValue" class="value">0</div><div id="dealsKpiPipelineSub" class="sub">Visible estimated value</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="weighted-pipeline"><div class="label">Weighted Pipeline</div><div id="dealsKpiWeightedPipelineValue" class="value">0</div><div id="dealsKpiWeightedPipelineSub" class="sub">Stage probability weighted</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="win-rate"><div class="label">Win Rate</div><div id="dealsKpiWinRate" class="value">0%</div><div class="sub">Won / (Won + Lost)</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="average-deal-size"><div class="label">Average Deal Size</div><div id="dealsKpiAverageDealSize" class="value">0</div><div class="sub">Across valid values</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="average-won-deal-size"><div class="label">Average Won Deal Size</div><div id="dealsKpiAverageWonDealSize" class="value">0</div><div class="sub">Won deals only</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="converted-from-leads"><div class="label">Converted from Leads</div><div id="dealsKpiConvertedFromLeads" class="value">0</div><div class="sub">lead_id or converted_at</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="unique-companies"><div class="label">Unique Companies</div><div id="dealsKpiUniqueCompanies" class="value">0</div><div class="sub">Distinct companies</div></article>
+              <article class="card kpi deals-kpi-card" data-kpi-filter="unique-assignees"><div class="label">Unique Assignees</div><div id="dealsKpiUniqueAssignees" class="value">0</div><div class="sub">Distinct owners</div></article>
             </div>
             <div class="deals-breakdown-grid">
               <article class="card deals-breakdown-card" aria-label="Deals stage distribution">
