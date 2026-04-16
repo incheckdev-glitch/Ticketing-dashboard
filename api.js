@@ -162,11 +162,23 @@ const Api = {
       const match = idKeys.find(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '');
       return match ? `${match}:${String(row[match])}` : '';
     };
+    const stableSerialize = value => {
+      if (Array.isArray(value)) return `[${value.map(item => stableSerialize(item)).join(',')}]`;
+      if (value && typeof value === 'object') {
+        return `{${Object.keys(value)
+          .sort()
+          .map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+          .join(',')}}`;
+      }
+      return JSON.stringify(value);
+    };
 
     const map = new Map();
+    const noIdSignatures = new Set();
     cachedRows.forEach(row => {
       const id = getRowId(row);
       if (id) map.set(id, row);
+      else noIdSignatures.add(stableSerialize(row));
     });
 
     const appended = [];
@@ -176,6 +188,9 @@ const Api = {
         const previous = map.get(id) || {};
         map.set(id, { ...previous, ...row });
       } else {
+        const signature = stableSerialize(row);
+        if (noIdSignatures.has(signature)) return;
+        noIdSignatures.add(signature);
         appended.push(row);
       }
     });
