@@ -185,26 +185,21 @@ const OperationsOnboarding = {
   },
   isLocationAgreementItem(item = {}) {
     const safe = item && typeof item === 'object' ? item : {};
-    const normalizedSectionFields = [safe.section, safe.type, safe.category, safe.line_type]
-      .map(value => String(value || '').toLowerCase().replace(/[\s-]+/g, '_').trim())
-      .filter(Boolean);
-
-    const isAnnualSaasRow = normalizedSectionFields.some(field =>
-      field === 'annual_saas' || field.includes('annual_saas') || field.includes('annualsaas')
-    );
-    if (!isAnnualSaasRow) return false;
-
-    const descriptiveFields = [safe.item_name, safe.section, safe.category, safe.type, safe.line_type, safe.description]
+    const fields = [safe.item_name, safe.section, safe.category, safe.type, safe.line_type, safe.description]
       .map(value => String(value || '').toLowerCase().trim())
       .filter(Boolean);
 
-    if (String(safe.location_name || '').trim() || String(safe.location_address || '').trim()) return true;
+    if (!fields.length) {
+      return Boolean(String(safe.location_name || '').trim() || String(safe.location_address || '').trim());
+    }
 
-    const hasExplicitSection = descriptiveFields.some(field => this.LOCATION_MATCH_CONFIG.explicitSections.includes(field));
-    const hasExplicitType = descriptiveFields.some(field => this.LOCATION_MATCH_CONFIG.explicitTypes.includes(field));
+    const hasExplicitSection = fields.some(field => this.LOCATION_MATCH_CONFIG.explicitSections.includes(field));
+    const hasExplicitType = fields.some(field => this.LOCATION_MATCH_CONFIG.explicitTypes.includes(field));
     if (hasExplicitSection || hasExplicitType) return true;
 
-    const combined = descriptiveFields.join(' ');
+    if (String(safe.location_name || '').trim() || String(safe.location_address || '').trim()) return true;
+
+    const combined = fields.join(' ');
     const hasPositiveKeyword = this.LOCATION_MATCH_CONFIG.positiveKeywords.some(keyword => combined.includes(keyword));
     const hasNegativeKeyword = this.LOCATION_MATCH_CONFIG.negativeKeywords.some(keyword => combined.includes(keyword));
 
