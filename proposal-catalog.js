@@ -14,6 +14,8 @@ const ProposalCatalog = {
     active: 'All',
     page: 1,
     limit: 50,
+    offset: 0,
+    returned: 0,
     hasMore: false,
     total: 0,
     sort: 'updated_desc',
@@ -88,27 +90,36 @@ const ProposalCatalog = {
   },
   extractListResult(response) {
     if (response && typeof response === 'object' && Array.isArray(response.rows)) {
-      return {
-        rows: response.rows,
-        total: Number(response.total ?? response.rows.length) || response.rows.length,
-        hasMore: Boolean(response.hasMore),
-        page: Number(response.page || this.state.page || 1),
-        limit: Number(response.limit || this.state.limit || 50)
-      };
+      const total = Number(response.total ?? response.rows.length) || response.rows.length;
+      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
+      const limit = Number(response.limit || this.state.limit || 50);
+      const page = Number(response.page || this.state.page || 1);
+      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
+      const hasMore = response.hasMore !== undefined
+        ? Boolean(response.hasMore)
+        : response.has_more !== undefined
+          ? Boolean(response.has_more)
+          : offset + returned < total;
+      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
     }
     const rows = this.extractRows(response);
+    const limit = Number(this.state.limit || 50);
+    const page = Number(this.state.page || 1);
+    const returned = rows.length;
+    const offset = Math.max(0, (page - 1) * limit);
     return {
       rows,
       total: rows.length,
+      returned,
       hasMore: false,
-      page: Number(this.state.page || 1),
-      limit: Number(this.state.limit || 50)
+      page,
+      limit,
+      offset
     };
   },
   async listProposalCatalogItems(options = {}) {
     return Api.listProposalCatalogItems({
       limit: Number(options.limit || this.state.limit || 50),
-      offset: Number(options.offset || 0),
       page: Number(options.page || this.state.page || 1),
       sort_by: options.sort_by || options.sortBy || 'updated_at',
       sort_dir: options.sort_dir || options.sortDir || 'desc',
@@ -295,19 +306,19 @@ const ProposalCatalog = {
     this.render();
 
     try {
-      const offset = Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50));
       const response = await this.listProposalCatalogItems({
         forceRefresh: force,
         limit: this.state.limit,
-        offset,
         page: this.state.page
       });
       const normalized = this.extractListResult(response);
       this.state.rows = normalized.rows.map(item => this.normalizeItem(item));
       this.state.total = normalized.total;
+      this.state.returned = normalized.returned;
       this.state.hasMore = normalized.hasMore;
       this.state.page = normalized.page;
       this.state.limit = normalized.limit;
+      this.state.offset = normalized.offset;
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
       this.applyFilters();
