@@ -148,11 +148,16 @@ const TechnicalAdminRequests = {
     this.state.loadError = '';
     this.render();
     try {
-      const response = await Api.listTechnicalAdminRequests({
-        search: this.state.search,
-        request_status: this.state.requestStatus !== 'All' ? this.state.requestStatus : '',
-        technical_admin_assigned_to: this.state.assignedTo !== 'All' ? this.state.assignedTo : ''
-      });
+      const response = await Api.listTechnicalAdminRequests(
+        {
+          search: this.state.search,
+          request_status: this.state.requestStatus !== 'All' ? this.state.requestStatus : '',
+          technical_admin_assigned_to: this.state.assignedTo !== 'All' ? this.state.assignedTo : ''
+        },
+        {
+          forceRefresh: force
+        }
+      );
       this.state.rows = this.extractRows(response).map(row => this.normalizeRow(row));
     } catch (error) {
       this.state.rows = [];
