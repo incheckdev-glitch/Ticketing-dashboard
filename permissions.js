@@ -14,6 +14,7 @@ const Permissions = {
     lifecycleAnalytics: 'analytics',
     clients: 'clients',
     proposalCatalog: 'proposal_catalog',
+    notifications: 'notifications',
     users: 'users',
     roles: 'roles',
     rolePermissions: 'role_permissions',
