@@ -2604,15 +2604,10 @@ async function loadIssues(force = false) {
   try {
     UI.spinner(true);
     UI.skeleton(true);
-    const response = await Api.postAuthenticatedAllPages(
+    const response = await Api.postAuthenticated(
       'tickets',
       'list',
-      {
-        filters: buildTicketListFiltersPayload(),
-        limit: 100,
-        page: 1,
-        summary_only: true
-      },
+      { filters: buildTicketListFiltersPayload() },
       { requireAuth: true }
     );
     const rawRows = extractEventsPayload(response);
@@ -5151,7 +5146,7 @@ const CSMActivity = {
       const response = await Api.postAuthenticatedAllPages(
         'csm',
         'list',
-        { limit: 100, page: 1, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+        { limit: 100, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
         { requireAuth: true, forceRefresh: force }
       );
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
