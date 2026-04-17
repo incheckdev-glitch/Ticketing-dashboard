@@ -48,6 +48,8 @@ window.CONFIG = {
   WORKFLOW_RULES_SHEET_NAME: runtimeConfig.WORKFLOW_RULES_SHEET_NAME || 'Workflow Rules',
   WORKFLOW_APPROVALS_SHEET_NAME: runtimeConfig.WORKFLOW_APPROVALS_SHEET_NAME || 'Workflow Approvals',
   WORKFLOW_AUDIT_LOG_SHEET_NAME: runtimeConfig.WORKFLOW_AUDIT_LOG_SHEET_NAME || 'Workflow Audit Log',
+  OPERATIONS_ONBOARDING_SHEET_NAME:
+    runtimeConfig.OPERATIONS_ONBOARDING_SHEET_NAME || 'Operations Onboarding',
 
   ISSUE_API_URL: runtimeConfig.ISSUE_API_URL || window.BACKEND_ENDPOINTS.proxyBaseUrl,
 
