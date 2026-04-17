@@ -645,6 +645,41 @@ const Api = {
       flow
     });
   },
+
+  async listNotifications(options = {}) {
+    const payload = {
+      limit: Number(options.limit || 50),
+      unread_only: options.unread_only === true,
+      type: options.type || '',
+      priority: options.priority || '',
+      search: options.search || ''
+    };
+    return this.postAuthenticated('notifications', 'list', payload);
+  },
+  async getNotificationUnreadCount() {
+    const response = await this.postAuthenticated('notifications', 'get_unread_count', {});
+    const candidates = [
+      response?.unread_count,
+      response?.count,
+      response?.total,
+      response?.data?.unread_count,
+      response?.result?.unread_count,
+      response?.payload?.unread_count
+    ];
+    for (const candidate of candidates) {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+  },
+  async markNotificationRead(notificationId) {
+    return this.postAuthenticated('notifications', 'mark_read', {
+      notification_id: notificationId
+    });
+  },
+  async markAllNotificationsRead() {
+    return this.postAuthenticated('notifications', 'mark_all_read', {});
+  },
   async listRoles(options = {}) {
     const payload = {
       ...this.buildSummaryListPayload(options),

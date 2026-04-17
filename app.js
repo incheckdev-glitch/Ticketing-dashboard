@@ -1950,7 +1950,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'operationsOnboarding', 'invoices', 'receipts', 'lifecycleAnalytics', 'clients', 'proposalCatalog', 'workflow', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'operationsOnboarding', 'invoices', 'receipts', 'lifecycleAnalytics', 'clients', 'proposalCatalog', 'notifications', 'workflow', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1981,6 +1981,8 @@ function setActiveView(view) {
         ? E.clientsTab
         : name === 'proposalCatalog'
         ? E.proposalCatalogTab
+        : name === 'notifications'
+        ? E.notificationsTab
         : name === 'workflow'
         ? E.workflowTab
         : name === 'users'
@@ -2017,6 +2019,8 @@ function setActiveView(view) {
         ? E.clientsView
         : name === 'proposalCatalog'
         ? E.proposalCatalogView
+        : name === 'notifications'
+        ? E.notificationsView
         : name === 'workflow'
         ? E.workflowView
         : name === 'users'
@@ -2037,7 +2041,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'operationsOnboarding' || view === 'invoices' || view === 'receipts' || view === 'lifecycleAnalytics' || view === 'clients' || view === 'proposalCatalog' || view === 'workflow' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'operationsOnboarding' || view === 'invoices' || view === 'receipts' || view === 'lifecycleAnalytics' || view === 'clients' || view === 'proposalCatalog' || view === 'notifications' || view === 'workflow' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -2057,6 +2061,7 @@ function setActiveView(view) {
   if (view === 'lifecycleAnalytics' && window.LifecycleAnalytics?.init) LifecycleAnalytics.init();
   if (view === 'clients' && window.Clients?.loadAndRefresh) Clients.loadAndRefresh();
   if (view === 'proposalCatalog' && window.ProposalCatalog?.loadAndRefresh) ProposalCatalog.loadAndRefresh();
+  if (view === 'notifications' && window.Notifications?.loadHub) Notifications.loadHub(true);
   if (view === 'workflow' && window.Workflow?.loadAndRefresh) Workflow.loadAndRefresh(true);
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   if ((view === 'roles' || view === 'rolePermissions') && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
@@ -4066,7 +4071,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.operationsOnboardingTab, E.invoicesTab, E.receiptsTab, E.lifecycleAnalyticsTab, E.clientsTab, E.proposalCatalogTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.operationsOnboardingTab, E.invoicesTab, E.receiptsTab, E.lifecycleAnalyticsTab, E.clientsTab, E.proposalCatalogTab, E.notificationsTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -4154,6 +4159,7 @@ function wireCore() {
         Clients.loadAndRefresh({ force: true });
       if (E.proposalCatalogView?.classList.contains('active') && window.ProposalCatalog?.loadAndRefresh)
         ProposalCatalog.loadAndRefresh({ force: true });
+      if (window.Notifications?.refreshAll) Notifications.refreshAll(true);
     });
   if (E.exportCsv)
     E.exportCsv.addEventListener('click', () => {
@@ -4474,6 +4480,7 @@ function wireDashboardGate() {
     if (E.logoutBtn) E.logoutBtn.hidden = false;
     const role = Session.role();
     setActiveView(getDefaultViewForRole(role));
+    if (window.Notifications?.onAuthStateChanged) Notifications.onAuthStateChanged();
     // Avoid forcing a jump to #app after login (caused unwanted auto-scrolling).
     if (window.location.hash) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -4485,6 +4492,7 @@ function wireDashboardGate() {
     E.app.classList.add('is-locked');
     E.app.setAttribute('aria-hidden', 'true');
     if (E.logoutBtn) E.logoutBtn.hidden = true;
+    if (window.Notifications?.reset) Notifications.reset();
     window.location.hash = '#loginSection';
   };
 
@@ -5891,6 +5899,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.ProposalCatalog?.wire) ProposalCatalog.wire();
   if (window.Workflow?.wire) Workflow.wire();
   wireKeyboardShortcuts();
+  if (window.Notifications?.wire) Notifications.wire();
 
   let isAuthenticated = Session.isAuthenticated();
   if (hadSession) {
@@ -5923,6 +5932,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         view === 'invoices' ||
         view === 'receipts' ||
         view === 'proposalCatalog' ||
+        view === 'notifications' ||
         view === 'workflow' ||
         view === 'users' ||
         view === 'roles' ||
