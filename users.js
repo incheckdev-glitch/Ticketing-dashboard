@@ -2,6 +2,10 @@ const UserAdmin = {
   state: {
     rows: [],
     roles: [],
+    page: 1,
+    limit: 50,
+    hasMore: false,
+    total: 0,
     loading: false,
     loadingRoles: false,
     error: '',
@@ -121,8 +125,25 @@ const UserAdmin = {
     this.state.error = '';
     this.render();
     try {
-      const response = await Api.postAuthenticatedCached('users', 'list', {}, { forceRefresh: force });
-      this.state.rows = this.extractRows(response);
+      const response = await Api.postAuthenticatedCached(
+        'users',
+        'list',
+        {
+          limit: this.state.limit,
+          offset: Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50)),
+          page: this.state.page,
+          sort_by: 'updated_at',
+          sort_dir: 'desc',
+          summary_only: true
+        },
+        { forceRefresh: force }
+      );
+      const normalized = this.extractListResult(response);
+      this.state.rows = normalized.rows;
+      this.state.total = normalized.total;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
       this.state.error = '';
       this.render();
     } catch (error) {
@@ -168,6 +189,25 @@ const UserAdmin = {
     }
 
     return [];
+  },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      return {
+        rows: response.rows,
+        total: Number(response.total ?? response.rows.length) || response.rows.length,
+        hasMore: Boolean(response.hasMore),
+        page: Number(response.page || this.state.page || 1),
+        limit: Number(response.limit || this.state.limit || 50)
+      };
+    }
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      total: rows.length,
+      hasMore: false,
+      page: Number(this.state.page || 1),
+      limit: Number(this.state.limit || 50)
+    };
   },
   formatDate(value) {
     if (!value) return '—';

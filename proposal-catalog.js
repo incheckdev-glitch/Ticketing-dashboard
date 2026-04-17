@@ -12,6 +12,10 @@ const ProposalCatalog = {
     search: '',
     section: 'All',
     active: 'All',
+    page: 1,
+    limit: 50,
+    hasMore: false,
+    total: 0,
     sort: 'updated_desc',
     formMode: 'create',
     currentId: ''
@@ -82,15 +86,36 @@ const ProposalCatalog = {
     }
     return [];
   },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      return {
+        rows: response.rows,
+        total: Number(response.total ?? response.rows.length) || response.rows.length,
+        hasMore: Boolean(response.hasMore),
+        page: Number(response.page || this.state.page || 1),
+        limit: Number(response.limit || this.state.limit || 50)
+      };
+    }
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      total: rows.length,
+      hasMore: false,
+      page: Number(this.state.page || 1),
+      limit: Number(this.state.limit || 50)
+    };
+  },
   async listProposalCatalogItems(options = {}) {
-    return Api.postAuthenticatedCached('proposal_catalog', 'list', {
-      limit: Number(options.limit || 50),
+    return Api.listProposalCatalogItems({
+      limit: Number(options.limit || this.state.limit || 50),
       offset: Number(options.offset || 0),
-      sort_by: options.sortBy || 'updated_at',
-      sort_dir: options.sortDir || 'desc',
-      search: this.state.search || '',
-      summary_only: true
-    }, { forceRefresh: options.forceRefresh === true });
+      page: Number(options.page || this.state.page || 1),
+      sort_by: options.sort_by || options.sortBy || 'updated_at',
+      sort_dir: options.sort_dir || options.sortDir || 'desc',
+      search: options.search !== undefined ? options.search : this.state.search || '',
+      summary_only: options.summary_only !== false,
+      forceRefresh: options.forceRefresh === true
+    });
   },
   upsertLocalRow(row) {
     const normalized = this.normalizeItem(row);
@@ -270,8 +295,19 @@ const ProposalCatalog = {
     this.render();
 
     try {
-      const response = await this.listProposalCatalogItems({ forceRefresh: force, limit: 50, offset: 0 });
-      this.state.rows = this.extractRows(response).map(item => this.normalizeItem(item));
+      const offset = Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50));
+      const response = await this.listProposalCatalogItems({
+        forceRefresh: force,
+        limit: this.state.limit,
+        offset,
+        page: this.state.page
+      });
+      const normalized = this.extractListResult(response);
+      this.state.rows = normalized.rows.map(item => this.normalizeItem(item));
+      this.state.total = normalized.total;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
       this.applyFilters();

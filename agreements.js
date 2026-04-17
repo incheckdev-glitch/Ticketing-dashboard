@@ -57,6 +57,10 @@ const Agreements = {
     search: '',
     status: 'All',
     proposalOrDeal: '',
+    page: 1,
+    limit: 50,
+    hasMore: false,
+    total: 0,
     kpiFilter: 'total',
     formReadOnly: false,
     currentItems: [],
@@ -249,7 +253,26 @@ const Agreements = {
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
   },
-  async listAgreements() { return Api.listAgreements(); },
+  async listAgreements(options = {}) { return Api.listAgreements(options); },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      return {
+        rows: response.rows,
+        total: Number(response.total ?? response.rows.length) || response.rows.length,
+        hasMore: Boolean(response.hasMore),
+        page: Number(response.page || this.state.page || 1),
+        limit: Number(response.limit || this.state.limit || 50)
+      };
+    }
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      total: rows.length,
+      hasMore: false,
+      page: Number(this.state.page || 1),
+      limit: Number(this.state.limit || 50)
+    };
+  },
   upsertLocalRow(row) {
     const normalized = this.normalizeAgreement(row);
     const idx = this.state.rows.findIndex(item => String(item.agreement_id || '') === String(normalized.agreement_id || ''));
@@ -940,13 +963,23 @@ const Agreements = {
     this.state.loadError = '';
     this.render();
     try {
-      const response = await Api.postAuthenticatedCached(
-        'agreements',
-        'list',
-        { limit: 50, offset: 0, sort_by: 'updated_at', sort_dir: 'desc', search: this.state.search || '', summary_only: true },
-        { forceRefresh: force }
-      );
-      this.state.rows = this.extractRows(response).map(row => this.normalizeAgreement(row));
+      const offset = Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50));
+      const response = await this.listAgreements({
+        limit: this.state.limit,
+        offset,
+        page: this.state.page,
+        sort_by: 'updated_at',
+        sort_dir: 'desc',
+        search: this.state.search || '',
+        summary_only: true,
+        forceRefresh: force
+      });
+      const normalized = this.extractListResult(response);
+      this.state.rows = normalized.rows.map(row => this.normalizeAgreement(row));
+      this.state.total = normalized.total;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
     } catch (error) {

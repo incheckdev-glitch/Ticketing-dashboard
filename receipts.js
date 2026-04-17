@@ -39,6 +39,10 @@ const Receipts = {
     invoiceNumber: '',
     customerName: '',
     status: 'All',
+    page: 1,
+    limit: 50,
+    hasMore: false,
+    total: 0,
     kpiFilter: 'total',
     selectedReceipt: null,
     items: []
@@ -96,6 +100,25 @@ const Receipts = {
       if (Array.isArray(candidate)) return candidate;
     }
     return [];
+  },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      return {
+        rows: response.rows,
+        total: Number(response.total ?? response.rows.length) || response.rows.length,
+        hasMore: Boolean(response.hasMore),
+        page: Number(response.page || this.state.page || 1),
+        limit: Number(response.limit || this.state.limit || 50)
+      };
+    }
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      total: rows.length,
+      hasMore: false,
+      page: Number(this.state.page || 1),
+      limit: Number(this.state.limit || 50)
+    };
   },
   extractReceiptAndItems(response, fallbackId = '') {
     const parseJsonIfNeeded = value => {
@@ -465,8 +488,19 @@ const Receipts = {
       if (this.state.invoiceNumber) filters.invoice_number = this.state.invoiceNumber;
       if (this.state.customerName) filters.customer_name = this.state.customerName;
       if (this.state.status && this.state.status !== 'All') filters.status = this.state.status;
-      const response = await Api.listReceipts(filters);
-      this.state.rows = this.extractRows(response).map(row => this.normalizeReceipt(row));
+      const response = await Api.listReceipts(filters, {
+        limit: this.state.limit,
+        offset: Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50)),
+        page: this.state.page,
+        summary_only: true,
+        forceRefresh: force
+      });
+      const normalized = this.extractListResult(response);
+      this.state.rows = normalized.rows.map(row => this.normalizeReceipt(row));
+      this.state.total = normalized.total;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
     } catch (error) {
       this.state.rows = [];
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load receipts.';

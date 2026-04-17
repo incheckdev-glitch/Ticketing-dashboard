@@ -31,6 +31,10 @@ const Clients = {
     loaded: false,
     lastLoadedAt: 0,
     cacheTtlMs: 2 * 60 * 1000,
+    page: 1,
+    limit: 50,
+    hasMore: false,
+    total: 0,
     search: '',
     status: 'All',
     sort: 'due_desc',
@@ -78,6 +82,25 @@ const Clients = {
     ];
     for (const candidate of candidates) if (Array.isArray(candidate)) return candidate;
     return [];
+  },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      return {
+        rows: response.rows,
+        total: Number(response.total ?? response.rows.length) || response.rows.length,
+        hasMore: Boolean(response.hasMore),
+        page: Number(response.page || this.state.page || 1),
+        limit: Number(response.limit || this.state.limit || 50)
+      };
+    }
+    const rows = this.extractRows(response);
+    return {
+      rows,
+      total: rows.length,
+      hasMore: false,
+      page: Number(this.state.page || 1),
+      limit: Number(this.state.limit || 50)
+    };
   },
   normalizeClient(raw = {}) {
     const customerName = String(raw.customer_name || raw.customerName || '').trim();
@@ -944,16 +967,31 @@ const Clients = {
     this.state.loadError = '';
     if (E.clientsState) E.clientsState.textContent = 'Loading client intelligence…';
     try {
+      const offset = Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50));
       const [clientsRes, agreementsRes, invoicesRes, receiptsRes] = await Promise.all([
-        Api.postAuthenticatedCached('clients', 'list', { limit: 50, offset: 0, sort_by: 'updated_at', sort_dir: 'desc', search: this.state.search || '', summary_only: true }),
-        Api.postAuthenticatedCached('agreements', 'list', { summary_only: true, limit: 50, offset: 0 }),
-        Api.postAuthenticatedCached('invoices', 'list', { summary_only: true, limit: 50, offset: 0 }),
-        Api.postAuthenticatedCached('receipts', 'list', { summary_only: true, limit: 50, offset: 0 })
+        Api.listClients({
+          limit: this.state.limit,
+          offset,
+          page: this.state.page,
+          sort_by: 'updated_at',
+          sort_dir: 'desc',
+          search: this.state.search || '',
+          summary_only: true,
+          forceRefresh: options.force === true
+        }),
+        Api.listAgreements({ summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true }),
+        Api.listInvoices({}, { summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true }),
+        Api.listReceipts({}, { summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true })
       ]);
-      this.state.rows = this.extractRows(clientsRes).map(item => this.normalizeClient(item));
-      this.state.agreements = this.extractRows(agreementsRes).map(item => this.normalizeAgreement(item));
-      this.state.invoices = this.extractRows(invoicesRes).map(item => this.normalizeInvoice(item));
-      this.state.receipts = this.extractRows(receiptsRes).map(item => this.normalizeReceipt(item));
+      const clientsList = this.extractListResult(clientsRes);
+      this.state.rows = clientsList.rows.map(item => this.normalizeClient(item));
+      this.state.total = clientsList.total;
+      this.state.hasMore = clientsList.hasMore;
+      this.state.page = clientsList.page;
+      this.state.limit = clientsList.limit;
+      this.state.agreements = this.extractListResult(agreementsRes).rows.map(item => this.normalizeAgreement(item));
+      this.state.invoices = this.extractListResult(invoicesRes).rows.map(item => this.normalizeInvoice(item));
+      this.state.receipts = this.extractListResult(receiptsRes).rows.map(item => this.normalizeReceipt(item));
 
       this.state.agreements.forEach(agreement => {
         this.findOrCreateClientFromSignedAgreement_(agreement);
