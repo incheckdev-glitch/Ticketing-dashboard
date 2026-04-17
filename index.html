@@ -318,10 +318,6 @@
                     role="tab" aria-selected="false" aria-controls="operationsOnboardingView">
               <span class="icon" aria-hidden="true">🧭</span> Operations Onboarding
             </button>
-            <button id="technicalAdminTab" class="view-tab" data-view="technicalAdmin"
-                    role="tab" aria-selected="false" aria-controls="technicalAdminView">
-              <span class="icon" aria-hidden="true">🛠️</span> Technical Admin
-            </button>
             <button id="invoicesTab" class="view-tab" data-view="invoices"
                     role="tab" aria-selected="false" aria-controls="invoicesView">
               <span class="icon" aria-hidden="true">🧮</span> Invoices
@@ -1592,12 +1588,12 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
             <div>
               <strong>Operations Onboarding</strong>
-              <div class="muted">Track onboarding status, technical requests, and CSM handovers tied to Agreements.</div>
+              <div class="muted">Track onboarding status and CSM handovers tied to signed Agreements.</div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <input id="operationsOnboardingSearchInput" class="input" type="search" placeholder="Search onboarding, agreement, client..." aria-label="Search operations onboarding" />
               <select id="operationsOnboardingStatusFilter" class="select" aria-label="Filter by onboarding status"><option>All</option></select>
-              <select id="operationsOnboardingTechStatusFilter" class="select" aria-label="Filter by technical request status"><option>All</option></select>
+              <select id="operationsOnboardingRequestTypeFilter" class="select" aria-label="Filter by request type"><option>All</option></select>
               <select id="operationsOnboardingCsmFilter" class="select" aria-label="Filter by assigned CSM"><option>All</option></select>
               <button id="operationsOnboardingRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
             </div>
@@ -1607,39 +1603,10 @@
             <table>
               <thead>
                 <tr>
-                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Technical Request Type</th><th>Technical Request Status</th><th>Assigned CSM</th><th>Priority</th><th>Service Start</th><th>Service End</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
+                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Request Type</th><th>Requested By</th><th>Requested At</th><th>Lite Request</th><th>Full Request</th><th>Assigned CSM</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="operationsOnboardingTbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section id="technicalAdminView" class="view" role="tabpanel" aria-labelledby="technicalAdminTab">
-        <div class="grid cols-5" id="technicalAdminSummary" aria-live="polite"></div>
-        <div class="card" aria-label="Technical admin request queue">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-            <div>
-              <strong>Technical Admin</strong>
-              <div class="muted">Track and resolve technical admin requests created from Agreements and Operations Onboarding.</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <input id="technicalAdminSearchInput" class="input" type="search" placeholder="Search request, agreement, client..." aria-label="Search technical admin requests" />
-              <select id="technicalAdminStatusFilter" class="select" aria-label="Filter by request status"><option>All</option></select>
-              <select id="technicalAdminAssignedFilter" class="select" aria-label="Filter by assignee"><option>All</option></select>
-              <button id="technicalAdminRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
-            </div>
-          </div>
-          <div id="technicalAdminState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
-          <div class="table-wrap" role="region" aria-label="Technical admin requests table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Request ID</th><th>Agreement No</th><th>Client</th><th>Request Type</th><th>Request Details</th><th>Status</th><th>Priority</th><th>Requested By</th><th>Requested At</th><th>Assigned To</th><th>Notes</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="technicalAdminTbody"></tbody>
             </table>
           </div>
         </div>
@@ -2917,7 +2884,8 @@
             <strong>Operations</strong>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button id="agreementOperationsSendBtn" class="btn ghost sm" type="button">Send to Operations</button>
-              <button id="agreementOperationsRequestTechBtn" class="btn ghost sm" type="button">Request Technical Admin</button>
+              <button id="agreementOperationsRequestLiteBtn" class="btn ghost sm" type="button">InCheck Lite Request</button>
+              <button id="agreementOperationsRequestFullBtn" class="btn ghost sm" type="button">InCheck Full Request</button>
               <button id="agreementOperationsAssignCsmBtn" class="btn ghost sm" type="button">Assign to CSM</button>
               <button id="agreementOperationsUpdateStatusBtn" class="btn ghost sm" type="button">Update Onboarding Status</button>
             </div>
@@ -2955,18 +2923,6 @@
     </div>
   </div>
 
-  <div id="operationsTechnicalRequestModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal-content" style="max-width:720px;">
-      <div class="header"><h2 style="margin:0;font-size:20px;">Request Technical Admin</h2><div class="actions"><button class="modal-close" id="operationsTechnicalRequestCloseBtn" aria-label="Close technical request">✕</button></div></div>
-      <form id="operationsTechnicalRequestForm">
-        <div class="filter-row"><label class="muted" for="operationsTechnicalRequestType">Request Type</label><select id="operationsTechnicalRequestType" class="select"><option value="open_client">open_client</option><option value="add_locations">add_locations</option><option value="create_users">create_users</option><option value="module_setup">module_setup</option><option value="training">training</option><option value="other">other</option></select></div>
-        <div class="filter-row"><label class="muted" for="operationsTechnicalRequestDetails">Request Details</label><textarea id="operationsTechnicalRequestDetails" class="input" rows="4" required></textarea></div>
-        <div class="filter-row"><label class="muted" for="operationsTechnicalRequestPriority">Priority</label><select id="operationsTechnicalRequestPriority" class="select"><option value="low">low</option><option value="normal" selected>normal</option><option value="high">high</option><option value="urgent">urgent</option></select></div>
-        <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:12px;"><button id="operationsTechnicalRequestCancelBtn" type="button" class="btn ghost">Cancel</button><button type="submit" class="btn">Submit</button></div>
-      </form>
-    </div>
-  </div>
-
   <div id="operationsAssignCsmModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-content" style="max-width:720px;">
       <div class="header"><h2 style="margin:0;font-size:20px;">Assign to CSM</h2><div class="actions"><button class="modal-close" id="operationsAssignCsmCloseBtn" aria-label="Close assign CSM">✕</button></div></div>
@@ -2985,20 +2941,6 @@
         <div class="filter-row"><label class="muted" for="operationsUpdateStatusValue">Onboarding Status</label><input id="operationsUpdateStatusValue" class="input" type="text" required /></div>
         <div class="filter-row"><label class="muted" for="operationsUpdateStatusNotes">Notes</label><textarea id="operationsUpdateStatusNotes" class="input" rows="4"></textarea></div>
         <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:12px;"><button id="operationsUpdateStatusCancelBtn" type="button" class="btn ghost">Cancel</button><button type="submit" class="btn">Update</button></div>
-      </form>
-    </div>
-  </div>
-
-
-  <div id="technicalAdminUpdateModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal-content" style="max-width:720px;">
-      <div class="header"><h2 style="margin:0;font-size:20px;">Update Technical Request</h2><div class="actions"><button class="modal-close" id="technicalAdminUpdateCloseBtn" aria-label="Close technical request update">✕</button></div></div>
-      <form id="technicalAdminUpdateForm">
-        <div class="filter-row"><label class="muted" for="technicalAdminUpdateRequestId">Request ID</label><input id="technicalAdminUpdateRequestId" class="input" type="text" readonly /></div>
-        <div class="filter-row"><label class="muted" for="technicalAdminUpdateStatus">Request Status</label><select id="technicalAdminUpdateStatus" class="select"><option value="requested">requested</option><option value="in_progress">in_progress</option><option value="done">done</option><option value="blocked">blocked</option></select></div>
-        <div class="filter-row"><label class="muted" for="technicalAdminUpdateAssignedTo">Assigned To</label><input id="technicalAdminUpdateAssignedTo" class="input" type="text" /></div>
-        <div class="filter-row"><label class="muted" for="technicalAdminUpdateNotes">Notes</label><textarea id="technicalAdminUpdateNotes" class="input" rows="4"></textarea></div>
-        <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:12px;"><button id="technicalAdminUpdateCancelBtn" type="button" class="btn ghost">Cancel</button><button type="submit" class="btn">Update</button></div>
       </form>
     </div>
   </div>
@@ -3167,7 +3109,6 @@
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
   <script src="operations-onboarding.js"></script>
-  <script src="technical-admin-requests.js"></script>
   <script src="invoices.js"></script>
   <script src="receipts.js"></script>
   <script src="lifecycle-analytics.js"></script>

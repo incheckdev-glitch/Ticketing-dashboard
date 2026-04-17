@@ -9,7 +9,6 @@ const Permissions = {
     proposals: 'proposals',
     agreements: 'agreements',
     operationsOnboarding: 'operations_onboarding',
-    technicalAdmin: 'technical_admin_requests',
     invoices: 'invoices',
     receipts: 'receipts',
     lifecycleAnalytics: 'analytics',
@@ -296,8 +295,11 @@ const Permissions = {
   canSendAgreementToOperations() {
     return this.can('agreements', 'send_to_operations', { fallback: this.canManageOperationsOnboarding() });
   },
-  canRequestAgreementTechnicalAdmin() {
-    return this.can('agreements', 'request_technical_admin', { fallback: this.canManageOperationsOnboarding() });
+  canRequestAgreementIncheckLite() {
+    return this.can('agreements', 'request_incheck_lite', { fallback: this.canManageOperationsOnboarding() });
+  },
+  canRequestAgreementIncheckFull() {
+    return this.can('agreements', 'request_incheck_full', { fallback: this.canManageOperationsOnboarding() });
   },
   canAssignAgreementCsm() {
     return this.can('agreements', 'assign_csm', { fallback: this.canManageOperationsOnboarding() });
@@ -306,12 +308,6 @@ const Permissions = {
     return this.can('agreements', 'update_onboarding_status', { fallback: this.canManageOperationsOnboarding() });
   },
 
-  canViewTechnicalAdminRequests() {
-    return this.can('technical_admin_requests', 'list', { fallback: this.isAdminLike() || this.isHoo() });
-  },
-  canManageTechnicalAdminRequests() {
-    return this.can('technical_admin_requests', 'update', { fallback: this.isAdminLike() });
-  },
 
   canViewInvoices() {
     return this.can('invoices', 'list', { fallback: Session.isAuthenticated() });
@@ -387,7 +383,6 @@ const Permissions = {
     if (!key) return false;
     if (key === 'issues') return Session.isAuthenticated();
     if (key === 'operationsOnboarding') return this.canViewOperationsOnboarding();
-    if (key === 'technicalAdmin') return this.canViewTechnicalAdminRequests();
     const resource = this.tabResourceMap[key];
     if (!resource) return Session.isAuthenticated();
     return this.can(resource, 'list', { fallback: Session.isAuthenticated() });
