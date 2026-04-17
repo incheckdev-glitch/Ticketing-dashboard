@@ -39,12 +39,6 @@ const Receipts = {
     invoiceNumber: '',
     customerName: '',
     status: 'All',
-    page: 1,
-    limit: 50,
-    offset: 0,
-    returned: 0,
-    hasMore: false,
-    total: 0,
     kpiFilter: 'total',
     selectedReceipt: null,
     items: []
@@ -102,35 +96,6 @@ const Receipts = {
       if (Array.isArray(candidate)) return candidate;
     }
     return [];
-  },
-  extractListResult(response) {
-    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
-      const total = Number(response.total ?? response.rows.length) || response.rows.length;
-      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
-      const limit = Number(response.limit || this.state.limit || 50);
-      const page = Number(response.page || this.state.page || 1);
-      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
-      const hasMore = response.hasMore !== undefined
-        ? Boolean(response.hasMore)
-        : response.has_more !== undefined
-          ? Boolean(response.has_more)
-          : offset + returned < total;
-      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
-    }
-    const rows = this.extractRows(response);
-    const limit = Number(this.state.limit || 50);
-    const page = Number(this.state.page || 1);
-    const returned = rows.length;
-    const offset = Math.max(0, (page - 1) * limit);
-    return {
-      rows,
-      total: rows.length,
-      returned,
-      hasMore: false,
-      page,
-      limit,
-      offset
-    };
   },
   extractReceiptAndItems(response, fallbackId = '') {
     const parseJsonIfNeeded = value => {
@@ -500,20 +465,8 @@ const Receipts = {
       if (this.state.invoiceNumber) filters.invoice_number = this.state.invoiceNumber;
       if (this.state.customerName) filters.customer_name = this.state.customerName;
       if (this.state.status && this.state.status !== 'All') filters.status = this.state.status;
-      const response = await Api.listReceipts(filters, {
-        limit: this.state.limit,
-        page: this.state.page,
-        summary_only: true,
-        forceRefresh: force
-      });
-      const normalized = this.extractListResult(response);
-      this.state.rows = normalized.rows.map(row => this.normalizeReceipt(row));
-      this.state.total = normalized.total;
-      this.state.returned = normalized.returned;
-      this.state.hasMore = normalized.hasMore;
-      this.state.page = normalized.page;
-      this.state.limit = normalized.limit;
-      this.state.offset = normalized.offset;
+      const response = await Api.listReceipts(filters);
+      this.state.rows = this.extractRows(response).map(row => this.normalizeReceipt(row));
     } catch (error) {
       this.state.rows = [];
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load receipts.';

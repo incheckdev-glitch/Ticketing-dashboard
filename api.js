@@ -42,120 +42,6 @@ const Api = {
     }
     return payload;
   },
-  buildPagedListPayload(resource = '', action = 'list', state = {}, filters = {}) {
-    const safeState = state && typeof state === 'object' ? state : {};
-    const safeFilters = filters && typeof filters === 'object' ? filters : {};
-    const authToken =
-      typeof Session?.getAuthToken === 'function'
-        ? Session.getAuthToken()
-        : String(Session?.authContext?.().authToken || '');
-
-    const payload = {
-      resource,
-      action: action || 'list',
-      page: Number(safeState.currentPage || safeState.page || 1),
-      limit: Number(safeState.pageSize || safeState.limit || 50),
-      summary_only: safeState.summary_only !== false
-    };
-
-    Object.entries(safeFilters).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '') return;
-      payload[key] = value;
-    });
-
-    if (authToken) payload.authToken = authToken;
-    return payload;
-  },
-  buildSummaryListPayload(options = {}, fallbackFields = []) {
-    const safeOptions = options && typeof options === 'object' ? options : {};
-    const payload = this.buildPagedListPayload(
-      safeOptions.resource || '',
-      safeOptions.action || 'list',
-      {
-        currentPage: safeOptions.page,
-        pageSize: safeOptions.limit,
-        summary_only: safeOptions.summary_only
-      }
-    );
-    delete payload.resource;
-    delete payload.action;
-    delete payload.authToken;
-
-    payload.sort_by = safeOptions.sort_by || 'updated_at';
-    payload.sort_dir = safeOptions.sort_dir || 'desc';
-
-    const searchValue = safeOptions.search;
-    if (searchValue !== undefined && searchValue !== null && String(searchValue).trim() !== '') {
-      payload.search = String(searchValue).trim();
-    }
-    const fields = Array.isArray(safeOptions.fields) && safeOptions.fields.length
-      ? safeOptions.fields
-      : (Array.isArray(fallbackFields) && fallbackFields.length ? fallbackFields : null);
-    if (Array.isArray(fields) && fields.length) payload.fields = fields;
-    if (safeOptions.updated_after !== undefined && safeOptions.updated_after !== null && safeOptions.updated_after !== '') {
-      payload.updated_after = safeOptions.updated_after;
-    }
-    return payload;
-  },
-  mapPagedListResponse(response) {
-    const payload = response && typeof response === 'object' ? response : null;
-    const rows = (() => {
-      if (Array.isArray(response)) return response;
-      const candidates = [
-        payload?.rows,
-        payload?.items,
-        payload?.data,
-        payload?.result,
-        payload?.payload,
-        payload?.agreements,
-        payload?.invoices,
-        payload?.receipts,
-        payload?.clients,
-        payload?.roles,
-        payload?.permissions,
-        payload?.users,
-        payload?.leads,
-        payload?.deals,
-        payload?.proposals,
-        payload?.csm,
-        payload?.data?.rows,
-        payload?.data?.items
-      ];
-      for (const candidate of candidates) {
-        if (Array.isArray(candidate)) return candidate;
-      }
-      return [];
-    })();
-    const numberOr = (value, fallback) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
-
-    const limit = numberOr(payload?.limit ?? payload?.page_size ?? payload?.meta?.limit, 50);
-    const page = numberOr(payload?.page ?? payload?.current_page ?? payload?.meta?.page, 1);
-    const offset = numberOr(payload?.offset ?? payload?.meta?.offset, Math.max(0, (page - 1) * limit));
-    const total = numberOr(payload?.total ?? payload?.total_count ?? payload?.meta?.total, rows.length);
-    const returned = numberOr(payload?.returned ?? payload?.count ?? payload?.meta?.returned, rows.length);
-    const hasMore = payload?.has_more !== undefined
-      ? Boolean(payload.has_more)
-      : payload?.hasMore !== undefined
-        ? Boolean(payload.hasMore)
-        : offset + returned < total;
-
-    return {
-      rows,
-      total,
-      returned,
-      hasMore,
-      has_more: hasMore,
-      page,
-      limit,
-      offset
-    };
-  },
-  normalizeListResponse(response) {
-    return this.mapPagedListResponse(response);
-  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
@@ -359,15 +245,57 @@ const Api = {
       throw error;
     }
   },
-  async listProposalCatalogItems(options = {}) {
-    const payload = {
-      ...this.buildSummaryListPayload(options),
+  async postAuthenticatedAllPages(resource, action, payload = {}, options = {}) {
+    const basePayload = payload && typeof payload === 'object' ? { ...payload } : {};
+    const pageSize = Math.max(1, Number(basePayload.limit || options.pageSize || 100) || 100);
+    delete basePayload.offset;
+    delete basePayload.page;
+
+    const aggregate = [];
+    let page = 1;
+    let lastResponse = null;
+    let safety = 0;
+
+    while (safety < 200) {
+      safety += 1;
+      const response = await this.postAuthenticated(resource, action, {
+        ...basePayload,
+        page,
+        limit: pageSize
+      }, options);
+      lastResponse = response;
+
+      const rows = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+
+      if (rows.length) aggregate.push(...rows);
+
+      const hasMore = Boolean(response && typeof response === 'object' && response.has_more);
+      if (!hasMore || !rows.length) break;
+      page += 1;
+    }
+
+    if (Array.isArray(lastResponse)) return aggregate;
+
+    const out = lastResponse && typeof lastResponse === 'object' ? { ...lastResponse } : {};
+    out.data = aggregate;
+    out.count = aggregate.length;
+    out.returned = aggregate.length;
+    out.total = Math.max(Number(out.total || 0) || 0, aggregate.length);
+    out.has_more = false;
+    out.limit = aggregate.length;
+    out.offset = 0;
+    out.page = 1;
+    return out;
+  },
+
+  async listProposalCatalogItems() {
+    return this.postAuthenticatedCached('proposal_catalog', 'list', {
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
-    };
-    const response = await this.postAuthenticatedCached('proposal_catalog', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
     });
-    return this.normalizeListResponse(response);
   },
   async getProposalCatalogItem(catalogItemId) {
     return this.postAuthenticated('proposal_catalog', 'get', {
@@ -394,12 +322,8 @@ const Api = {
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
-  async listAgreements(options = {}) {
-    const payload = this.buildSummaryListPayload(options);
-    const response = await this.postAuthenticatedCached('agreements', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
-    });
-    return this.normalizeListResponse(response);
+  async listAgreements() {
+    return this.postAuthenticatedCached('agreements', 'list', {});
   },
   async getAgreement(agreementId) {
     return this.postAuthenticated('agreements', 'get', { agreement_id: agreementId });
@@ -425,70 +349,9 @@ const Api = {
       agreement_id: agreementId
     });
   },
-  async sendAgreementToOperations(agreementId) {
-    return this.postAuthenticated('agreements', 'send_to_operations', {
-      agreement_id: agreementId
-    });
-  },
-  async getAgreementOnboarding(agreementId) {
-    return this.postAuthenticated('agreements', 'get_onboarding', {
-      agreement_id: agreementId
-    });
-  },
-  async requestAgreementTechnicalAdmin(agreementId, request = {}) {
-    return this.postAuthenticated('agreements', 'request_technical_admin', {
-      agreement_id: agreementId,
-      request_type: request.request_type,
-      request_details: request.request_details,
-      priority: request.priority
-    });
-  },
-  async assignAgreementCsm(agreementId, assignment = {}) {
-    return this.postAuthenticated('agreements', 'assign_csm', {
-      agreement_id: agreementId,
-      csm_assigned_to: assignment.csm_assigned_to,
-      handover_note: assignment.handover_note
-    });
-  },
-  async updateAgreementOnboardingStatus(agreementId, update = {}) {
-    return this.postAuthenticated('agreements', 'update_onboarding_status', {
-      agreement_id: agreementId,
-      onboarding_status: update.onboarding_status,
-      notes: update.notes
-    });
-  },
-  async listOperationsOnboarding(filters = {}) {
-    return this.postAuthenticatedCached('operations_onboarding', 'list', {
-      filters
-    });
-  },
-  async getOperationsOnboarding(payload = {}) {
-    return this.postAuthenticated('operations_onboarding', 'get', payload);
-  },
-  async saveOperationsOnboarding(onboarding = {}) {
-    return this.postAuthenticated('operations_onboarding', 'save', {
-      onboarding
-    });
-  },
-  async updateOperationsOnboarding(onboardingId, updates = {}) {
-    return this.postAuthenticated('operations_onboarding', 'update', {
-      onboarding_id: onboardingId,
-      updates
-    });
-  },
 
-  async listInvoices(filters = {}, options = {}) {
-    const listPayload = this.buildSummaryListPayload(options);
-    const payload = {
-      filters: {
-        ...(filters && typeof filters === 'object' ? filters : {}),
-        ...listPayload
-      }
-    };
-    const response = await this.postAuthenticatedCached('invoices', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
-    });
-    return this.normalizeListResponse(response);
+  async listInvoices(filters = {}) {
+    return this.postAuthenticatedCached('invoices', 'list', { filters });
   },
   async getInvoice(invoiceId) {
     return this.postAuthenticated('invoices', 'get', { invoice_id: invoiceId });
@@ -513,18 +376,8 @@ const Api = {
   async generateInvoiceHtml(invoiceId) {
     return this.postAuthenticated('invoices', 'generate_invoice_html', { invoice_id: invoiceId });
   },
-  async listReceipts(filters = {}, options = {}) {
-    const listPayload = this.buildSummaryListPayload(options);
-    const payload = {
-      filters: {
-        ...(filters && typeof filters === 'object' ? filters : {}),
-        ...listPayload
-      }
-    };
-    const response = await this.postAuthenticatedCached('receipts', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
-    });
-    return this.normalizeListResponse(response);
+  async listReceipts(filters = {}) {
+    return this.postAuthenticatedCached('receipts', 'list', { filters });
   },
   async getReceipt(receiptId) {
     return this.postAuthenticated('receipts', 'get', { receipt_id: receiptId });
@@ -549,12 +402,8 @@ const Api = {
   async previewReceipt(receiptId) {
     return this.postAuthenticated('receipts', 'generate_receipt_html', { receipt_id: receiptId });
   },
-  async listClients(options = {}) {
-    const payload = this.buildSummaryListPayload(options);
-    const response = await this.postAuthenticatedCached('clients', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
-    });
-    return this.normalizeListResponse(response);
+  async listClients() {
+    return this.postAuthenticatedCached('clients', 'list', {});
   },
   async getClient(clientId) {
     return this.postAuthenticated('clients', 'get', { client_id: clientId });
@@ -617,15 +466,10 @@ const Api = {
       flow
     });
   },
-  async listRoles(options = {}) {
-    const payload = {
-      ...this.buildSummaryListPayload(options),
+  async listRoles() {
+    return this.postAuthenticatedCached('roles', 'list', {
       sheetName: CONFIG.ROLES_SHEET_NAME
-    };
-    const response = await this.postAuthenticatedCached('roles', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
     });
-    return this.normalizeListResponse(response);
   },
   async getRole(roleIdOrKey) {
     return this.postAuthenticated('roles', 'get', {
@@ -657,15 +501,10 @@ const Api = {
       sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
-  async listRolePermissions(options = {}) {
-    const payload = {
-      ...this.buildSummaryListPayload(options),
+  async listRolePermissions() {
+    return this.postAuthenticatedCached('role_permissions', 'list', {
       sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
-    };
-    const response = await this.postAuthenticatedCached('role_permissions', 'list', payload, {
-      forceRefresh: options?.forceRefresh === true
     });
-    return this.normalizeListResponse(response);
   },
   async getRolePermission(permissionId) {
     return this.postAuthenticated('role_permissions', 'get', {

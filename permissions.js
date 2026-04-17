@@ -8,7 +8,6 @@ const Permissions = {
     deals: 'deals',
     proposals: 'proposals',
     agreements: 'agreements',
-    operationsOnboarding: 'operations_onboarding',
     invoices: 'invoices',
     receipts: 'receipts',
     lifecycleAnalytics: 'analytics',
@@ -23,12 +22,6 @@ const Permissions = {
     loaded: false,
     loading: false,
     rows: [],
-    page: 1,
-    limit: 50,
-    offset: 0,
-    returned: 0,
-    hasMore: false,
-    total: 0,
     matrix: new Map()
   },
   normalizeRole(value) {
@@ -80,35 +73,6 @@ const Permissions = {
     }
     return [];
   },
-  extractListResult(response) {
-    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
-      const total = Number(response.total ?? response.rows.length) || response.rows.length;
-      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
-      const limit = Number(response.limit || this.state.limit || 50);
-      const page = Number(response.page || this.state.page || 1);
-      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
-      const hasMore = response.hasMore !== undefined
-        ? Boolean(response.hasMore)
-        : response.has_more !== undefined
-          ? Boolean(response.has_more)
-          : offset + returned < total;
-      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
-    }
-    const rows = this.extractRows(response);
-    const limit = Number(this.state.limit || 50);
-    const page = Number(this.state.page || 1);
-    const returned = rows.length;
-    const offset = Math.max(0, (page - 1) * limit);
-    return {
-      rows,
-      total: rows.length,
-      returned,
-      hasMore: false,
-      page,
-      limit,
-      offset
-    };
-  },
   normalizeAllowedRoles(row = {}) {
     if (Array.isArray(row.allowed_roles)) {
       return row.allowed_roles.map(v => this.normalizeRole(v)).filter(Boolean);
@@ -126,14 +90,8 @@ const Permissions = {
     if (this.state.loading && !force) return this.state.rows;
     this.state.loading = true;
     try {
-      const response = await Api.listRolePermissions({
-        limit: this.state.limit,
-        page: this.state.page,
-        summary_only: true,
-        forceRefresh: force
-      });
-      const normalized = this.extractListResult(response);
-      const rows = normalized.rows;
+      const response = await Api.listRolePermissions();
+      const rows = this.extractRows(response);
       const matrix = new Map();
       rows.forEach(row => {
         const resource = String(row.resource || '').trim().toLowerCase();
@@ -145,12 +103,6 @@ const Permissions = {
         matrix.set(key, merged);
       });
       this.state.rows = rows;
-      this.state.total = normalized.total;
-      this.state.returned = normalized.returned;
-      this.state.hasMore = normalized.hasMore;
-      this.state.page = normalized.page;
-      this.state.limit = normalized.limit;
-      this.state.offset = normalized.offset;
       this.state.matrix = matrix;
       this.state.loaded = true;
       return rows;
@@ -285,24 +237,6 @@ const Permissions = {
   },
   canCreateAgreementFromProposal() {
     return this.can('agreements', 'create_from_proposal', { fallback: this.canCreateAgreement() });
-  },
-  canViewOperationsOnboarding() {
-    return this.can('operations_onboarding', 'list', { fallback: Session.isAuthenticated() });
-  },
-  canManageOperationsOnboarding() {
-    return this.isAdmin() || this.isDev() || this.isHoo();
-  },
-  canSendAgreementToOperations() {
-    return this.can('agreements', 'send_to_operations', { fallback: this.canManageOperationsOnboarding() });
-  },
-  canRequestAgreementTechnicalAdmin() {
-    return this.can('agreements', 'request_technical_admin', { fallback: this.canManageOperationsOnboarding() });
-  },
-  canAssignAgreementCsm() {
-    return this.can('agreements', 'assign_csm', { fallback: this.canManageOperationsOnboarding() });
-  },
-  canUpdateAgreementOnboardingStatus() {
-    return this.can('agreements', 'update_onboarding_status', { fallback: this.canManageOperationsOnboarding() });
   },
 
   canViewInvoices() {
