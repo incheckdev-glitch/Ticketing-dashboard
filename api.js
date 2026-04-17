@@ -458,10 +458,17 @@ const Api = {
     });
   },
 
-  async listTechnicalAdminRequests(filters = {}) {
-    return this.postAuthenticatedCached('technical_admin_requests', 'list', {
-      filters
-    });
+  async listTechnicalAdminRequests(filters = {}, options = {}) {
+    return this.postAuthenticatedCached(
+      'technical_admin_requests',
+      'list',
+      {
+        filters
+      },
+      {
+        forceRefresh: options?.forceRefresh === true
+      }
+    );
   },
   async getTechnicalAdminRequest(params = {}) {
     const technicalRequestId = String(params.technical_request_id || params.technicalRequestId || '').trim();
