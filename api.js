@@ -941,6 +941,25 @@ function hasExplicitBackendFailure(data) {
   return ok === false || success === false;
 }
 
+function buildExplicitBackendFailureError(data, context = {}) {
+  const endpoint = String((context && context.endpoint) || API_BASE_URL || 'backend endpoint');
+  const resource = String((context && context.resource) || (data && data.resource) || '').trim();
+  const action = String((context && context.action) || (data && data.action) || '').trim();
+  const status = Number((context && context.status) || (data && data.status) || 0);
+  const errorCode = String((data && (data.error_code || data.code)) || '').trim();
+  const backendMessage = String((data && (data.error || data.message)) || 'Backend request failed.').trim();
+
+  const details = [
+    status ? `Status: ${status}.` : '',
+    resource || action ? `Request: resource=${resource || '-'} action=${action || '-'}.` : '',
+    errorCode ? `Code: ${errorCode}.` : ''
+  ].filter(Boolean).join(' ');
+
+  return new Error(
+    `${backendMessage}${details ? ` ${details}` : ''}${endpoint ? ` Endpoint: ${endpoint}.` : ''}`
+  );
+}
+
 function buildHttpResponseError(response, data, endpoint, context = {}) {
   const status = Number(response?.status || 0);
   const statusText = String(response?.statusText || '').trim();
