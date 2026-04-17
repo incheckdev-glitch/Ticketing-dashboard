@@ -21,9 +21,20 @@ const OperationsOnboarding = {
   },
   normalizeRow(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
+    const nestedAgreement = source.agreement && typeof source.agreement === 'object' ? source.agreement : {};
     return {
       onboarding_id: String(this.pick(source.onboarding_id, source.onboardingId, source.id)).trim(),
-      agreement_id: String(this.pick(source.agreement_id, source.agreementId)).trim(),
+      agreement_id: String(
+        this.pick(
+          source.agreement_id,
+          source.agreementId,
+          source.agreement_uuid,
+          source.agreementUuid,
+          nestedAgreement.agreement_id,
+          nestedAgreement.agreementId,
+          nestedAgreement.id
+        )
+      ).trim(),
       agreement_number: String(this.pick(source.agreement_number, source.agreementNumber)).trim(),
       client_name: String(this.pick(source.client_name, source.clientName, source.customer_name, source.customerName)).trim(),
       signed_date: String(this.pick(source.signed_date, source.signedDate, source.customer_sign_date, source.customerSignDate)).trim(),
@@ -120,16 +131,17 @@ const OperationsOnboarding = {
       .map(row => {
         const agreementId = U.escapeAttr(row.agreement_id);
         const onboardingId = U.escapeAttr(row.onboarding_id);
+        const hasAgreementId = Boolean(String(row.agreement_id || '').trim());
         return `<tr>
           <td>${text(row.onboarding_id)}</td><td>${text(row.agreement_id)}</td><td>${text(row.agreement_number)}</td><td>${text(row.client_name)}</td><td>${text(row.signed_date)}</td><td>${text(row.onboarding_status)}</td>
           <td>${text(row.technical_request_type)}</td><td>${text(row.technical_request_status)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(row.priority)}</td><td>${text(row.service_start_date)}</td><td>${text(row.service_end_date)}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(row.updated_at)}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn ghost sm" type="button" data-op-open-agreement="${agreementId}">Open Agreement</button>
+            <button class="btn ghost sm" type="button" data-op-open-agreement="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Open Agreement</button>
             <button class="btn ghost sm" type="button" data-op-open-details="${onboardingId}">Open Onboarding Details</button>
-            ${canWrite ? `<button class="btn ghost sm" type="button" data-op-request-tech="${agreementId}">Request Technical Admin</button>
-            <button class="btn ghost sm" type="button" data-op-assign-csm="${agreementId}">Assign CSM</button>
-            <button class="btn ghost sm" type="button" data-op-mark-progress="${agreementId}">Mark In Progress</button>
-            <button class="btn ghost sm" type="button" data-op-mark-completed="${agreementId}">Mark Completed</button>` : ''}
+            ${canWrite ? `<button class="btn ghost sm" type="button" data-op-request-tech="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Request Technical Admin</button>
+            <button class="btn ghost sm" type="button" data-op-assign-csm="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Assign CSM</button>
+            <button class="btn ghost sm" type="button" data-op-mark-progress="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Mark In Progress</button>
+            <button class="btn ghost sm" type="button" data-op-mark-completed="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Mark Completed</button>` : ''}
           </div></td>
         </tr>`;
       })
@@ -197,6 +209,7 @@ const OperationsOnboarding = {
   openTechnicalRequestModal(agreementId, onDone) {
     if (!this.canWrite()) return UI.toast('Insufficient permissions.');
     this.state.pendingAgreementId = String(agreementId || '').trim();
+    if (!this.state.pendingAgreementId) return UI.toast('Unable to request technical admin for this onboarding row because no Agreement ID is available.');
     this.state.postSubmitHook = typeof onDone === 'function' ? onDone : null;
     if (E.operationsTechnicalRequestForm) E.operationsTechnicalRequestForm.reset();
     if (E.operationsTechnicalRequestPriority) E.operationsTechnicalRequestPriority.value = 'normal';
@@ -208,6 +221,7 @@ const OperationsOnboarding = {
   openAssignCsmModal(agreementId, onDone) {
     if (!this.canWrite()) return UI.toast('Insufficient permissions.');
     this.state.pendingAgreementId = String(agreementId || '').trim();
+    if (!this.state.pendingAgreementId) return UI.toast('Unable to assign CSM for this onboarding row because no Agreement ID is available.');
     this.state.postSubmitHook = typeof onDone === 'function' ? onDone : null;
     if (E.operationsAssignCsmForm) E.operationsAssignCsmForm.reset();
     if (E.operationsAssignCsmModal) {
@@ -218,6 +232,7 @@ const OperationsOnboarding = {
   openUpdateStatusModal(agreementId, onDone) {
     if (!this.canWrite()) return UI.toast('Insufficient permissions.');
     this.state.pendingAgreementId = String(agreementId || '').trim();
+    if (!this.state.pendingAgreementId) return UI.toast('Unable to update onboarding status for this row because no Agreement ID is available.');
     this.state.postSubmitHook = typeof onDone === 'function' ? onDone : null;
     if (E.operationsUpdateStatusForm) E.operationsUpdateStatusForm.reset();
     if (E.operationsUpdateStatusModal) {
