@@ -110,10 +110,11 @@ const Agreements = {
       onboarding_id: String(pick(source.onboarding_id, source.onboardingId, source.id)).trim(),
       agreement_id: String(pick(source.agreement_id, source.agreementId)).trim(),
       onboarding_status: String(pick(source.onboarding_status, source.onboardingStatus)).trim(),
-      technical_request_status: String(pick(source.technical_request_status, source.technicalRequestStatus)).trim(),
-      technical_request_type: String(pick(source.technical_request_type, source.technicalRequestType)).trim(),
-      request_type: String(pick(source.request_type, source.requestType)).trim(),
-      request_details: String(pick(source.request_details, source.requestDetails)).trim(),
+      request_type: String(pick(source.request_type, source.requestType, source.technical_request_type, source.technicalRequestType)).trim(),
+      requested_by: String(pick(source.requested_by, source.requestedBy)).trim(),
+      requested_at: String(pick(source.requested_at, source.requestedAt)).trim(),
+      lite_request: String(pick(source.lite_request, source.liteRequest)).trim(),
+      full_request: String(pick(source.full_request, source.fullRequest)).trim(),
       csm_assigned_to: String(pick(source.csm_assigned_to, source.csmAssignedTo)).trim(),
       updated_at: String(pick(source.updated_at, source.updatedAt)).trim()
     };
@@ -311,7 +312,8 @@ const Agreements = {
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
   async sendToOperations(agreementId) { return Api.sendAgreementToOperations(agreementId); },
   async getOnboarding(agreementId) { return Api.getAgreementOnboarding(agreementId); },
-  async requestTechnicalAdmin(agreementId, payload) { return Api.requestAgreementTechnicalAdmin(agreementId, payload); },
+  async requestIncheckLite(agreementId) { return Api.requestAgreementIncheckLite(agreementId); },
+  async requestIncheckFull(agreementId) { return Api.requestAgreementIncheckFull(agreementId); },
   async assignCsm(agreementId, payload) { return Api.assignAgreementCsm(agreementId, payload); },
   async updateOnboardingStatus(agreementId, payload) { return Api.updateAgreementOnboardingStatus(agreementId, payload); },
   async createInvoiceFromAgreement(agreementId) { return Api.createInvoiceFromAgreement(agreementId); },
@@ -339,15 +341,17 @@ const Agreements = {
       <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
         <div><span class="muted">Onboarding ID:</span> ${text(onboarding.onboarding_id)}</div>
         <div><span class="muted">Onboarding Status:</span> ${text(onboarding.onboarding_status)}</div>
-        <div><span class="muted">Technical Request Status:</span> ${text(onboarding.technical_request_status)}</div>
-        <div><span class="muted">Technical Request Type:</span> ${text(onboarding.technical_request_type || onboarding.request_type)}</div>
-        <div><span class="muted">Request Details:</span> ${text(onboarding.request_details)}</div>
+        <div><span class="muted">Request Type:</span> ${text(onboarding.request_type)}</div>
+        <div><span class="muted">Requested By:</span> ${text(onboarding.requested_by)}</div>
+        <div><span class="muted">Requested At:</span> ${text(onboarding.requested_at)}</div>
+        <div><span class="muted">Lite Request:</span> ${text(onboarding.lite_request)}</div>
+        <div><span class="muted">Full Request:</span> ${text(onboarding.full_request)}</div>
         <div><span class="muted">Assigned CSM:</span> ${text(onboarding.csm_assigned_to)}</div>
       </div>`;
   },
   setOperationsActionsState() {
     const canWrite = !Permissions.isViewer() && Permissions.canManageOperationsOnboarding();
-    [E.agreementOperationsSendBtn, E.agreementOperationsRequestTechBtn, E.agreementOperationsAssignCsmBtn, E.agreementOperationsUpdateStatusBtn].forEach(btn => {
+    [E.agreementOperationsSendBtn, E.agreementOperationsRequestLiteBtn, E.agreementOperationsRequestFullBtn, E.agreementOperationsAssignCsmBtn, E.agreementOperationsUpdateStatusBtn].forEach(btn => {
       if (!btn) return;
       btn.disabled = !canWrite || !this.state.currentAgreementId;
       btn.style.display = canWrite ? '' : 'none';
@@ -1115,12 +1119,33 @@ const Agreements = {
         UI.toast('Unable to send to operations: ' + (error?.message || 'Unknown error'));
       }
     });
-    if (E.agreementOperationsRequestTechBtn)
-      E.agreementOperationsRequestTechBtn.addEventListener('click', () => {
-        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
-        window.OperationsOnboarding?.openTechnicalRequestModal?.(this.state.currentAgreementId, async () => {
-          await this.refreshOperationsSummary(this.state.currentAgreementId);
-        });
+    if (E.agreementOperationsRequestLiteBtn)
+      E.agreementOperationsRequestLiteBtn.addEventListener('click', async () => {
+        const id = String(this.state.currentAgreementId || '').trim();
+        if (!id) return UI.toast('Save agreement first.');
+        if (!Permissions.canRequestAgreementIncheckLite()) return UI.toast('Insufficient permissions.');
+        try {
+          await this.requestIncheckLite(id);
+          await this.refreshOperationsSummary(id);
+          if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
+          UI.toast(`InCheck Lite requested for agreement ${id}.`);
+        } catch (error) {
+          UI.toast('Unable to request InCheck Lite: ' + (error?.message || 'Unknown error'));
+        }
+      });
+    if (E.agreementOperationsRequestFullBtn)
+      E.agreementOperationsRequestFullBtn.addEventListener('click', async () => {
+        const id = String(this.state.currentAgreementId || '').trim();
+        if (!id) return UI.toast('Save agreement first.');
+        if (!Permissions.canRequestAgreementIncheckFull()) return UI.toast('Insufficient permissions.');
+        try {
+          await this.requestIncheckFull(id);
+          await this.refreshOperationsSummary(id);
+          if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
+          UI.toast(`InCheck Full requested for agreement ${id}.`);
+        } catch (error) {
+          UI.toast('Unable to request InCheck Full: ' + (error?.message || 'Unknown error'));
+        }
       });
     if (E.agreementOperationsAssignCsmBtn)
       E.agreementOperationsAssignCsmBtn.addEventListener('click', () => {
