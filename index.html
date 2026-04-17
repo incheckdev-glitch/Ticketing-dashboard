@@ -1584,6 +1584,28 @@
 
       <section id="operationsOnboardingView" class="view" role="tabpanel" aria-labelledby="operationsOnboardingTab">
         <div class="grid cols-4" id="operationsOnboardingSummary" aria-live="polite"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap;">
+          <div id="operationsOnboardingDrilldownState" class="muted">No drilldown filter active.</div>
+          <button id="operationsOnboardingClearDrilldownBtn" class="btn ghost sm" type="button">Clear Drilldown</button>
+        </div>
+
+        <div id="operationsOnboardingAnalytics" class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px;">
+          <article class="card"><strong>Status distribution</strong><div id="operationsOnboardingStatusDistribution" class="deals-status-bars" style="margin-top:8px;"></div></article>
+          <article class="card"><strong>Request type distribution</strong><div id="operationsOnboardingRequestDistribution" class="deals-status-bars" style="margin-top:8px;"></div></article>
+          <article class="card"><strong>Agreements vs Clients vs Locations</strong><div id="operationsOnboardingComparativeChart" style="margin-top:8px;"></div></article>
+          <article class="card"><strong>Locations by client</strong><div id="operationsOnboardingLocationsByClient" class="deals-status-bars" style="margin-top:8px;"></div></article>
+          <article class="card"><strong>Agreements by client</strong><div id="operationsOnboardingAgreementsByClient" class="deals-status-bars" style="margin-top:8px;"></div></article>
+          <article class="card"><strong>CSM workload</strong><div id="operationsOnboardingCsmChart" class="deals-status-bars" style="margin-top:8px;"></div></article>
+          <article class="card" style="grid-column:1/-1;"><strong>Trend over time (week/month)</strong><div id="operationsOnboardingTrendChart" style="margin-top:8px;"></div></article>
+        </div>
+
+        <div id="operationsOnboardingAnalyticsTables" class="grid" style="grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
+          <article class="card"><strong>Client rollup</strong><div class="table-wrap" role="region" aria-label="Operations onboarding client rollup"><table><thead><tr><th>Client</th><th>Unique Client Key</th><th>Agreements</th><th>Locations</th><th>Active Onboardings</th><th>Completed</th><th>InCheck Lite</th><th>InCheck Full</th><th>Assigned CSM</th><th>Overdue</th><th>Last Request Date</th></tr></thead><tbody id="operationsOnboardingClientRollupBody"></tbody></table></div></article>
+          <article class="card"><strong>Agreement rollup</strong><div class="table-wrap" role="region" aria-label="Operations onboarding agreement rollup"><table><thead><tr><th>Agreement No</th><th>Client</th><th>Locations</th><th>Onboarding Status</th><th>Request Type</th><th>Assigned CSM</th><th>Requested At</th><th>Days Open</th></tr></thead><tbody id="operationsOnboardingAgreementRollupBody"></tbody></table></div></article>
+          <article class="card"><strong>Overdue / stuck</strong><div class="table-wrap" role="region" aria-label="Operations onboarding overdue"><table><thead><tr><th>Agreement No</th><th>Client</th><th>Locations</th><th>Status</th><th>Assigned CSM</th><th>Days Open</th><th>Notes</th></tr></thead><tbody id="operationsOnboardingOverdueBody"></tbody></table></div></article>
+          <article class="card"><strong>CSM workload table</strong><div class="table-wrap" role="region" aria-label="Operations onboarding csm workload"><table><thead><tr><th>CSM Name</th><th>Active Agreements</th><th>Unique Clients</th><th>Total Locations</th><th>Completed Agreements</th><th>Overdue Items</th><th>Avg Completion Days</th></tr></thead><tbody id="operationsOnboardingCsmWorkloadBody"></tbody></table></div></article>
+        </div>
+
         <div class="card" aria-label="Operations onboarding list">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
             <div>
@@ -1603,7 +1625,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Request Type</th><th>Requested By</th><th>Requested At</th><th>Lite Request</th><th>Full Request</th><th>Assigned CSM</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
+                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Request Type</th><th>Requested By</th><th>Requested At</th><th>Lite Request</th><th>Full Request</th><th>Assigned CSM</th><th>Locations</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="operationsOnboardingTbody"></tbody>
