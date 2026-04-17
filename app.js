@@ -1950,7 +1950,7 @@ function trapFocus(container, e) {
 
 function setActiveView(view) {
  if (!Permissions.canAccessTab(view)) view = 'issues';
- const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'invoices', 'receipts', 'lifecycleAnalytics', 'clients', 'proposalCatalog', 'workflow', 'users', 'roles', 'rolePermissions'];
+ const names = ['issues', 'calendar', 'insights', 'csm', 'leads', 'deals', 'proposals', 'agreements', 'operationsOnboarding', 'invoices', 'receipts', 'lifecycleAnalytics', 'clients', 'proposalCatalog', 'workflow', 'users', 'roles', 'rolePermissions'];
   names.forEach(name => {
     const tab =
       name === 'issues'
@@ -1969,6 +1969,8 @@ function setActiveView(view) {
         ? E.proposalsTab
         : name === 'agreements'
         ? E.agreementsTab
+        : name === 'operationsOnboarding'
+        ? E.operationsOnboardingTab
         : name === 'invoices'
         ? E.invoicesTab
         : name === 'receipts'
@@ -2003,6 +2005,8 @@ function setActiveView(view) {
         ? E.proposalsView
         : name === 'agreements'
         ? E.agreementsView
+        : name === 'operationsOnboarding'
+        ? E.operationsOnboardingView
         : name === 'invoices'
         ? E.invoicesView
         : name === 'receipts'
@@ -2033,7 +2037,7 @@ function setActiveView(view) {
   if (E.app) E.app.classList.toggle('csm-filters-only', view === 'csm');
   if (E.mainFiltersPanel)
     E.mainFiltersPanel.style.display =
-      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'invoices' || view === 'receipts' || view === 'lifecycleAnalytics' || view === 'clients' || view === 'proposalCatalog' || view === 'workflow' ? 'none' : '';
+      view === 'leads' || view === 'deals' || view === 'proposals' || view === 'agreements' || view === 'operationsOnboarding' || view === 'invoices' || view === 'receipts' || view === 'lifecycleAnalytics' || view === 'clients' || view === 'proposalCatalog' || view === 'workflow' ? 'none' : '';
   if (E.leadsFiltersPanel) E.leadsFiltersPanel.style.display = view === 'leads' ? '' : 'none';
   if (E.dealsFiltersPanel) E.dealsFiltersPanel.style.display = view === 'deals' ? '' : 'none';
   if (view === 'calendar') {
@@ -2047,6 +2051,7 @@ function setActiveView(view) {
   if (view === 'deals' && window.Deals?.loadAndRefresh) Deals.loadAndRefresh();
   if (view === 'proposals' && window.Proposals?.loadAndRefresh) Proposals.loadAndRefresh();
   if (view === 'agreements' && window.Agreements?.loadAndRefresh) Agreements.loadAndRefresh();
+  if (view === 'operationsOnboarding' && window.OperationsOnboarding?.loadAndRefresh) OperationsOnboarding.loadAndRefresh();
   if (view === 'invoices' && window.Invoices?.refresh) Invoices.refresh();
   if (view === 'receipts' && window.Receipts?.refresh) Receipts.refresh();
   if (view === 'lifecycleAnalytics' && window.LifecycleAnalytics?.init) LifecycleAnalytics.init();
@@ -2604,15 +2609,10 @@ async function loadIssues(force = false) {
   try {
     UI.spinner(true);
     UI.skeleton(true);
-    const response = await Api.postAuthenticatedAllPages(
+    const response = await Api.postAuthenticated(
       'tickets',
       'list',
-      {
-        filters: buildTicketListFiltersPayload(),
-        limit: 100,
-        page: 1,
-        summary_only: true
-      },
+      { filters: buildTicketListFiltersPayload() },
       { requireAuth: true }
     );
     const rawRows = extractEventsPayload(response);
@@ -4066,7 +4066,7 @@ function syncFilterInputs() {
 
 
 function wireCore() {
-   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.invoicesTab, E.receiptsTab, E.lifecycleAnalyticsTab, E.clientsTab, E.proposalCatalogTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
+   [E.issuesTab, E.calendarTab, E.insightsTab, E.csmTab, E.leadsTab, E.dealsTab, E.proposalsTab, E.agreementsTab, E.operationsOnboardingTab, E.invoicesTab, E.receiptsTab, E.lifecycleAnalyticsTab, E.clientsTab, E.proposalCatalogTab, E.workflowTab, E.usersTab, E.rolesTab, E.rolePermissionsTab].forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => setActiveView(btn.dataset.view));
   });
@@ -5148,10 +5148,10 @@ const CSMActivity = {
     this.loadError = '';
     this.refresh();
     try {
-      const response = await Api.postAuthenticatedAllPages(
+      const response = await Api.postAuthenticatedCached(
         'csm',
         'list',
-        { limit: 100, page: 1, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+        { limit: 50, offset: 0, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
         { requireAuth: true, forceRefresh: force }
       );
       const rows = this.extractRows(response).map(raw => this.backendToView(raw));
@@ -5883,6 +5883,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.Deals?.wire) Deals.wire();
   if (window.Proposals?.wire) Proposals.wire();
   if (window.Agreements?.wire) Agreements.wire();
+  if (window.OperationsOnboarding?.wire) OperationsOnboarding.wire();
   if (window.Invoices?.init) Invoices.init();
   if (window.Receipts?.init) Receipts.init();
   if (window.Clients?.wire) Clients.wire();

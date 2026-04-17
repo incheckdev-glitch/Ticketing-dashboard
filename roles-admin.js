@@ -21,6 +21,12 @@ const RolesAdmin = {
     permissions: [],
     filteredPermissions: [],
     filters: { resource: '', action: '', allowedRoles: '', resourceExact: '' },
+    page: 1,
+    limit: 50,
+    offset: 0,
+    returned: 0,
+    hasMore: false,
+    total: 0,
     loadingRoles: false,
     loadingPermissions: false
   },
@@ -145,6 +151,35 @@ const RolesAdmin = {
     }
     return [];
   },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      const total = Number(response.total ?? response.rows.length) || response.rows.length;
+      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
+      const limit = Number(response.limit || this.state.limit || 50);
+      const page = Number(response.page || this.state.page || 1);
+      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
+      const hasMore = response.hasMore !== undefined
+        ? Boolean(response.hasMore)
+        : response.has_more !== undefined
+          ? Boolean(response.has_more)
+          : offset + returned < total;
+      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
+    }
+    const rows = this.extractRows(response);
+    const limit = Number(this.state.limit || 50);
+    const page = Number(this.state.page || 1);
+    const returned = rows.length;
+    const offset = Math.max(0, (page - 1) * limit);
+    return {
+      rows,
+      total: rows.length,
+      returned,
+      hasMore: false,
+      page,
+      limit,
+      offset
+    };
+  },
   async ensureRolesLoaded(force = false) {
     if (!Session.isAuthenticated()) {
       this.state.roles = [];
@@ -164,8 +199,20 @@ const RolesAdmin = {
     this.state.loadingRoles = true;
     if (E.rolesState) E.rolesState.textContent = 'Loading roles…';
     try {
-      const response = await Api.listRoles();
-      this.state.roles = this.extractRows(response);
+      const response = await Api.listRoles({
+        limit: this.state.limit,
+        page: this.state.page,
+        summary_only: true,
+        forceRefresh: force
+      });
+      const normalized = this.extractListResult(response);
+      this.state.roles = normalized.rows;
+      this.state.total = normalized.total;
+      this.state.returned = normalized.returned;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
+      this.state.offset = normalized.offset;
       this.renderRolesTable();
       this.renderRoleSelects();
       this.renderRolesWidgets();
@@ -183,8 +230,13 @@ const RolesAdmin = {
     this.state.loadingPermissions = true;
     if (E.rolePermissionsState) E.rolePermissionsState.textContent = 'Loading permission matrix…';
     try {
-      const response = await Api.listRolePermissions();
-      this.state.permissions = this.extractRows(response);
+      const response = await Api.listRolePermissions({
+        limit: this.state.limit,
+        page: this.state.page,
+        summary_only: true,
+        forceRefresh: force
+      });
+      this.state.permissions = this.extractListResult(response).rows;
       this.renderPermissionsTable();
     } catch (error) {
       this.state.permissions = [];

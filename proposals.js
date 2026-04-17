@@ -285,11 +285,12 @@ const Proposals = {
     };
   },
   async listProposals(options = {}) {
-    return Api.postAuthenticatedAllPages(
+    return Api.postAuthenticatedCached(
       'proposals',
       'list',
       {
-        limit: Number(options.limit || 100),
+        limit: Number(options.limit || 50),
+        page: Number(options.page || 1),
         sort_by: options.sortBy || 'updated_at',
         sort_dir: options.sortDir || 'desc',
         search: this.state.search || '',
@@ -647,7 +648,7 @@ const Proposals = {
     this.render();
 
     try {
-      const response = await this.listProposals({ forceRefresh: force, limit: 100 });
+      const response = await this.listProposals({ forceRefresh: force, page: 1, limit: 50 });
       this.state.rows = this.extractRows(response).map(raw => this.normalizeProposal(raw));
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();

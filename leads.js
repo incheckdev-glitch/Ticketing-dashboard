@@ -111,9 +111,10 @@ const Leads = {
     return filters;
   },
   async listLeads(options = {}) {
-    return Api.postAuthenticatedAllPages('leads', 'list', {
+    return Api.postAuthenticatedCached('leads', 'list', {
       filters: this.collectServerFilters(),
-      limit: Number(options.limit || 100),
+      limit: Number(options.limit || 50),
+      page: Number(options.page || 1),
       sort_by: options.sortBy || 'updated_at',
       sort_dir: options.sortDir || 'desc',
       search: this.state.search || '',
@@ -617,7 +618,7 @@ const Leads = {
     this.render();
 
     try {
-      const response = await this.listLeads({ forceRefresh: force, limit: 100 });
+      const response = await this.listLeads({ forceRefresh: force, page: 1, limit: 50 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeLead(item));
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();

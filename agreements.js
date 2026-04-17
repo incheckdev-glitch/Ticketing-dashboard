@@ -57,9 +57,17 @@ const Agreements = {
     search: '',
     status: 'All',
     proposalOrDeal: '',
+    page: 1,
+    limit: 50,
+    offset: 0,
+    returned: 0,
+    hasMore: false,
+    total: 0,
     kpiFilter: 'total',
     formReadOnly: false,
-    currentItems: []
+    currentItems: [],
+    currentAgreementId: '',
+    currentOnboarding: null
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -89,6 +97,26 @@ const Agreements = {
     normalized.status = String(normalized.status || '').trim() || 'Draft';
     normalized.currency = String(normalized.currency || '').trim() || 'USD';
     return normalized;
+  },
+  normalizeOperationsOnboarding(raw = {}) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    return {
+      onboarding_id: String(pick(source.onboarding_id, source.onboardingId, source.id)).trim(),
+      agreement_id: String(pick(source.agreement_id, source.agreementId)).trim(),
+      onboarding_status: String(pick(source.onboarding_status, source.onboardingStatus)).trim(),
+      technical_request_status: String(pick(source.technical_request_status, source.technicalRequestStatus)).trim(),
+      technical_request_type: String(pick(source.technical_request_type, source.technicalRequestType)).trim(),
+      request_type: String(pick(source.request_type, source.requestType)).trim(),
+      request_details: String(pick(source.request_details, source.requestDetails)).trim(),
+      csm_assigned_to: String(pick(source.csm_assigned_to, source.csmAssignedTo)).trim(),
+      updated_at: String(pick(source.updated_at, source.updatedAt)).trim()
+    };
   },
   normalizeItem(raw = {}, sectionFallback = '') {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -227,7 +255,36 @@ const Agreements = {
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
   },
-  async listAgreements() { return Api.listAgreements(); },
+  async listAgreements(options = {}) { return Api.listAgreements(options); },
+  extractListResult(response) {
+    if (response && typeof response === 'object' && Array.isArray(response.rows)) {
+      const total = Number(response.total ?? response.rows.length) || response.rows.length;
+      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
+      const limit = Number(response.limit || this.state.limit || 50);
+      const page = Number(response.page || this.state.page || 1);
+      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
+      const hasMore = response.hasMore !== undefined
+        ? Boolean(response.hasMore)
+        : response.has_more !== undefined
+          ? Boolean(response.has_more)
+          : offset + returned < total;
+      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
+    }
+    const rows = this.extractRows(response);
+    const limit = Number(this.state.limit || 50);
+    const page = Number(this.state.page || 1);
+    const returned = rows.length;
+    const offset = Math.max(0, (page - 1) * limit);
+    return {
+      rows,
+      total: rows.length,
+      returned,
+      hasMore: false,
+      page,
+      limit,
+      offset
+    };
+  },
   upsertLocalRow(row) {
     const normalized = this.normalizeAgreement(row);
     const idx = this.state.rows.findIndex(item => String(item.agreement_id || '') === String(normalized.agreement_id || ''));
@@ -252,7 +309,65 @@ const Agreements = {
   async updateClient(clientId, updates) { return Api.updateClient(clientId, updates); },
   async createAgreementFromProposal(proposalId) { return Api.createAgreementFromProposal(proposalId); },
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
+  async sendToOperations(agreementId) { return Api.sendAgreementToOperations(agreementId); },
+  async getOnboarding(agreementId) { return Api.getAgreementOnboarding(agreementId); },
+  async requestTechnicalAdmin(agreementId, payload) { return Api.requestAgreementTechnicalAdmin(agreementId, payload); },
+  async assignCsm(agreementId, payload) { return Api.assignAgreementCsm(agreementId, payload); },
+  async updateOnboardingStatus(agreementId, payload) { return Api.updateAgreementOnboardingStatus(agreementId, payload); },
   async createInvoiceFromAgreement(agreementId) { return Api.createInvoiceFromAgreement(agreementId); },
+  extractOnboarding(response = {}) {
+    const candidates = [response, response?.item, response?.onboarding, response?.data, response?.result, response?.payload];
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+      if (candidate.onboarding_id || candidate.onboardingId || candidate.agreement_id || candidate.agreementId) {
+        return this.normalizeOperationsOnboarding(candidate);
+      }
+      if (candidate.item && typeof candidate.item === 'object') return this.normalizeOperationsOnboarding(candidate.item);
+      if (candidate.onboarding && typeof candidate.onboarding === 'object') return this.normalizeOperationsOnboarding(candidate.onboarding);
+    }
+    return null;
+  },
+  renderOperationsSummary() {
+    if (!E.agreementOperationsSummary) return;
+    const onboarding = this.state.currentOnboarding;
+    if (!onboarding) {
+      E.agreementOperationsSummary.innerHTML = 'No onboarding record linked yet.';
+      return;
+    }
+    const text = value => U.escapeHtml(String(value || '—'));
+    E.agreementOperationsSummary.innerHTML = `
+      <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+        <div><span class="muted">Onboarding ID:</span> ${text(onboarding.onboarding_id)}</div>
+        <div><span class="muted">Onboarding Status:</span> ${text(onboarding.onboarding_status)}</div>
+        <div><span class="muted">Technical Request Status:</span> ${text(onboarding.technical_request_status)}</div>
+        <div><span class="muted">Technical Request Type:</span> ${text(onboarding.technical_request_type || onboarding.request_type)}</div>
+        <div><span class="muted">Request Details:</span> ${text(onboarding.request_details)}</div>
+        <div><span class="muted">Assigned CSM:</span> ${text(onboarding.csm_assigned_to)}</div>
+      </div>`;
+  },
+  setOperationsActionsState() {
+    const canWrite = !Permissions.isViewer() && Permissions.canManageOperationsOnboarding();
+    [E.agreementOperationsSendBtn, E.agreementOperationsRequestTechBtn, E.agreementOperationsAssignCsmBtn, E.agreementOperationsUpdateStatusBtn].forEach(btn => {
+      if (!btn) return;
+      btn.disabled = !canWrite || !this.state.currentAgreementId;
+      btn.style.display = canWrite ? '' : 'none';
+    });
+  },
+  async refreshOperationsSummary(agreementId = this.state.currentAgreementId) {
+    const id = String(agreementId || '').trim();
+    this.state.currentAgreementId = id;
+    this.state.currentOnboarding = null;
+    this.renderOperationsSummary();
+    this.setOperationsActionsState();
+    if (!id) return;
+    try {
+      const response = await this.getOnboarding(id);
+      this.state.currentOnboarding = this.extractOnboarding(response);
+    } catch (_error) {
+      this.state.currentOnboarding = null;
+    }
+    this.renderOperationsSummary();
+  },
   isSignedStatus(status) {
     return this.normalizeText(status).includes('signed');
   },
@@ -624,6 +739,11 @@ const Agreements = {
       E.agreementFormSaveBtn.style.display = !readOnly && canSave ? '' : 'none';
     }
     this.setFormReadOnly(readOnly);
+    this.state.currentAgreementId = String(agreement.agreement_id || '').trim();
+    this.state.currentOnboarding = null;
+    this.renderOperationsSummary();
+    this.setOperationsActionsState();
+    this.refreshOperationsSummary(this.state.currentAgreementId);
     E.agreementFormModal.classList.add('open');
     E.agreementFormModal.setAttribute('aria-hidden', 'false');
   },
@@ -633,6 +753,9 @@ const Agreements = {
     E.agreementFormModal.setAttribute('aria-hidden', 'true');
     E.agreementForm.reset();
     E.agreementForm.dataset.id = '';
+    this.state.currentAgreementId = '';
+    this.state.currentOnboarding = null;
+    this.renderOperationsSummary();
     this.renderItemRows([]);
   },
   addRow(section) {
@@ -852,13 +975,23 @@ const Agreements = {
     this.state.loadError = '';
     this.render();
     try {
-      const response = await Api.postAuthenticatedAllPages(
-        'agreements',
-        'list',
-        { limit: 100, sort_by: 'updated_at', sort_dir: 'desc', search: this.state.search || '', summary_only: true },
-        { forceRefresh: force }
-      );
-      this.state.rows = this.extractRows(response).map(row => this.normalizeAgreement(row));
+      const response = await this.listAgreements({
+        limit: this.state.limit,
+        page: this.state.page,
+        sort_by: 'updated_at',
+        sort_dir: 'desc',
+        search: this.state.search || '',
+        summary_only: true,
+        forceRefresh: force
+      });
+      const normalized = this.extractListResult(response);
+      this.state.rows = normalized.rows.map(row => this.normalizeAgreement(row));
+      this.state.total = normalized.total;
+      this.state.returned = normalized.returned;
+      this.state.hasMore = normalized.hasMore;
+      this.state.page = normalized.page;
+      this.state.limit = normalized.limit;
+      this.state.offset = normalized.offset;
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
     } catch (error) {
@@ -969,6 +1102,40 @@ const Agreements = {
     if (E.agreementPreviewModal) E.agreementPreviewModal.addEventListener('click', event => {
       if (event.target === E.agreementPreviewModal) this.closePreviewModal();
     });
+    if (E.agreementOperationsSendBtn) E.agreementOperationsSendBtn.addEventListener('click', async () => {
+      const id = String(this.state.currentAgreementId || '').trim();
+      if (!id) return UI.toast('Save agreement first.');
+      if (!Permissions.canSendAgreementToOperations()) return UI.toast('Insufficient permissions.');
+      try {
+        await this.sendToOperations(id);
+        await this.refreshOperationsSummary(id);
+        if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
+        UI.toast(`Agreement ${id} sent to operations.`);
+      } catch (error) {
+        UI.toast('Unable to send to operations: ' + (error?.message || 'Unknown error'));
+      }
+    });
+    if (E.agreementOperationsRequestTechBtn)
+      E.agreementOperationsRequestTechBtn.addEventListener('click', () => {
+        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
+        window.OperationsOnboarding?.openTechnicalRequestModal?.(this.state.currentAgreementId, async () => {
+          await this.refreshOperationsSummary(this.state.currentAgreementId);
+        });
+      });
+    if (E.agreementOperationsAssignCsmBtn)
+      E.agreementOperationsAssignCsmBtn.addEventListener('click', () => {
+        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
+        window.OperationsOnboarding?.openAssignCsmModal?.(this.state.currentAgreementId, async () => {
+          await this.refreshOperationsSummary(this.state.currentAgreementId);
+        });
+      });
+    if (E.agreementOperationsUpdateStatusBtn)
+      E.agreementOperationsUpdateStatusBtn.addEventListener('click', () => {
+        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
+        window.OperationsOnboarding?.openUpdateStatusModal?.(this.state.currentAgreementId, async () => {
+          await this.refreshOperationsSummary(this.state.currentAgreementId);
+        });
+      });
     this.state.initialized = true;
   }
 };

@@ -203,39 +203,57 @@ const LifecycleAnalytics = {
   },
   async listLeads(forceRefresh = false) {
     if (typeof window.Leads?.listLeads === 'function') {
-      const response = await window.Leads.listLeads({ forceRefresh, limit: 200 });
+      const response = await window.Leads.listLeads({ forceRefresh, limit: 50, page: 1, summary_only: true });
       return this.extractRows(response).map(item => this.normalizeLead(item));
     }
-    const response = await Api.postAuthenticatedAllPages('leads', 'list', { limit: 200 }, { forceRefresh });
+    const response = await Api.postAuthenticatedCached(
+      'leads',
+      'list',
+      { limit: 50, page: 1, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+      { forceRefresh }
+    );
     return this.extractRows(response).map(item => this.normalizeLead(item));
   },
   async listDeals(forceRefresh = false) {
     if (typeof window.Deals?.listDeals === 'function') {
-      const response = await window.Deals.listDeals({ forceRefresh, limit: 200 });
+      const response = await window.Deals.listDeals({ forceRefresh, limit: 50, page: 1, summary_only: true });
       return this.extractRows(response).map(item => this.normalizeDeal(item));
     }
-    const response = await Api.postAuthenticatedAllPages('deals', 'list', { limit: 200 }, { forceRefresh });
+    const response = await Api.postAuthenticatedCached(
+      'deals',
+      'list',
+      { limit: 50, page: 1, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+      { forceRefresh }
+    );
     return this.extractRows(response).map(item => this.normalizeDeal(item));
   },
   async listProposals(forceRefresh = false) {
     if (typeof window.Proposals?.listProposals === 'function') {
-      const response = await window.Proposals.listProposals({ forceRefresh, limit: 200 });
+      const response = await window.Proposals.listProposals({ forceRefresh, limit: 50, page: 1, summary_only: true });
       return this.extractRows(response).map(item => this.normalizeProposal(item));
     }
-    const response = await Api.postAuthenticatedAllPages('proposals', 'list', { limit: 200 }, { forceRefresh });
+    const response = await Api.postAuthenticatedCached(
+      'proposals',
+      'list',
+      { limit: 50, page: 1, summary_only: true, sort_by: 'updated_at', sort_dir: 'desc' },
+      { forceRefresh }
+    );
     return this.extractRows(response).map(item => this.normalizeProposal(item));
   },
   async listAgreements(forceRefresh = false) {
-    const response = await Api.listAgreements({ forceRefresh });
-    return this.extractRows(response).map(item => this.normalizeAgreement(item));
+    const response = await Api.listAgreements({ forceRefresh, limit: 50, page: 1, summary_only: true });
+    const rows = Array.isArray(response?.rows) ? response.rows : this.extractRows(response);
+    return rows.map(item => this.normalizeAgreement(item));
   },
   async listInvoices(forceRefresh = false) {
-    const response = await Api.listInvoices({ forceRefresh });
-    return this.extractRows(response).map(item => this.normalizeInvoice(item));
+    const response = await Api.listInvoices({}, { forceRefresh, limit: 50, page: 1, summary_only: true });
+    const rows = Array.isArray(response?.rows) ? response.rows : this.extractRows(response);
+    return rows.map(item => this.normalizeInvoice(item));
   },
   async listReceipts(forceRefresh = false) {
-    const response = await Api.listReceipts({ forceRefresh });
-    return this.extractRows(response).map(item => this.normalizeReceipt(item));
+    const response = await Api.listReceipts({}, { forceRefresh, limit: 50, page: 1, summary_only: true });
+    const rows = Array.isArray(response?.rows) ? response.rows : this.extractRows(response);
+    return rows.map(item => this.normalizeReceipt(item));
   },
   findBestMatch(query, collections) {
     const normalized = this.norm(query);

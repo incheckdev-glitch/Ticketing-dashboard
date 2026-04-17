@@ -155,10 +155,11 @@ const Deals = {
     return [];
   },
   async listDeals(options = {}) {
-    return Api.postAuthenticatedAllPages('deals', 'list', {
+    return Api.postAuthenticatedCached('deals', 'list', {
       sheetName: CONFIG.DEALS_SHEET_NAME,
       tabName: CONFIG.DEALS_SHEET_NAME,
-      limit: Number(options.limit || 100),
+      limit: Number(options.limit || 50),
+      page: Number(options.page || 1),
       sort_by: options.sortBy || 'updated_at',
       sort_dir: options.sortDir || 'desc',
       search: this.state.search || '',
@@ -677,7 +678,7 @@ const Deals = {
     this.render();
 
     try {
-      const response = await this.listDeals({ forceRefresh: force, limit: 100 });
+      const response = await this.listDeals({ forceRefresh: force, page: 1, limit: 50 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();
