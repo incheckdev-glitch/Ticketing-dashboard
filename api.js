@@ -457,6 +457,36 @@ const Api = {
       notes: update.notes
     });
   },
+
+  async listTechnicalAdminRequests(filters = {}) {
+    return this.postAuthenticatedCached('technical_admin_requests', 'list', {
+      filters
+    });
+  },
+  async getTechnicalAdminRequest(params = {}) {
+    const technicalRequestId = String(params.technical_request_id || params.technicalRequestId || '').trim();
+    return this.postAuthenticated('technical_admin_requests', 'get', {
+      ...params,
+      technical_request_id: technicalRequestId || params.technical_request_id
+    });
+  },
+  async updateTechnicalAdminRequest(technicalRequestId, updates = {}) {
+    const safeId = String(technicalRequestId || '').trim();
+    if (!safeId) throw new Error('technical_request_id is required.');
+    const safeUpdates = updates && typeof updates === 'object' ? updates : {};
+    const statusOnly = safeUpdates.request_status && Object.keys(safeUpdates).every(key => ['request_status', 'notes'].includes(key));
+    if (statusOnly) {
+      return this.postAuthenticated('technical_admin_requests', 'update_status', {
+        technical_request_id: safeId,
+        request_status: safeUpdates.request_status,
+        notes: safeUpdates.notes
+      });
+    }
+    return this.postAuthenticated('technical_admin_requests', 'update', {
+      technical_request_id: safeId,
+      updates: safeUpdates
+    });
+  },
   async listOperationsOnboarding(filters = {}) {
     return this.postAuthenticatedCached('operations_onboarding', 'list', {
       filters,
