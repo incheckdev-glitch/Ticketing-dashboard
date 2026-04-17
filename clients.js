@@ -33,6 +33,8 @@ const Clients = {
     cacheTtlMs: 2 * 60 * 1000,
     page: 1,
     limit: 50,
+    offset: 0,
+    returned: 0,
     hasMore: false,
     total: 0,
     search: '',
@@ -85,21 +87,31 @@ const Clients = {
   },
   extractListResult(response) {
     if (response && typeof response === 'object' && Array.isArray(response.rows)) {
-      return {
-        rows: response.rows,
-        total: Number(response.total ?? response.rows.length) || response.rows.length,
-        hasMore: Boolean(response.hasMore),
-        page: Number(response.page || this.state.page || 1),
-        limit: Number(response.limit || this.state.limit || 50)
-      };
+      const total = Number(response.total ?? response.rows.length) || response.rows.length;
+      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
+      const limit = Number(response.limit || this.state.limit || 50);
+      const page = Number(response.page || this.state.page || 1);
+      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
+      const hasMore = response.hasMore !== undefined
+        ? Boolean(response.hasMore)
+        : response.has_more !== undefined
+          ? Boolean(response.has_more)
+          : offset + returned < total;
+      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
     }
     const rows = this.extractRows(response);
+    const limit = Number(this.state.limit || 50);
+    const page = Number(this.state.page || 1);
+    const returned = rows.length;
+    const offset = Math.max(0, (page - 1) * limit);
     return {
       rows,
       total: rows.length,
+      returned,
       hasMore: false,
-      page: Number(this.state.page || 1),
-      limit: Number(this.state.limit || 50)
+      page,
+      limit,
+      offset
     };
   },
   normalizeClient(raw = {}) {
@@ -967,11 +979,9 @@ const Clients = {
     this.state.loadError = '';
     if (E.clientsState) E.clientsState.textContent = 'Loading client intelligence…';
     try {
-      const offset = Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50));
       const [clientsRes, agreementsRes, invoicesRes, receiptsRes] = await Promise.all([
         Api.listClients({
           limit: this.state.limit,
-          offset,
           page: this.state.page,
           sort_by: 'updated_at',
           sort_dir: 'desc',
@@ -979,16 +989,18 @@ const Clients = {
           summary_only: true,
           forceRefresh: options.force === true
         }),
-        Api.listAgreements({ summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true }),
-        Api.listInvoices({}, { summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true }),
-        Api.listReceipts({}, { summary_only: true, limit: 50, offset: 0, page: 1, forceRefresh: options.force === true })
+        Api.listAgreements({ summary_only: true, limit: 50, page: 1, forceRefresh: options.force === true }),
+        Api.listInvoices({}, { summary_only: true, limit: 50, page: 1, forceRefresh: options.force === true }),
+        Api.listReceipts({}, { summary_only: true, limit: 50, page: 1, forceRefresh: options.force === true })
       ]);
       const clientsList = this.extractListResult(clientsRes);
       this.state.rows = clientsList.rows.map(item => this.normalizeClient(item));
       this.state.total = clientsList.total;
+      this.state.returned = clientsList.returned;
       this.state.hasMore = clientsList.hasMore;
       this.state.page = clientsList.page;
       this.state.limit = clientsList.limit;
+      this.state.offset = clientsList.offset;
       this.state.agreements = this.extractListResult(agreementsRes).rows.map(item => this.normalizeAgreement(item));
       this.state.invoices = this.extractListResult(invoicesRes).rows.map(item => this.normalizeInvoice(item));
       this.state.receipts = this.extractListResult(receiptsRes).rows.map(item => this.normalizeReceipt(item));

@@ -159,7 +159,7 @@ const Deals = {
       sheetName: CONFIG.DEALS_SHEET_NAME,
       tabName: CONFIG.DEALS_SHEET_NAME,
       limit: Number(options.limit || 50),
-      offset: Number(options.offset || 0),
+      page: Number(options.page || 1),
       sort_by: options.sortBy || 'updated_at',
       sort_dir: options.sortDir || 'desc',
       search: this.state.search || '',
@@ -678,7 +678,7 @@ const Deals = {
     this.render();
 
     try {
-      const response = await this.listDeals({ forceRefresh: force, limit: 50, offset: 0 });
+      const response = await this.listDeals({ forceRefresh: force, page: 1, limit: 50 });
       this.state.rows = this.extractRows(response).map(item => this.normalizeDeal(item));
       this.state.loaded = true;
       this.state.lastLoadedAt = Date.now();

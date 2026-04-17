@@ -33,6 +33,8 @@ const Invoices = {
     status: 'All',
     page: 1,
     limit: 50,
+    offset: 0,
+    returned: 0,
     hasMore: false,
     total: 0,
     kpiFilter: 'total',
@@ -135,7 +137,7 @@ const Invoices = {
   },
   async getProposalCatalogLookup() {
     try {
-      const response = await Api.listProposalCatalogItems({ limit: 200, offset: 0, page: 1, summary_only: true });
+      const response = await Api.listProposalCatalogItems({ limit: 200, page: 1, summary_only: true });
       const rows = Array.isArray(response) ? response : response?.rows || response?.items || response?.data || response?.result || [];
       const normalized = (Array.isArray(rows) ? rows : []).map(item => this.normalizeCatalogItem(item));
       const byId = new Map();
@@ -151,21 +153,31 @@ const Invoices = {
   },
   extractListResult(response) {
     if (response && typeof response === 'object' && Array.isArray(response.rows)) {
-      return {
-        rows: response.rows,
-        total: Number(response.total ?? response.rows.length) || response.rows.length,
-        hasMore: Boolean(response.hasMore),
-        page: Number(response.page || this.state.page || 1),
-        limit: Number(response.limit || this.state.limit || 50)
-      };
+      const total = Number(response.total ?? response.rows.length) || response.rows.length;
+      const returned = Number(response.returned ?? response.rows.length) || response.rows.length;
+      const limit = Number(response.limit || this.state.limit || 50);
+      const page = Number(response.page || this.state.page || 1);
+      const offset = Number(response.offset ?? Math.max(0, (page - 1) * limit));
+      const hasMore = response.hasMore !== undefined
+        ? Boolean(response.hasMore)
+        : response.has_more !== undefined
+          ? Boolean(response.has_more)
+          : offset + returned < total;
+      return { rows: response.rows, total, returned, hasMore, page, limit, offset };
     }
     const rows = this.extractRows(response);
+    const limit = Number(this.state.limit || 50);
+    const page = Number(this.state.page || 1);
+    const returned = rows.length;
+    const offset = Math.max(0, (page - 1) * limit);
     return {
       rows,
       total: rows.length,
+      returned,
       hasMore: false,
-      page: Number(this.state.page || 1),
-      limit: Number(this.state.limit || 50)
+      page,
+      limit,
+      offset
     };
   },
   mergeCatalogItem(invoiceItem = {}, catalogLookup = { byId: new Map(), byName: new Map() }) {
@@ -1160,7 +1172,6 @@ const Invoices = {
       if (search) filters.search = search;
       const response = await Api.listInvoices(filters, {
         limit: this.state.limit,
-        offset: Math.max(0, (Number(this.state.page || 1) - 1) * Number(this.state.limit || 50)),
         page: this.state.page,
         summary_only: true,
         forceRefresh: force
@@ -1168,9 +1179,11 @@ const Invoices = {
       const normalized = this.extractListResult(response);
       this.state.rows = normalized.rows.map(row => this.normalizeInvoice(row));
       this.state.total = normalized.total;
+      this.state.returned = normalized.returned;
       this.state.hasMore = normalized.hasMore;
       this.state.page = normalized.page;
       this.state.limit = normalized.limit;
+      this.state.offset = normalized.offset;
     } catch (error) {
       this.state.rows = [];
       this.state.loadError = String(error?.message || '').trim() || 'Unable to load invoices.';

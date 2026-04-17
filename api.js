@@ -42,16 +42,48 @@ const Api = {
     }
     return payload;
   },
+  buildPagedListPayload(resource = '', action = 'list', state = {}, filters = {}) {
+    const safeState = state && typeof state === 'object' ? state : {};
+    const safeFilters = filters && typeof filters === 'object' ? filters : {};
+    const authToken =
+      typeof Session?.getAuthToken === 'function'
+        ? Session.getAuthToken()
+        : String(Session?.authContext?.().authToken || '');
+
+    const payload = {
+      resource,
+      action: action || 'list',
+      page: Number(safeState.currentPage || safeState.page || 1),
+      limit: Number(safeState.pageSize || safeState.limit || 50),
+      summary_only: safeState.summary_only !== false
+    };
+
+    Object.entries(safeFilters).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      payload[key] = value;
+    });
+
+    if (authToken) payload.authToken = authToken;
+    return payload;
+  },
   buildSummaryListPayload(options = {}, fallbackFields = []) {
     const safeOptions = options && typeof options === 'object' ? options : {};
-    const payload = {
-      limit: Number(safeOptions.limit || 50),
-      offset: Number(safeOptions.offset || 0),
-      page: Number(safeOptions.page || 1),
-      sort_by: safeOptions.sort_by || 'updated_at',
-      sort_dir: safeOptions.sort_dir || 'desc',
-      summary_only: safeOptions.summary_only !== false
-    };
+    const payload = this.buildPagedListPayload(
+      safeOptions.resource || '',
+      safeOptions.action || 'list',
+      {
+        currentPage: safeOptions.page,
+        pageSize: safeOptions.limit,
+        summary_only: safeOptions.summary_only
+      }
+    );
+    delete payload.resource;
+    delete payload.action;
+    delete payload.authToken;
+
+    payload.sort_by = safeOptions.sort_by || 'updated_at';
+    payload.sort_dir = safeOptions.sort_dir || 'desc';
+
     const searchValue = safeOptions.search;
     if (searchValue !== undefined && searchValue !== null && String(searchValue).trim() !== '') {
       payload.search = String(searchValue).trim();
@@ -65,7 +97,7 @@ const Api = {
     }
     return payload;
   },
-  normalizeListResponse(response) {
+  mapPagedListResponse(response) {
     const payload = response && typeof response === 'object' ? response : null;
     const rows = (() => {
       if (Array.isArray(response)) return response;
@@ -81,6 +113,11 @@ const Api = {
         payload?.clients,
         payload?.roles,
         payload?.permissions,
+        payload?.users,
+        payload?.leads,
+        payload?.deals,
+        payload?.proposals,
+        payload?.csm,
         payload?.data?.rows,
         payload?.data?.items
       ];
@@ -93,14 +130,31 @@ const Api = {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : fallback;
     };
+
     const limit = numberOr(payload?.limit ?? payload?.page_size ?? payload?.meta?.limit, 50);
     const page = numberOr(payload?.page ?? payload?.current_page ?? payload?.meta?.page, 1);
     const offset = numberOr(payload?.offset ?? payload?.meta?.offset, Math.max(0, (page - 1) * limit));
     const total = numberOr(payload?.total ?? payload?.total_count ?? payload?.meta?.total, rows.length);
+    const returned = numberOr(payload?.returned ?? payload?.count ?? payload?.meta?.returned, rows.length);
     const hasMore = payload?.has_more !== undefined
       ? Boolean(payload.has_more)
-      : offset + rows.length < total;
-    return { rows, total, hasMore, page, limit, offset };
+      : payload?.hasMore !== undefined
+        ? Boolean(payload.hasMore)
+        : offset + returned < total;
+
+    return {
+      rows,
+      total,
+      returned,
+      hasMore,
+      has_more: hasMore,
+      page,
+      limit,
+      offset
+    };
+  },
+  normalizeListResponse(response) {
+    return this.mapPagedListResponse(response);
   },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
