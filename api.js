@@ -42,6 +42,66 @@ const Api = {
     }
     return payload;
   },
+  buildSummaryListPayload(options = {}, fallbackFields = []) {
+    const safeOptions = options && typeof options === 'object' ? options : {};
+    const payload = {
+      limit: Number(safeOptions.limit || 50),
+      offset: Number(safeOptions.offset || 0),
+      page: Number(safeOptions.page || 1),
+      sort_by: safeOptions.sort_by || 'updated_at',
+      sort_dir: safeOptions.sort_dir || 'desc',
+      summary_only: safeOptions.summary_only !== false
+    };
+    const searchValue = safeOptions.search;
+    if (searchValue !== undefined && searchValue !== null && String(searchValue).trim() !== '') {
+      payload.search = String(searchValue).trim();
+    }
+    const fields = Array.isArray(safeOptions.fields) && safeOptions.fields.length
+      ? safeOptions.fields
+      : (Array.isArray(fallbackFields) && fallbackFields.length ? fallbackFields : null);
+    if (Array.isArray(fields) && fields.length) payload.fields = fields;
+    if (safeOptions.updated_after !== undefined && safeOptions.updated_after !== null && safeOptions.updated_after !== '') {
+      payload.updated_after = safeOptions.updated_after;
+    }
+    return payload;
+  },
+  normalizeListResponse(response) {
+    const payload = response && typeof response === 'object' ? response : null;
+    const rows = (() => {
+      if (Array.isArray(response)) return response;
+      const candidates = [
+        payload?.rows,
+        payload?.items,
+        payload?.data,
+        payload?.result,
+        payload?.payload,
+        payload?.agreements,
+        payload?.invoices,
+        payload?.receipts,
+        payload?.clients,
+        payload?.roles,
+        payload?.permissions,
+        payload?.data?.rows,
+        payload?.data?.items
+      ];
+      for (const candidate of candidates) {
+        if (Array.isArray(candidate)) return candidate;
+      }
+      return [];
+    })();
+    const numberOr = (value, fallback) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const limit = numberOr(payload?.limit ?? payload?.page_size ?? payload?.meta?.limit, 50);
+    const page = numberOr(payload?.page ?? payload?.current_page ?? payload?.meta?.page, 1);
+    const offset = numberOr(payload?.offset ?? payload?.meta?.offset, Math.max(0, (page - 1) * limit));
+    const total = numberOr(payload?.total ?? payload?.total_count ?? payload?.meta?.total, rows.length);
+    const hasMore = payload?.has_more !== undefined
+      ? Boolean(payload.has_more)
+      : offset + rows.length < total;
+    return { rows, total, hasMore, page, limit, offset };
+  },
   async get(resource, params = {}) {
     const endpoint = this.buildUrl(resource, params);
     let response;
@@ -245,10 +305,15 @@ const Api = {
       throw error;
     }
   },
-  async listProposalCatalogItems() {
-    return this.postAuthenticatedCached('proposal_catalog', 'list', {
+  async listProposalCatalogItems(options = {}) {
+    const payload = {
+      ...this.buildSummaryListPayload(options),
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
+    };
+    const response = await this.postAuthenticatedCached('proposal_catalog', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
     });
+    return this.normalizeListResponse(response);
   },
   async getProposalCatalogItem(catalogItemId) {
     return this.postAuthenticated('proposal_catalog', 'get', {
@@ -275,8 +340,12 @@ const Api = {
       sheetName: CONFIG.PROPOSAL_CATALOG_SHEET_NAME
     });
   },
-  async listAgreements() {
-    return this.postAuthenticatedCached('agreements', 'list', {});
+  async listAgreements(options = {}) {
+    const payload = this.buildSummaryListPayload(options);
+    const response = await this.postAuthenticatedCached('agreements', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
+    });
+    return this.normalizeListResponse(response);
   },
   async getAgreement(agreementId) {
     return this.postAuthenticated('agreements', 'get', { agreement_id: agreementId });
@@ -354,8 +423,18 @@ const Api = {
     });
   },
 
-  async listInvoices(filters = {}) {
-    return this.postAuthenticatedCached('invoices', 'list', { filters });
+  async listInvoices(filters = {}, options = {}) {
+    const listPayload = this.buildSummaryListPayload(options);
+    const payload = {
+      filters: {
+        ...(filters && typeof filters === 'object' ? filters : {}),
+        ...listPayload
+      }
+    };
+    const response = await this.postAuthenticatedCached('invoices', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
+    });
+    return this.normalizeListResponse(response);
   },
   async getInvoice(invoiceId) {
     return this.postAuthenticated('invoices', 'get', { invoice_id: invoiceId });
@@ -380,8 +459,18 @@ const Api = {
   async generateInvoiceHtml(invoiceId) {
     return this.postAuthenticated('invoices', 'generate_invoice_html', { invoice_id: invoiceId });
   },
-  async listReceipts(filters = {}) {
-    return this.postAuthenticatedCached('receipts', 'list', { filters });
+  async listReceipts(filters = {}, options = {}) {
+    const listPayload = this.buildSummaryListPayload(options);
+    const payload = {
+      filters: {
+        ...(filters && typeof filters === 'object' ? filters : {}),
+        ...listPayload
+      }
+    };
+    const response = await this.postAuthenticatedCached('receipts', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
+    });
+    return this.normalizeListResponse(response);
   },
   async getReceipt(receiptId) {
     return this.postAuthenticated('receipts', 'get', { receipt_id: receiptId });
@@ -406,8 +495,12 @@ const Api = {
   async previewReceipt(receiptId) {
     return this.postAuthenticated('receipts', 'generate_receipt_html', { receipt_id: receiptId });
   },
-  async listClients() {
-    return this.postAuthenticatedCached('clients', 'list', {});
+  async listClients(options = {}) {
+    const payload = this.buildSummaryListPayload(options);
+    const response = await this.postAuthenticatedCached('clients', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
+    });
+    return this.normalizeListResponse(response);
   },
   async getClient(clientId) {
     return this.postAuthenticated('clients', 'get', { client_id: clientId });
@@ -470,10 +563,15 @@ const Api = {
       flow
     });
   },
-  async listRoles() {
-    return this.postAuthenticatedCached('roles', 'list', {
+  async listRoles(options = {}) {
+    const payload = {
+      ...this.buildSummaryListPayload(options),
       sheetName: CONFIG.ROLES_SHEET_NAME
+    };
+    const response = await this.postAuthenticatedCached('roles', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
     });
+    return this.normalizeListResponse(response);
   },
   async getRole(roleIdOrKey) {
     return this.postAuthenticated('roles', 'get', {
@@ -505,10 +603,15 @@ const Api = {
       sheetName: CONFIG.ROLES_SHEET_NAME
     });
   },
-  async listRolePermissions() {
-    return this.postAuthenticatedCached('role_permissions', 'list', {
+  async listRolePermissions(options = {}) {
+    const payload = {
+      ...this.buildSummaryListPayload(options),
       sheetName: CONFIG.ROLE_PERMISSIONS_SHEET_NAME
+    };
+    const response = await this.postAuthenticatedCached('role_permissions', 'list', payload, {
+      forceRefresh: options?.forceRefresh === true
     });
+    return this.normalizeListResponse(response);
   },
   async getRolePermission(permissionId) {
     return this.postAuthenticated('role_permissions', 'get', {
