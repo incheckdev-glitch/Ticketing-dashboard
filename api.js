@@ -249,44 +249,59 @@ const Api = {
     const basePayload = payload && typeof payload === 'object' ? { ...payload } : {};
     const pageSize = Math.max(1, Number(basePayload.limit || options.pageSize || 100) || 100);
     delete basePayload.offset;
+    const startPage = Math.max(1, Number(basePayload.page || 1) || 1);
     delete basePayload.page;
 
     const aggregate = [];
-    let page = 1;
+    let page = startPage;
     let lastResponse = null;
     let safety = 0;
 
+    const extractRows = response => {
+      if (Array.isArray(response)) return response;
+      if (!response || typeof response !== 'object') return [];
+      if (Array.isArray(response.rows)) return response.rows;
+      if (Array.isArray(response.data)) return response.data;
+      if (Array.isArray(response.items)) return response.items;
+      return [];
+    };
+
     while (safety < 200) {
       safety += 1;
-      const response = await this.postAuthenticated(resource, action, {
-        ...basePayload,
-        page,
-        limit: pageSize
-      }, options);
+      const response = await this.postAuthenticated(
+        resource,
+        action,
+        {
+          ...basePayload,
+          page,
+          limit: pageSize
+        },
+        options
+      );
       lastResponse = response;
 
-      const rows = Array.isArray(response?.data)
-        ? response.data
-        : Array.isArray(response)
-          ? response
-          : [];
+      const rows = extractRows(response);
 
       if (rows.length) aggregate.push(...rows);
 
       const hasMore = Boolean(response && typeof response === 'object' && response.has_more);
-      if (!hasMore || !rows.length) break;
+      const returned = Math.max(0, Number(response?.returned ?? rows.length) || 0);
+      const total = Math.max(0, Number(response?.total || 0) || 0);
+      const reachedTotal = total > 0 && aggregate.length >= total;
+      if (!hasMore || returned === 0 || !rows.length || reachedTotal) break;
       page += 1;
     }
 
     if (Array.isArray(lastResponse)) return aggregate;
 
     const out = lastResponse && typeof lastResponse === 'object' ? { ...lastResponse } : {};
-    out.data = aggregate;
+    if ('data' in out) out.data = aggregate;
+    out.rows = aggregate;
     out.count = aggregate.length;
     out.returned = aggregate.length;
     out.total = Math.max(Number(out.total || 0) || 0, aggregate.length);
     out.has_more = false;
-    out.limit = aggregate.length;
+    out.limit = pageSize;
     out.offset = 0;
     out.page = 1;
     return out;
