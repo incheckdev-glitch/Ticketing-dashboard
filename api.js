@@ -436,12 +436,21 @@ const Api = {
     });
   },
   async requestAgreementTechnicalAdmin(agreementId, request = {}) {
-    return this.postAuthenticated('agreements', 'request_technical_admin', {
+    const payload = {
       agreement_id: agreementId,
       request_type: request.request_type,
       request_details: request.request_details,
       priority: request.priority
-    });
+    };
+    try {
+      return await this.postAuthenticated('agreements', 'request_technical_admin', payload);
+    } catch (error) {
+      if (!isOperationsOnboardingRowMissingError(error)) throw error;
+      await this.saveOperationsOnboarding({
+        agreement_id: agreementId
+      });
+      return this.postAuthenticated('agreements', 'request_technical_admin', payload);
+    }
   },
   async assignAgreementCsm(agreementId, assignment = {}) {
     return this.postAuthenticated('agreements', 'assign_csm', {
@@ -961,6 +970,14 @@ function buildNetworkRequestError(url, originalError) {
     );
   }
   return new Error(rawMessage || `Network error while contacting ${url}.`);
+}
+
+function isOperationsOnboardingRowMissingError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('operations onboarding row not found for agreement') ||
+    message.includes('onboarding row not found for agreement')
+  );
 }
 
 function hasExplicitBackendFailure(data) {
