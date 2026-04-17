@@ -242,6 +242,7 @@ const OperationsOnboarding = {
       });
       this.closeModal(E.operationsTechnicalRequestModal);
       UI.toast('Technical admin request submitted.');
+      if (window.TechnicalAdminRequests?.loadAndRefresh) window.TechnicalAdminRequests.loadAndRefresh({ force: true });
       if (this.state.postSubmitHook) await this.state.postSubmitHook();
     } catch (error) {
       UI.toast('Unable to request technical admin: ' + (error?.message || 'Unknown error'));
