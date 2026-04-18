@@ -196,6 +196,25 @@ const Session = {
 };
 
 function isAuthError(error) {
-  const message = String(error?.message || '');
-  return /unauthorized|forbidden|invalid.*token|expired.*session|invalid.*session|auth/i.test(message);
+  const message = String(error?.message || '')
+    .trim()
+    .toLowerCase();
+  if (!message) return false;
+
+  const authErrorPatterns = [
+    /\bunauthorized\b/,
+    /\bforbidden\b/,
+    /invalid\s+(?:auth(?:entication)?\s+)?token/,
+    /token\s+(?:is\s+)?invalid/,
+    /expired\s+(?:auth(?:entication)?\s+)?token/,
+    /expired\s+session/,
+    /session\s+expired/,
+    /invalid\s+session/,
+    /missing\s+authentication\s+token/,
+    /authentication\s+required/,
+    /not\s+authenticated/,
+    /permission\s+denied/
+  ];
+
+  return authErrorPatterns.some(pattern => pattern.test(message));
 }
