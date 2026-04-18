@@ -47,7 +47,8 @@ const Receipts = {
     total: 0,
     kpiFilter: 'total',
     selectedReceipt: null,
-    items: []
+    items: [],
+    saveInFlight: false
   },
   toNumberSafe(value) {
     const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -213,6 +214,24 @@ const Receipts = {
       return true;
     });
   },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeReceipt(row);
+    const idx = this.state.rows.findIndex(item => String(item.receipt_id || '') === String(normalized.receipt_id || ''));
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.rerenderVisibleTable();
+    return normalized;
+  },
+  removeLocalRow(id) {
+    const before = this.state.rows.length;
+    this.state.rows = this.state.rows.filter(item => String(item.receipt_id || '') !== String(id || ''));
+    if (this.state.rows.length !== before) this.rerenderVisibleTable();
+  },
+  rerenderVisibleTable() {
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
+  },
   matchesKpiFilter(row = {}) {
     const filter = this.state.kpiFilter || 'total';
     const status = this.normalizeText(row?.status);
@@ -356,6 +375,12 @@ const Receipts = {
       E.receiptFormModal.setAttribute('aria-hidden', 'true');
     }
   },
+  setFormBusy(value) {
+    const busy = !!value;
+    if (E.receiptFormSaveBtn) E.receiptFormSaveBtn.disabled = busy;
+    if (E.receiptFormDeleteBtn) E.receiptFormDeleteBtn.disabled = busy;
+    if (E.receiptFormPreviewBtn) E.receiptFormPreviewBtn.disabled = busy;
+  },
   async openReceiptById(receiptId, { readOnly = false } = {}) {
     if (!receiptId) return;
     try {
@@ -390,6 +415,7 @@ const Receipts = {
     };
   },
   async saveForm() {
+    if (this.state.saveInFlight) return;
     const id = String(E.receiptForm?.dataset.id || '').trim();
     if (!id) return;
     const updates = this.collectUpdates();
@@ -404,26 +430,42 @@ const Receipts = {
       UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Receipt save blocked.'));
       return;
     }
+    this.state.saveInFlight = true;
+    this.setFormBusy(true);
+    console.time('entity-save');
     try {
-      await Api.updateReceipt(id, updates);
+      const response = await Api.updateReceipt(id, updates);
+      const parsed = this.extractReceiptAndItems(response, id);
+      const persisted = parsed?.receipt?.receipt_id ? parsed.receipt : { ...updates, receipt_id: id };
+      const normalized = this.upsertLocalRow(persisted);
+      if (normalized?.receipt_id && this.state.selectedReceipt?.receipt_id === normalized.receipt_id) {
+        this.state.selectedReceipt = normalized;
+        this.state.items = parsed?.items || this.state.items;
+      }
       UI.toast(`Receipt ${id} saved.`);
       this.closeForm();
-      await this.refresh(true);
     } catch (error) {
       UI.toast('Unable to save receipt: ' + (error?.message || 'Unknown error'));
+    } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
+      this.setFormBusy(false);
     }
   },
   async deleteReceipt(receiptId) {
     const id = String(receiptId || '').trim();
     if (!id) return;
     if (!window.confirm(`Delete receipt ${id}? This cannot be undone.`)) return;
+    this.setFormBusy(true);
     try {
       await Api.deleteReceipt(id);
+      this.removeLocalRow(id);
       UI.toast(`Receipt ${id} deleted.`);
-      await this.refresh(true);
       if (String(E.receiptForm?.dataset.id || '').trim() === id) this.closeForm();
     } catch (error) {
       UI.toast('Unable to delete receipt: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setFormBusy(false);
     }
   },
   formatReceiptPreviewHtml(html) {
