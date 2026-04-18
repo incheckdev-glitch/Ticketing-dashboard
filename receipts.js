@@ -48,7 +48,11 @@ const Receipts = {
     kpiFilter: 'total',
     selectedReceipt: null,
     items: [],
-    saveInFlight: false
+    saveInFlight: false,
+    detailCacheById: {},
+    detailCacheTtlMs: 90 * 1000,
+    openingReceiptIds: new Set(),
+    rowActionInFlight: new Set()
   },
   toNumberSafe(value) {
     const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -200,6 +204,49 @@ const Receipts = {
       receipt: this.normalizeReceipt(receipt || { receipt_id: fallbackId }),
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
+  },
+  getCachedDetail(id) {
+    const key = String(id || '').trim();
+    if (!key) return null;
+    const cached = this.state.detailCacheById[key];
+    if (!cached) return null;
+    if (Date.now() - Number(cached.cachedAt || 0) > this.state.detailCacheTtlMs) return null;
+    return cached;
+  },
+  setCachedDetail(id, receipt, items) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    this.state.detailCacheById[key] = {
+      receipt: this.normalizeReceipt(receipt || { receipt_id: key }),
+      items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [],
+      cachedAt: Date.now()
+    };
+  },
+  setTriggerBusy(trigger, busy) {
+    if (!trigger || !('disabled' in trigger)) return;
+    trigger.disabled = !!busy;
+  },
+  setFormDetailLoading(loading) {
+    if (!E.receiptForm) return;
+    if (loading) E.receiptForm.setAttribute('data-detail-loading', 'true');
+    else E.receiptForm.removeAttribute('data-detail-loading');
+    if (E.receiptFormTitle) {
+      const baseTitle = String(E.receiptFormTitle.textContent || '').replace(/\s+\u00b7\s+Loading details…$/, '').trim();
+      E.receiptFormTitle.textContent = loading ? `${baseTitle || 'Receipt'} · Loading details…` : baseTitle;
+    }
+  },
+  async runRowAction(actionKey, trigger, fn) {
+    const key = String(actionKey || '').trim();
+    if (!key) return;
+    if (this.state.rowActionInFlight.has(key)) return;
+    this.state.rowActionInFlight.add(key);
+    this.setTriggerBusy(trigger, true);
+    try {
+      await fn();
+    } finally {
+      this.state.rowActionInFlight.delete(key);
+      this.setTriggerBusy(trigger, false);
+    }
   },
   applyFilters() {
     const q = this.normalizeText(this.state.search);
@@ -381,16 +428,39 @@ const Receipts = {
     if (E.receiptFormDeleteBtn) E.receiptFormDeleteBtn.disabled = busy;
     if (E.receiptFormPreviewBtn) E.receiptFormPreviewBtn.disabled = busy;
   },
-  async openReceiptById(receiptId, { readOnly = false } = {}) {
-    if (!receiptId) return;
+  async openReceiptById(receiptId, { readOnly = false, trigger = null } = {}) {
+    const id = String(receiptId || '').trim();
+    if (!id) return;
+    if (this.state.openingReceiptIds.has(id)) return;
+    this.state.openingReceiptIds.add(id);
+    this.setTriggerBusy(trigger, true);
+    console.time('receipt-open');
+    const localSummary = this.state.rows.find(row => String(row.receipt_id || '').trim() === id);
+    this.populateForm(localSummary ? { ...localSummary, receipt_id: id } : { receipt_id: id }, [], readOnly);
+    this.setFormDetailLoading(true);
     try {
-      const response = await Api.getReceipt(receiptId);
-      const { receipt, items } = this.extractReceiptAndItems(response, receiptId);
+      const cached = this.getCachedDetail(id);
+      if (cached) {
+        this.state.selectedReceipt = cached.receipt;
+        this.state.items = cached.items;
+        this.populateForm(cached.receipt, cached.items, readOnly);
+        return;
+      }
+      const response = await Api.getReceipt(id);
+      const { receipt, items } = this.extractReceiptAndItems(response, id);
+      this.setCachedDetail(id, receipt, items);
       this.state.selectedReceipt = receipt;
       this.state.items = items;
-      this.populateForm(receipt, items, readOnly);
+      if (String(E.receiptForm?.dataset.id || '').trim() === id) {
+        this.populateForm(receipt, items, readOnly);
+      }
     } catch (error) {
       UI.toast('Unable to load receipt: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.state.openingReceiptIds.delete(id);
+      this.setTriggerBusy(trigger, false);
+      this.setFormDetailLoading(false);
+      console.timeEnd('receipt-open');
     }
   },
   collectUpdates() {
@@ -438,6 +508,7 @@ const Receipts = {
       const parsed = this.extractReceiptAndItems(response, id);
       const persisted = parsed?.receipt?.receipt_id ? parsed.receipt : { ...updates, receipt_id: id };
       const normalized = this.upsertLocalRow(persisted);
+      this.setCachedDetail(normalized?.receipt_id || id, persisted, parsed?.items || this.state.items);
       if (normalized?.receipt_id && this.state.selectedReceipt?.receipt_id === normalized.receipt_id) {
         this.state.selectedReceipt = normalized;
         this.state.items = parsed?.items || this.state.items;
@@ -459,6 +530,7 @@ const Receipts = {
     this.setFormBusy(true);
     try {
       await Api.deleteReceipt(id);
+      delete this.state.detailCacheById[id];
       this.removeLocalRow(id);
       UI.toast(`Receipt ${id} deleted.`);
       if (String(E.receiptForm?.dataset.id || '').trim() === id) this.closeForm();
@@ -607,13 +679,13 @@ const Receipts = {
         const trigger = event.target?.closest?.('button[data-receipt-view],button[data-receipt-edit],button[data-receipt-preview],button[data-receipt-delete]');
         if (!trigger) return;
         const viewId = trigger.getAttribute('data-receipt-view');
-        if (viewId) return this.openReceiptById(viewId, { readOnly: true });
+        if (viewId) return this.runRowAction(`view:${viewId}`, trigger, () => this.openReceiptById(viewId, { readOnly: true, trigger }));
         const editId = trigger.getAttribute('data-receipt-edit');
-        if (editId) return this.openReceiptById(editId, { readOnly: false });
+        if (editId) return this.runRowAction(`edit:${editId}`, trigger, () => this.openReceiptById(editId, { readOnly: false, trigger }));
         const previewId = trigger.getAttribute('data-receipt-preview');
-        if (previewId) return this.previewReceipt(previewId);
+        if (previewId) return this.runRowAction(`preview:${previewId}`, trigger, () => this.previewReceipt(previewId));
         const deleteId = trigger.getAttribute('data-receipt-delete');
-        if (deleteId) return this.deleteReceipt(deleteId);
+        if (deleteId) return this.runRowAction(`delete:${deleteId}`, trigger, () => this.deleteReceipt(deleteId));
       });
     }
     if (E.receiptForm) {

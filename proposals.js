@@ -54,7 +54,11 @@ const Proposals = {
     currentProposalId: '',
     currentItems: [],
     catalogLoading: false,
-    saveInFlight: false
+    saveInFlight: false,
+    detailCacheById: {},
+    detailCacheTtlMs: 90 * 1000,
+    openingProposalIds: new Set(),
+    rowActionInFlight: new Set()
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -284,6 +288,49 @@ const Proposals = {
       proposal: this.normalizeProposal(proposal || { proposal_id: fallbackId }),
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
+  },
+  getCachedDetail(id) {
+    const cacheKey = String(id || '').trim();
+    if (!cacheKey) return null;
+    const cached = this.state.detailCacheById[cacheKey];
+    if (!cached) return null;
+    if (Date.now() - Number(cached.cachedAt || 0) > this.state.detailCacheTtlMs) return null;
+    return cached;
+  },
+  setCachedDetail(id, proposal, items) {
+    const cacheKey = String(id || '').trim();
+    if (!cacheKey) return;
+    this.state.detailCacheById[cacheKey] = {
+      proposal: this.normalizeProposal(proposal || { proposal_id: cacheKey }),
+      items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [],
+      cachedAt: Date.now()
+    };
+  },
+  setTriggerBusy(trigger, busy) {
+    if (!trigger || !('disabled' in trigger)) return;
+    trigger.disabled = !!busy;
+  },
+  setFormDetailLoading(loading) {
+    if (!E.proposalForm) return;
+    if (loading) E.proposalForm.setAttribute('data-detail-loading', 'true');
+    else E.proposalForm.removeAttribute('data-detail-loading');
+    if (E.proposalFormTitle) {
+      const baseTitle = String(E.proposalFormTitle.textContent || '').replace(/\s+\u00b7\s+Loading details…$/, '').trim();
+      E.proposalFormTitle.textContent = loading ? `${baseTitle || 'Proposal'} · Loading details…` : baseTitle;
+    }
+  },
+  async runRowAction(actionKey, trigger, fn) {
+    const key = String(actionKey || '').trim();
+    if (!key) return;
+    if (this.state.rowActionInFlight.has(key)) return;
+    this.state.rowActionInFlight.add(key);
+    this.setTriggerBusy(trigger, true);
+    try {
+      await fn();
+    } finally {
+      this.state.rowActionInFlight.delete(key);
+      this.setTriggerBusy(trigger, false);
+    }
   },
   async listProposals(options = {}) {
     return Api.postAuthenticatedCached(
@@ -1043,18 +1090,43 @@ const Proposals = {
     if (E.proposalOneTimeTotal) E.proposalOneTimeTotal.textContent = this.formatMoney(oneTimeTotal);
     if (E.proposalGrandTotal) E.proposalGrandTotal.textContent = this.formatMoney(grandTotal);
   },
-  async openProposalFormById(proposalId, { readOnly = false } = {}) {
-    if (!proposalId) return;
+  async openProposalFormById(proposalId, { readOnly = false, trigger = null } = {}) {
+    const id = String(proposalId || '').trim();
+    if (!id) return;
+    if (this.state.openingProposalIds.has(id)) return;
+    this.state.openingProposalIds.add(id);
+    this.setTriggerBusy(trigger, true);
+    console.time('proposal-open');
+    const localSummary = this.state.rows.find(row => String(row.proposal_id || '').trim() === id);
+    this.openProposalForm(
+      localSummary ? { ...this.emptyProposal(), ...localSummary, proposal_id: id } : { proposal_id: id },
+      [],
+      { readOnly }
+    );
+    this.setFormDetailLoading(true);
     try {
-      const response = await this.getProposal(proposalId);
-      const { proposal, items } = this.extractProposalAndItems(response, proposalId);
-      this.openProposalForm(proposal, items, { readOnly });
+      const cached = this.getCachedDetail(id);
+      if (cached) {
+        this.openProposalForm(cached.proposal, cached.items, { readOnly });
+        return;
+      }
+      const response = await this.getProposal(id);
+      const { proposal, items } = this.extractProposalAndItems(response, id);
+      this.setCachedDetail(id, proposal, items);
+      if (String(E.proposalForm?.dataset.id || '').trim() === id) {
+        this.openProposalForm(proposal, items, { readOnly });
+      }
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
         return;
       }
       UI.toast('Unable to load proposal details: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.state.openingProposalIds.delete(id);
+      this.setTriggerBusy(trigger, false);
+      this.setFormDetailLoading(false);
+      console.timeEnd('proposal-open');
     }
   },
   openProposalForm(proposal = null, items = [], { readOnly = false } = {}) {
@@ -1149,7 +1221,10 @@ const Proposals = {
       }
 
       const parsed = this.extractProposalAndItems(response, proposalId);
-      if (parsed?.proposal) this.upsertLocalRow(parsed.proposal);
+      if (parsed?.proposal) {
+        this.upsertLocalRow(parsed.proposal);
+        this.setCachedDetail(parsed.proposal.proposal_id || proposalId, parsed.proposal, parsed.items);
+      }
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
       if (parsed?.proposal) this.openProposalForm(parsed.proposal, parsed.items, { readOnly: false });
       else this.closeProposalForm();
@@ -1177,6 +1252,7 @@ const Proposals = {
     this.setFormBusy(true);
     try {
       await this.deleteProposal(proposalId);
+      delete this.state.detailCacheById[String(proposalId || '').trim()];
       this.removeLocalRow(proposalId);
       UI.toast('Proposal deleted.');
       this.closeProposalForm();
@@ -1358,20 +1434,25 @@ const Proposals = {
     if (E.proposalsTbody) {
       E.proposalsTbody.addEventListener('click', event => {
         const getActionValue = action => event.target?.closest?.(`[${action}]`)?.getAttribute(action) || '';
+        const trigger = event.target?.closest?.('button');
         const viewId = getActionValue('data-proposal-view');
         if (viewId) {
-          this.openProposalFormById(viewId, { readOnly: true });
+          this.runRowAction(`view:${viewId}`, trigger, () =>
+            this.openProposalFormById(viewId, { readOnly: true, trigger })
+          );
           return;
         }
         const editId = getActionValue('data-proposal-edit');
         if (editId) {
           if (!Permissions.canUpdateProposal()) return UI.toast('You do not have permission to edit proposals.');
-          this.openProposalFormById(editId, { readOnly: false });
+          this.runRowAction(`edit:${editId}`, trigger, () =>
+            this.openProposalFormById(editId, { readOnly: false, trigger })
+          );
           return;
         }
         const previewId = getActionValue('data-proposal-preview');
         if (previewId) {
-          this.previewProposalHtml(previewId);
+          this.runRowAction(`preview:${previewId}`, trigger, () => this.previewProposalHtml(previewId));
           return;
         }
         const convertAgreementId = getActionValue('data-proposal-convert-agreement');
@@ -1385,7 +1466,7 @@ const Proposals = {
           return;
         }
         const deleteId = getActionValue('data-proposal-delete');
-        if (deleteId) this.deleteById(deleteId);
+        if (deleteId) this.runRowAction(`delete:${deleteId}`, trigger, () => this.deleteById(deleteId));
       });
     }
     const proposalsAnalyticsGrid = document.getElementById('proposalsAnalyticsGrid');
