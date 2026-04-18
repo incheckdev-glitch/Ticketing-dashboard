@@ -78,6 +78,15 @@ const Receipts = {
     normalized.status = String(normalized.status || '').trim() || 'Issued';
     return normalized;
   },
+  isSettlementReceipt(receipt = {}) {
+    const status = this.normalizeText(receipt?.status);
+    const pendingAmount = this.toNumberSafe(receipt?.pending_amount);
+    const paymentState = this.normalizeText(receipt?.payment_state);
+    return status === 'settlement' || receipt?.is_settlement === true || pendingAmount === 0 || paymentState === 'fully paid';
+  },
+  receiptTypeLabel(receipt = {}) {
+    return this.isSettlementReceipt(receipt) ? 'Settlement' : 'Receipt';
+  },
   normalizeItem(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const pick = (...values) => values.find(v => v !== undefined && v !== null && String(v).trim() !== '') || '';
@@ -340,8 +349,10 @@ const Receipts = {
     E.receiptsTbody.innerHTML = rows
       .map(row => {
         const id = U.escapeAttr(row.receipt_id || '');
+        const typeLabel = this.receiptTypeLabel(row);
+        const settlementBadge = this.isSettlementReceipt(row) ? ' <span class="pill">Settlement</span>' : '';
         return `<tr>
-          <td>${U.escapeHtml(row.receipt_number || row.receipt_id || '—')}</td>
+          <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span>${U.escapeHtml(row.receipt_number || row.receipt_id || '—')}</span><span class="pill">${U.escapeHtml(typeLabel)}</span>${settlementBadge}</div></td>
           <td>${U.escapeHtml(row.invoice_number || '—')}</td>
           <td>${U.escapeHtml(row.customer_name || '—')}</td>
           <td>${U.escapeHtml(row.receipt_date || '—')}</td>
@@ -513,6 +524,7 @@ const Receipts = {
         this.state.selectedReceipt = normalized;
         this.state.items = parsed?.items || this.state.items;
       }
+      await window.Invoices?.syncAfterReceiptMutation?.({ invoiceId: normalized?.invoice_id || persisted?.invoice_id, receipt: normalized });
       UI.toast(`Receipt ${id} saved.`);
       this.closeForm();
     } catch (error) {
@@ -529,9 +541,15 @@ const Receipts = {
     if (!window.confirm(`Delete receipt ${id}? This cannot be undone.`)) return;
     this.setFormBusy(true);
     try {
+      const deletedInvoiceId = String(
+        this.state.rows.find(row => String(row.receipt_id || '').trim() === id)?.invoice_id ||
+          this.state.selectedReceipt?.invoice_id ||
+          ''
+      ).trim();
       await Api.deleteReceipt(id);
       delete this.state.detailCacheById[id];
       this.removeLocalRow(id);
+      if (deletedInvoiceId) await window.Invoices?.syncAfterReceiptMutation?.({ invoiceId: deletedInvoiceId });
       UI.toast(`Receipt ${id} deleted.`);
       if (String(E.receiptForm?.dataset.id || '').trim() === id) this.closeForm();
     } catch (error) {

@@ -44,7 +44,9 @@ const Invoices = {
     saveInFlight: false,
     detailCacheById: {},
     detailCacheTtlMs: 90 * 1000,
+    receiptsByInvoiceId: {},
     openingInvoiceIds: new Set(),
+    loadingInvoiceReceiptIds: new Set(),
     rowActionInFlight: new Set()
   },
   statusOptions: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
@@ -63,6 +65,122 @@ const Invoices = {
   canCreateReceiptFromInvoice(invoice = {}) {
     const status = this.normalizeText(invoice?.status || '');
     return ['paid', 'partially paid', 'received'].includes(status);
+  },
+  isSettlementReceipt(receipt = {}) {
+    const status = this.normalizeText(receipt?.status);
+    const paymentState = this.normalizeText(receipt?.payment_state);
+    const pendingAmount = this.toNumberSafe(receipt?.pending_amount);
+    return status === 'settlement' || receipt?.is_settlement === true || pendingAmount === 0 || paymentState === 'fully paid';
+  },
+  receiptTypeLabel(receipt = {}) {
+    return this.isSettlementReceipt(receipt) ? 'Settlement' : 'Receipt';
+  },
+  sortReceiptsAscending(receipts = []) {
+    const toTs = value => {
+      const raw = String(value || '').trim();
+      if (!raw) return Number.MAX_SAFE_INTEGER;
+      const parsed = new Date(raw);
+      const ts = parsed.getTime();
+      return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+    };
+    return [...receipts].sort((a, b) => {
+      const aTs = toTs(a.receipt_date || a.created_at);
+      const bTs = toTs(b.receipt_date || b.created_at);
+      if (aTs !== bTs) return aTs - bTs;
+      return String(a.receipt_id || '').localeCompare(String(b.receipt_id || ''));
+    });
+  },
+  getInvoiceReceipts(invoiceId) {
+    const key = String(invoiceId || '').trim();
+    if (!key) return [];
+    const rows = this.state.receiptsByInvoiceId[key];
+    return Array.isArray(rows) ? rows : [];
+  },
+  setInvoiceReceipts(invoiceId, receipts = []) {
+    const key = String(invoiceId || '').trim();
+    if (!key) return [];
+    const normalized = receipts
+      .map(receipt =>
+        window.Receipts?.normalizeReceipt
+          ? window.Receipts.normalizeReceipt(receipt)
+          : { ...(receipt || {}), receipt_id: String(receipt?.receipt_id || '').trim() }
+      )
+      .filter(receipt => String(receipt?.receipt_id || '').trim());
+    const dedupedById = [];
+    const seen = new Set();
+    normalized.forEach(receipt => {
+      const receiptId = String(receipt.receipt_id || '').trim();
+      if (!receiptId || seen.has(receiptId)) return;
+      seen.add(receiptId);
+      dedupedById.push(receipt);
+    });
+    this.state.receiptsByInvoiceId[key] = this.sortReceiptsAscending(dedupedById);
+    return this.state.receiptsByInvoiceId[key];
+  },
+  appendInvoiceReceipt(invoiceId, receipt) {
+    const key = String(invoiceId || '').trim();
+    if (!key || !receipt) return [];
+    const existing = this.getInvoiceReceipts(key);
+    return this.setInvoiceReceipts(key, [...existing, receipt]);
+  },
+  renderInvoiceReceipts(invoice = this.state.selectedInvoice) {
+    if (!E.invoiceReceiptsTbody || !E.invoiceReceiptsState) return;
+    const invoiceId = String(invoice?.invoice_id || '').trim();
+    if (!invoiceId) {
+      E.invoiceReceiptsState.textContent = 'Save invoice to attach receipts.';
+      E.invoiceReceiptsTbody.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;">No receipts linked yet.</td></tr>';
+      return;
+    }
+    if (this.state.loadingInvoiceReceiptIds.has(invoiceId)) {
+      E.invoiceReceiptsState.textContent = 'Loading linked receipts…';
+      E.invoiceReceiptsTbody.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;">Loading linked receipts…</td></tr>';
+      return;
+    }
+    const receipts = this.getInvoiceReceipts(invoiceId);
+    E.invoiceReceiptsState.textContent = receipts.length
+      ? `${receipts.length} receipt${receipts.length === 1 ? '' : 's'} linked to this invoice.`
+      : 'No receipts linked yet.';
+    if (!receipts.length) {
+      E.invoiceReceiptsTbody.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;">No receipts linked yet.</td></tr>';
+      return;
+    }
+    E.invoiceReceiptsTbody.innerHTML = receipts
+      .map(receipt => {
+        const type = this.receiptTypeLabel(receipt);
+        const showSettlementBadge = this.isSettlementReceipt(receipt);
+        return `<tr>
+          <td><span class="pill">${U.escapeHtml(type)}</span>${showSettlementBadge ? ' <span class="pill">Settlement</span>' : ''}</td>
+          <td>${U.escapeHtml(receipt.receipt_number || receipt.receipt_id || '—')}</td>
+          <td>${U.escapeHtml(receipt.receipt_date || '—')}</td>
+          <td>${this.formatMoney(receipt.received_amount || receipt.grand_total)}</td>
+          <td>${this.formatMoney(receipt.pending_amount)}</td>
+          <td>${U.escapeHtml(receipt.payment_state || '—')}</td>
+          <td>${U.escapeHtml(receipt.status || '—')}</td>
+        </tr>`;
+      })
+      .join('');
+  },
+  syncPaymentConclusion(invoice = this.state.selectedInvoice) {
+    if (!E.invoicePaymentConclusion) return;
+    const pending = this.toNumberSafe(invoice?.pending_amount);
+    E.invoicePaymentConclusion.textContent = pending === 0 ? 'Settlement Completed' : 'Pending Settlement';
+  },
+  async refreshInvoiceReceipts(invoiceId, { force = false } = {}) {
+    const id = String(invoiceId || '').trim();
+    if (!id) return;
+    if (this.state.loadingInvoiceReceiptIds.has(id)) return;
+    this.state.loadingInvoiceReceiptIds.add(id);
+    this.renderInvoiceReceipts(this.state.selectedInvoice);
+    try {
+      const response = await Api.listReceipts({ invoice_id: id }, { page: 1, limit: 100, summary_only: true, forceRefresh: force });
+      const rows = window.Receipts?.extractRows ? window.Receipts.extractRows(response) : [];
+      this.setInvoiceReceipts(id, rows.filter(row => String(row?.invoice_id || '').trim() === id));
+    } catch (_error) {
+      // Keep existing linked receipts visible.
+    } finally {
+      this.state.loadingInvoiceReceiptIds.delete(id);
+      this.renderInvoiceReceipts(this.state.selectedInvoice);
+    }
   },
   normalizeInvoice(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -511,8 +629,8 @@ const Invoices = {
     if (status === 'Paid') amountPaid = grandTotal;
     amountPaid = Math.max(0, Math.min(amountPaid, grandTotal));
 
-    const showAmountPaid = status === 'Partially Paid' || status === 'Paid' || amountPaid > 0;
-    if (wrap) wrap.style.display = showAmountPaid ? '' : 'none';
+    const showAmountPaid = true;
+    if (wrap) wrap.style.display = '';
     if (amountPaidInput) {
       amountPaidInput.value = amountPaid;
       amountPaidInput.readOnly = status === 'Paid';
@@ -521,10 +639,11 @@ const Invoices = {
 
     const pendingAmount = Math.max(0, grandTotal - amountPaid);
     if (pendingInput) pendingInput.value = pendingAmount;
-    if (pendingWrap) pendingWrap.style.display = showAmountPaid || pendingAmount > 0 ? '' : 'none';
+    if (pendingWrap) pendingWrap.style.display = '';
 
     const paymentState = amountPaid >= grandTotal && grandTotal > 0 ? 'Fully Paid' : amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
     if (E.invoiceFormPaymentState) E.invoiceFormPaymentState.value = paymentState;
+    this.syncPaymentConclusion({ pending_amount: pendingAmount });
   },
   applyFilters() {
     const terms = String(this.state.search || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -889,6 +1008,9 @@ const Invoices = {
       this.applyTotalsToForm(this.calculateInvoiceTotals(this.state.items));
     }
     this.syncPaymentFieldsInForm();
+    this.syncPaymentConclusion(this.state.selectedInvoice);
+    this.renderInvoiceReceipts(this.state.selectedInvoice);
+    if (this.state.selectedInvoice.invoice_id) this.refreshInvoiceReceipts(this.state.selectedInvoice.invoice_id);
     E.invoiceForm.dataset.id = this.state.selectedInvoice.invoice_id || '';
     if (E.invoiceFormTitle) {
       E.invoiceFormTitle.textContent = this.state.selectedInvoice.invoice_id
@@ -925,6 +1047,7 @@ const Invoices = {
     this.state.selectedInvoice = null;
     this.state.items = [];
     this.renderItems([]);
+    this.renderInvoiceReceipts({ invoice_id: '' });
   },
   setFormBusy(value) {
     const busy = !!value;
@@ -1222,9 +1345,36 @@ const Invoices = {
       const receiptId = String(receipt?.receipt_id || response?.receipt_id || response?.id || '').trim();
       UI.toast(receiptId ? `Receipt ${receiptId} created.` : 'Receipt created from invoice.');
       if (window.Receipts?.upsertLocalRow) window.Receipts.upsertLocalRow(receipt);
-      if (receiptId && window.Receipts?.previewReceipt) await window.Receipts.previewReceipt(receiptId);
+      this.appendInvoiceReceipt(id, receipt);
+      const selectedInvoiceId = String(E.invoiceForm?.dataset.id || '').trim();
+      if (selectedInvoiceId === id) await this.openInvoiceById(id, { readOnly: false });
+      else await this.refreshInvoiceReceipts(id, { force: true });
+      if (receiptId && window.Receipts?.openReceiptById) {
+        await window.Receipts.openReceiptById(receiptId, { readOnly: false });
+      }
     } catch (error) {
       UI.toast('Unable to create receipt: ' + (error?.message || 'Unknown error'));
+    }
+  },
+  async syncAfterReceiptMutation({ invoiceId, receipt = null } = {}) {
+    const id = String(invoiceId || receipt?.invoice_id || '').trim();
+    if (!id) return;
+    if (receipt?.receipt_id) this.appendInvoiceReceipt(id, receipt);
+    const selectedInvoiceId = String(E.invoiceForm?.dataset.id || '').trim();
+    if (selectedInvoiceId === id) {
+      await this.openInvoiceById(id, { readOnly: false });
+      return;
+    }
+    await this.refreshInvoiceReceipts(id, { force: true });
+    const summary = this.state.rows.find(row => String(row.invoice_id || '').trim() === id);
+    if (summary) {
+      try {
+        const response = await Api.getInvoice(id);
+        const parsed = this.extractInvoiceAndItems(response, id);
+        if (parsed?.invoice) this.upsertLocalRow(parsed.invoice);
+      } catch (_error) {
+        // Non-blocking summary refresh.
+      }
     }
   },
   async previewInvoice(invoiceId) {
