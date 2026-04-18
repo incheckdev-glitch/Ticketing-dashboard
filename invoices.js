@@ -92,6 +92,15 @@ const Invoices = {
     if (raw === 'capability') return 'capability';
     return raw;
   },
+  normalizeDateInputValue(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const prefixMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (prefixMatch) return prefixMatch[1];
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw;
+    return parsed.toISOString().slice(0, 10);
+  },
   normalizeItem(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const pick = (...values) => {
@@ -109,8 +118,8 @@ const Invoices = {
       line_no: this.toNumberSafe(pick(source.line_no, source.lineNo, source.line)) || 0,
       location_name: String(pick(source.location_name, source.locationName)).trim(),
       location_address: String(pick(source.location_address, source.locationAddress)).trim(),
-      service_start_date: String(pick(source.service_start_date, source.serviceStartDate)).trim(),
-      service_end_date: String(pick(source.service_end_date, source.serviceEndDate)).trim(),
+      service_start_date: this.normalizeDateInputValue(pick(source.service_start_date, source.serviceStartDate)),
+      service_end_date: this.normalizeDateInputValue(pick(source.service_end_date, source.serviceEndDate)),
       item_name: String(pick(source.item_name, source.itemName, source.name)).trim(),
       unit_price: this.toNumberSafe(pick(source.unit_price, source.unitPrice)),
       discount_percent: this.toNumberSafe(pick(source.discount_percent, source.discountPercent)),
@@ -759,7 +768,12 @@ const Invoices = {
   assignFormValues(invoice = {}) {
     const set = (id, value) => {
       const el = document.getElementById(id);
-      if (el) el.value = value ?? '';
+      if (!el) return;
+      const safeValue =
+        el.type === 'date'
+          ? this.normalizeDateInputValue(value)
+          : value ?? '';
+      el.value = safeValue;
     };
     this.invoiceFields.forEach(field => {
       const id = `invoiceForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
