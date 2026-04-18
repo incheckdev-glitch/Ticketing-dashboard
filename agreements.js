@@ -100,7 +100,7 @@ const Agreements = {
     normalized.agreement_title = String(normalized.agreement_title || '').trim();
     normalized.customer_name = String(normalized.customer_name || '').trim();
     normalized.status = String(normalized.status || '').trim() || 'Draft';
-    normalized.currency = String(normalized.currency || '').trim() || 'USD';
+    normalized.currency = String(normalized.currency || '').trim();
     return normalized;
   },
   normalizeOperationsOnboarding(raw = {}) {
@@ -174,7 +174,7 @@ const Agreements = {
     return {
       agreement_id: '', agreement_number: '', proposal_id: '', deal_id: '', lead_id: '', agreement_title: '',
       agreement_date: '', effective_date: '', service_start_date: '', agreement_length: '', account_number: '',
-      billing_frequency: '', payment_term: '', po_number: '', currency: 'USD', customer_name: '',
+      billing_frequency: '', payment_term: '', po_number: '', currency: '', customer_name: '',
       customer_legal_name: '', customer_address: '', customer_contact_name: '', customer_contact_mobile: '',
       customer_contact_email: '', provider_name: '', provider_legal_name: '', provider_address: '',
       provider_contact_name: '', provider_contact_mobile: '', provider_contact_email: '', status: 'Draft',
@@ -682,7 +682,7 @@ const Agreements = {
       const inputId = `agreementForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
       agreement[field] = v(inputId);
     });
-    agreement.account_number = this.ensureAccountNumber(agreement.account_number);
+    agreement.account_number = String(agreement.account_number || '').trim();
     const items = this.collectItems();
     const totals = this.calculateTotals(items);
     agreement.saas_total = totals.saas_total;
@@ -770,7 +770,7 @@ const Agreements = {
     };
     this.agreementFields.forEach(field => {
       const id = `agreementForm${field.replace(/(^|_)([a-z])/g, (_, __, ch) => ch.toUpperCase())}`;
-      set(id, agreement[field] || '');
+      set(id, agreement[field] ?? '');
     });
   },
   setFormReadOnly(readOnly) {
@@ -792,10 +792,6 @@ const Agreements = {
     this.renderItemRows(items);
     E.agreementForm.dataset.id = agreement.agreement_id || '';
     E.agreementForm.dataset.mode = agreement.agreement_id ? 'edit' : 'create';
-    if (!readOnly && !agreement.agreement_id) {
-      const accountNumberEl = document.getElementById('agreementFormAccountNumber');
-      if (accountNumberEl) accountNumberEl.value = this.ensureAccountNumber(accountNumberEl.value);
-    }
     if (E.agreementFormTitle) E.agreementFormTitle.textContent = agreement.agreement_id ? (readOnly ? 'View Agreement' : 'Edit Agreement') : 'Create Agreement';
     if (E.agreementFormDeleteBtn) E.agreementFormDeleteBtn.style.display = !readOnly && agreement.agreement_id && Permissions.canDeleteAgreement() ? '' : 'none';
     if (E.agreementFormSaveBtn) {
@@ -1015,26 +1011,44 @@ const Agreements = {
       return;
     }
     try {
-      const response = await this.createAgreementFromProposal(id);
-      const { agreement, items } = this.extractAgreementAndItems(response);
-      const createdAgreementId = String(agreement?.agreement_id || '').trim();
-      if (createdAgreementId) {
-        this.upsertLocalRow(agreement);
-        this.setCachedDetail(createdAgreementId, agreement, items);
-        this.openAgreementForm(agreement, items, { readOnly: false });
-        UI.toast(
-          `Agreement ${createdAgreementId} created from proposal ${id}. Review, complete missing fields, and verify details before saving.`
-        );
-      } else {
-        this.openAgreementForm(
-          this.normalizeAgreement({ ...this.emptyAgreement(), proposal_id: id }),
-          items,
-          { readOnly: false }
-        );
-        UI.toast(
-          `Agreement template created from proposal ${id}. Complete missing fields and verify details before saving.`
-        );
-      }
+      const proposalResponse = await window.Proposals?.getProposal?.(id);
+      const extracted = window.Proposals?.extractProposalAndItems?.(proposalResponse, id) || {};
+      const proposal = extracted.proposal && typeof extracted.proposal === 'object'
+        ? extracted.proposal
+        : { proposal_id: id };
+      const proposalItems = Array.isArray(extracted.items) ? extracted.items : [];
+      const draftAgreement = this.normalizeAgreement({
+        ...this.emptyAgreement(),
+        proposal_id: String(proposal.proposal_id || id).trim(),
+        deal_id: String(proposal.deal_id || '').trim(),
+        lead_id: String(proposal.lead_id || '').trim(),
+        agreement_title: String(proposal.proposal_title || '').trim(),
+        service_start_date: String(proposal.service_start_date || '').trim(),
+        agreement_length: String(proposal.contract_term || '').trim(),
+        account_number: String(proposal.account_number || '').trim(),
+        billing_frequency: String(proposal.billing_frequency || '').trim(),
+        payment_term: String(proposal.payment_term || '').trim(),
+        po_number: String(proposal.po_number || '').trim(),
+        currency: String(proposal.currency || '').trim(),
+        customer_name: String(proposal.customer_name || '').trim(),
+        customer_address: String(proposal.customer_address || '').trim(),
+        customer_contact_name: String(proposal.customer_contact_name || '').trim(),
+        customer_contact_mobile: String(proposal.customer_contact_mobile || '').trim(),
+        customer_contact_email: String(proposal.customer_contact_email || '').trim(),
+        provider_contact_name: String(proposal.provider_contact_name || '').trim(),
+        provider_contact_mobile: String(proposal.provider_contact_mobile || '').trim(),
+        provider_contact_email: String(proposal.provider_contact_email || '').trim(),
+        terms_conditions: String(proposal.terms_conditions || '').trim(),
+        customer_signatory_name: String(proposal.customer_signatory_name || '').trim(),
+        customer_signatory_title: String(proposal.customer_signatory_title || '').trim(),
+        provider_signatory_name_primary: String(proposal.provider_signatory_name || '').trim(),
+        provider_signatory_title_primary: String(proposal.provider_signatory_title || '').trim()
+      });
+      const mappedItems = proposalItems.map(item => this.normalizeItem(item, item?.section || 'annual_saas'));
+      this.openAgreementForm(draftAgreement, mappedItems, { readOnly: false });
+      UI.toast(
+        `Agreement draft opened from proposal ${id}. Review mapped fields, complete missing details, and save when ready.`
+      );
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
