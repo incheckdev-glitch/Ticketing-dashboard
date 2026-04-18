@@ -83,6 +83,22 @@ const Agreements = {
   normalizeText(value) {
     return String(value ?? '').trim().toLowerCase();
   },
+  hasConflictError(error, conflictCode = '') {
+    const message = String(error?.message || '').toUpperCase();
+    const code = String(conflictCode || '').trim().toUpperCase();
+    return message.includes('HTTP 409') && (!code || message.includes(code));
+  },
+  markProposalAsConvertedToAgreement(proposalId, agreementId = '') {
+    const id = String(proposalId || '').trim();
+    if (!id || !window.Proposals?.state?.rows) return;
+    const proposal = window.Proposals.state.rows.find(row => String(row?.proposal_id || '').trim() === id);
+    if (!proposal) return;
+    window.Proposals.upsertLocalRow?.({
+      ...proposal,
+      agreement_id: String(agreementId || proposal.agreement_id || '').trim(),
+      status: String(proposal.status || '').trim() || 'Agreement Drafted'
+    });
+  },
   formatMoney(value) {
     const num = this.toNumberSafe(value);
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -913,12 +929,21 @@ const Agreements = {
       } catch (clientSyncError) {
         UI.toast(`Agreement saved, but client sync failed: ${clientSyncError?.message || 'Unknown error'}`);
       }
-      if (persistedAgreement) this.upsertLocalRow(persistedAgreement);
+      if (persistedAgreement) {
+        this.upsertLocalRow(persistedAgreement);
+        if (!id && persistedAgreement.proposal_id) {
+          this.markProposalAsConvertedToAgreement(persistedAgreement.proposal_id, persistedAgreementId);
+        }
+      }
       this.closeAgreementForm();
       UI.toast(id ? 'Agreement updated.' : 'Agreement created.');
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      if (this.hasConflictError(error, 'PROPOSAL_ALREADY_CONVERTED_TO_AGREEMENT')) {
+        UI.toast('This proposal has already been converted to an agreement.');
         return;
       }
       UI.toast('Unable to save agreement: ' + (error?.message || 'Unknown error'));
@@ -1010,12 +1035,21 @@ const Agreements = {
       UI.toast('Proposal ID is required.');
       return;
     }
+    const localProposal = window.Proposals?.state?.rows?.find(row => String(row?.proposal_id || '').trim() === id);
+    if (window.Proposals?.isAgreementAlreadyCreated?.(localProposal)) {
+      UI.toast('This proposal has already been converted to an agreement.');
+      return;
+    }
     try {
       const proposalResponse = await window.Proposals?.getProposal?.(id);
       const extracted = window.Proposals?.extractProposalAndItems?.(proposalResponse, id) || {};
       const proposal = extracted.proposal && typeof extracted.proposal === 'object'
         ? extracted.proposal
         : { proposal_id: id };
+      if (window.Proposals?.isAgreementAlreadyCreated?.(proposal)) {
+        UI.toast('This proposal has already been converted to an agreement.');
+        return;
+      }
       const proposalItems = Array.isArray(extracted.items) ? extracted.items : [];
       const draftAgreement = this.normalizeAgreement({
         ...this.emptyAgreement(),

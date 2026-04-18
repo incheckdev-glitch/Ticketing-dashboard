@@ -50,7 +50,8 @@ const Deals = {
     convertedFrom: '',
     convertedTo: '',
     kpiFilter: 'total',
-    saveInFlight: false
+    saveInFlight: false,
+    rowActionInFlight: new Set()
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -106,6 +107,7 @@ const Deals = {
       proposal_needed: this.normalizeBool(
         pick(source.proposal_needed, source.proposalNeeded, lead.proposal_needed, lead.proposalNeeded)
       ),
+      proposal_id: String(pick(source.proposal_id, source.proposalId, lead.proposal_id, lead.proposalId)).trim(),
       agreement_needed: this.normalizeBool(
         pick(source.agreement_needed, source.agreementNeeded, lead.agreement_needed, lead.agreementNeeded)
       ),
@@ -213,6 +215,15 @@ const Deals = {
   },
   canEditDelete() {
     return Permissions.canEditDeleteLead();
+  },
+  isProposalAlreadyCreated(row = {}) {
+    const proposalId = String(row?.proposal_id || '').trim();
+    if (proposalId) return true;
+    const stage = this.normalizeText(row?.stage);
+    const status = this.normalizeText(row?.status);
+    if (stage.includes('proposal')) return true;
+    if (status.includes('proposal created')) return true;
+    return false;
   },
   uniqueSorted(values = []) {
     return [...new Set(values.filter(Boolean).map(value => String(value).trim()))].sort((a, b) =>
@@ -652,11 +663,12 @@ const Deals = {
             `<button class="btn ghost sm" type="button" data-deal-delete="${U.escapeAttr(row.deal_id)}">Delete</button>`
           );
         }
-        if (row.deal_id) {
+        if (row.deal_id && !this.isProposalAlreadyCreated(row)) {
+          const inFlight = this.state.rowActionInFlight.has(`create-proposal:${row.deal_id}`);
           actionButtons.push(
             `<button class="btn ghost sm" type="button" data-deal-create-proposal="${U.escapeAttr(
               row.deal_id
-            )}">Create Proposal</button>`
+            )}" ${inFlight ? 'disabled' : ''}>Create Proposal</button>`
           );
         }
         const actions = actionButtons.length ? actionButtons.join(' ') : '<span class="muted">—</span>';
@@ -947,7 +959,18 @@ const Deals = {
         if (deleteId) this.deleteDealById(deleteId);
         const createProposalDealId = event.target?.getAttribute('data-deal-create-proposal');
         if (createProposalDealId && window.Proposals?.createFromDealFlow) {
-          Proposals.createFromDealFlow(createProposalDealId, { openAfterCreate: true });
+          const actionKey = `create-proposal:${createProposalDealId}`;
+          if (this.state.rowActionInFlight.has(actionKey)) return;
+          this.state.rowActionInFlight.add(actionKey);
+          const trigger = event.target?.closest?.('button');
+          if (trigger && 'disabled' in trigger) trigger.disabled = true;
+          Promise.resolve(
+            Proposals.createFromDealFlow(createProposalDealId, { openAfterCreate: true })
+          ).finally(() => {
+            this.state.rowActionInFlight.delete(actionKey);
+            if (trigger && 'disabled' in trigger) trigger.disabled = false;
+            this.render();
+          });
         }
       });
     }
