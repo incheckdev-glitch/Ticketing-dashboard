@@ -964,7 +964,7 @@ async function apiPost(payload = {}) {
   const action = String(requestBody?.action || '').trim();
 
   const controller = new AbortController();
-  const timeoutMs = 60000;
+  const timeoutMs = 20000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response;
