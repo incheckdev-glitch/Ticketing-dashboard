@@ -53,7 +53,8 @@ const Proposals = {
     formReadOnly: false,
     currentProposalId: '',
     currentItems: [],
-    catalogLoading: false
+    catalogLoading: false,
+    saveInFlight: false
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -1104,6 +1105,7 @@ const Proposals = {
     if (E.proposalFormPreviewBtn) E.proposalFormPreviewBtn.disabled = busy;
   },
   async submitForm() {
+    if (this.state.saveInFlight) return;
     const mode = E.proposalForm?.dataset.mode === 'edit' ? 'edit' : 'create';
     if (mode === 'edit' && !Permissions.canUpdateProposal()) {
       UI.toast('You do not have permission to update proposals.');
@@ -1136,6 +1138,8 @@ const Proposals = {
     }
 
     this.setFormBusy(true);
+    this.state.saveInFlight = true;
+    console.time('entity-save');
     try {
       let response;
       if (mode === 'edit' && proposalId) {
@@ -1145,16 +1149,10 @@ const Proposals = {
       }
 
       const parsed = this.extractProposalAndItems(response, proposalId);
-      const savedId = parsed.proposal?.proposal_id || proposalId;
       if (parsed?.proposal) this.upsertLocalRow(parsed.proposal);
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
-      this.rerenderVisibleTable();
-
-      if (savedId) {
-        await this.openProposalFormById(savedId);
-      } else {
-        this.closeProposalForm();
-      }
+      if (parsed?.proposal) this.openProposalForm(parsed.proposal, parsed.items, { readOnly: false });
+      else this.closeProposalForm();
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
@@ -1162,6 +1160,8 @@ const Proposals = {
       }
       UI.toast('Unable to save proposal: ' + (error?.message || 'Unknown error'));
     } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
       this.setFormBusy(false);
     }
   },

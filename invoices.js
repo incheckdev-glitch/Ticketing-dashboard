@@ -40,7 +40,8 @@ const Invoices = {
     kpiFilter: 'total',
     selectedInvoice: null,
     items: [],
-    catalogLoading: false
+    catalogLoading: false,
+    saveInFlight: false
   },
   statusOptions: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
   toNumberSafe(value) {
@@ -499,6 +500,24 @@ const Invoices = {
     this.applyFilters();
     this.render();
   },
+  upsertLocalRow(row) {
+    const normalized = this.normalizeInvoice(row);
+    const idx = this.state.rows.findIndex(item => String(item.invoice_id || '') === String(normalized.invoice_id || ''));
+    if (idx === -1) this.state.rows.unshift(normalized);
+    else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
+    this.rerenderVisibleTable();
+    return normalized;
+  },
+  removeLocalRow(id) {
+    const before = this.state.rows.length;
+    this.state.rows = this.state.rows.filter(item => String(item.invoice_id || '') !== String(id || ''));
+    if (this.state.rows.length !== before) this.rerenderVisibleTable();
+  },
+  rerenderVisibleTable() {
+    this.applyFilters();
+    this.renderFilters();
+    this.render();
+  },
   renderSummary() {
     if (!E.invoiceSummary) return;
     const rows = this.state.filteredRows;
@@ -838,6 +857,12 @@ const Invoices = {
     this.state.items = [];
     this.renderItems([]);
   },
+  setFormBusy(value) {
+    const busy = !!value;
+    if (E.invoiceFormSaveBtn) E.invoiceFormSaveBtn.disabled = busy;
+    if (E.invoiceFormDeleteBtn) E.invoiceFormDeleteBtn.disabled = busy;
+    if (E.invoiceFormPreviewBtn) E.invoiceFormPreviewBtn.disabled = busy;
+  },
   extractAgreementAndItems(response, fallbackId = '') {
     const parseJsonIfNeeded = value => {
       if (typeof value !== 'string') return value;
@@ -987,6 +1012,7 @@ const Invoices = {
     }
   },
   async saveForm() {
+    if (this.state.saveInFlight) return;
     const id = String(E.invoiceForm?.dataset.id || '').trim();
     const { invoice, items } = this.collectFormValues();
     if (!this.validateInvoice(invoice)) return;
@@ -1013,33 +1039,52 @@ const Invoices = {
       UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Invoice save blocked.'));
       return;
     }
+    this.state.saveInFlight = true;
+    this.setFormBusy(true);
+    console.time('entity-save');
     try {
+      let response;
       if (id) {
         if (!Permissions.canUpdateInvoice()) return UI.toast('You do not have permission to update invoices.');
-        await Api.updateInvoice(id, payloadInvoice, items);
+        response = await Api.updateInvoice(id, payloadInvoice, items);
         UI.toast('Invoice updated.');
       } else {
         if (!Permissions.canCreateInvoice()) return UI.toast('You do not have permission to create invoices.');
-        await Api.createInvoice(payloadInvoice, items);
+        response = await Api.createInvoice(payloadInvoice, items);
         UI.toast('Invoice created.');
       }
+      const parsed = this.extractInvoiceAndItems(response, id);
+      const persisted = parsed?.invoice?.invoice_id
+        ? parsed.invoice
+        : { ...payloadInvoice, invoice_id: id || payloadInvoice.invoice_id };
+      const normalized = this.upsertLocalRow(persisted);
+      if (normalized?.invoice_id && this.state.selectedInvoice?.invoice_id === normalized.invoice_id) {
+        this.state.selectedInvoice = normalized;
+        this.state.items = parsed?.items || items;
+      }
       this.closeForm();
-      await this.refresh(true);
     } catch (error) {
       UI.toast('Unable to save invoice: ' + (error?.message || 'Unknown error'));
+    } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
+      this.setFormBusy(false);
     }
   },
   async deleteInvoice(invoiceId) {
     if (!Permissions.canDeleteInvoice()) return UI.toast('Insufficient permissions to delete invoices.');
     const id = String(invoiceId || '').trim();
     if (!id || !window.confirm(`Delete invoice ${id}?`)) return;
+    this.setFormBusy(true);
     try {
       await Api.deleteInvoice(id);
+      this.removeLocalRow(id);
       UI.toast('Invoice deleted.');
       this.closeForm();
-      await this.refresh(true);
     } catch (error) {
       UI.toast('Unable to delete invoice: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.setFormBusy(false);
     }
   },
   async createReceiptFromInvoice(invoiceId) {
@@ -1071,7 +1116,7 @@ const Invoices = {
         response;
       const receiptId = String(receipt?.receipt_id || response?.receipt_id || response?.id || '').trim();
       UI.toast(receiptId ? `Receipt ${receiptId} created.` : 'Receipt created from invoice.');
-      if (window.Receipts?.refresh) await window.Receipts.refresh(true);
+      if (window.Receipts?.upsertLocalRow) window.Receipts.upsertLocalRow(receipt);
       if (receiptId && window.Receipts?.previewReceipt) await window.Receipts.previewReceipt(receiptId);
     } catch (error) {
       UI.toast('Unable to create receipt: ' + (error?.message || 'Unknown error'));

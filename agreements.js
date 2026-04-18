@@ -67,7 +67,8 @@ const Agreements = {
     formReadOnly: false,
     currentItems: [],
     currentAgreementId: '',
-    currentOnboarding: null
+    currentOnboarding: null,
+    saveInFlight: false
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -762,6 +763,11 @@ const Agreements = {
     this.renderOperationsSummary();
     this.renderItemRows([]);
   },
+  setFormBusy(busy) {
+    const inFlight = !!busy;
+    if (E.agreementFormSaveBtn) E.agreementFormSaveBtn.disabled = inFlight;
+    if (E.agreementFormDeleteBtn) E.agreementFormDeleteBtn.disabled = inFlight;
+  },
   addRow(section) {
     const items = this.collectItems();
     if (section === 'capability') items.push({ section: 'capability', capability_name: '', capability_value: '', notes: '' });
@@ -787,6 +793,7 @@ const Agreements = {
     }
   },
   async submitForm() {
+    if (this.state.saveInFlight) return;
     const id = String(E.agreementForm?.dataset.id || '').trim();
     if (id && !Permissions.canUpdateAgreement()) {
       UI.toast('You do not have permission to update agreements.');
@@ -810,6 +817,9 @@ const Agreements = {
       UI.toast(window.WorkflowEngine.composeDeniedMessage(workflowCheck, 'Agreement save blocked.'));
       return;
     }
+    this.state.saveInFlight = true;
+    this.setFormBusy(true);
+    console.time('entity-save');
     try {
       const saveResponse = id
         ? await this.updateAgreement(id, agreement, items)
@@ -830,6 +840,10 @@ const Agreements = {
         return;
       }
       UI.toast('Unable to save agreement: ' + (error?.message || 'Unknown error'));
+    } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
+      this.setFormBusy(false);
     }
   },
   async deleteById(agreementId) {

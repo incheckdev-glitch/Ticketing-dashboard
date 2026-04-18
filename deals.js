@@ -49,7 +49,8 @@ const Deals = {
     agreementNeeded: 'All',
     convertedFrom: '',
     convertedTo: '',
-    kpiFilter: 'total'
+    kpiFilter: 'total',
+    saveInFlight: false
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -799,6 +800,7 @@ const Deals = {
     };
   },
   async submitForm() {
+    if (this.state.saveInFlight) return;
     if (!this.canCreate()) {
       UI.toast('Login is required to manage deals.');
       return;
@@ -817,13 +819,12 @@ const Deals = {
     }
 
     this.setFormBusy(true);
+    this.state.saveInFlight = true;
+    console.time('entity-save');
     try {
       if (mode === 'edit') {
-        const latest = await this.getDeal(dealId);
-        const resolved = this.normalizeDeal(latest?.deal || latest?.data?.deal || latest || { deal_id: dealId });
-        const id = resolved.deal_id || dealId;
-        const response = await this.updateDeal(id, deal);
-        this.upsertLocalRow(response?.deal || response?.data?.deal || { ...deal, deal_id: id });
+        const response = await this.updateDeal(dealId, deal);
+        this.upsertLocalRow(response?.deal || response?.data?.deal || { ...deal, deal_id: dealId });
         UI.toast('Deal updated.');
       } else {
         const response = await this.createDeal(deal);
@@ -839,6 +840,8 @@ const Deals = {
       }
       UI.toast('Unable to save deal: ' + (error?.message || 'Unknown error'));
     } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
       this.setFormBusy(false);
     }
   },

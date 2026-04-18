@@ -24,7 +24,8 @@ const Leads = {
     createdFrom: '',
     createdTo: '',
     kpiFilter: 'total',
-    initialized: false
+    initialized: false,
+    saveInFlight: false
   },
   normalizeBool(value) {
     const normalized = String(value ?? '')
@@ -769,20 +770,9 @@ const Leads = {
     return Object.keys(b).every(key => a[key] === b[key]);
   },
   async updateLeadWithVerification(leadId, lead) {
-    try {
-      const response = await this.updateLead(leadId, lead);
-      const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
-      return { row: resolvedRow, verifiedAfterError: false };
-    } catch (error) {
-      if (isAuthError(error)) throw error;
-
-      const latest = await this.getLead(leadId).catch(() => null);
-      const latestLead = latest?.lead || latest?.data?.lead || latest || null;
-      if (latestLead && this.didLeadUpdatePersist(latestLead, lead)) {
-        return { row: latestLead, verifiedAfterError: true };
-      }
-      throw error;
-    }
+    const response = await this.updateLead(leadId, lead);
+    const resolvedRow = response?.lead || response?.data?.lead || { ...lead, lead_id: leadId };
+    return { row: resolvedRow, verifiedAfterError: false };
   },
   formatLeadActionError(error, { resource = 'leads', action = 'unknown' } = {}) {
     const statusMatch = String(error?.message || '').match(/\bHTTP\s+(\d{3})\b/i);
@@ -800,6 +790,7 @@ const Leads = {
     ].join(' ');
   },
   async submitForm() {
+    if (this.state.saveInFlight) return;
     if (!Permissions.canCreateLead()) {
       UI.toast('Login is required to manage leads.');
       return;
@@ -821,6 +812,8 @@ const Leads = {
     }
 
     this.setFormBusy(true);
+    this.state.saveInFlight = true;
+    console.time('entity-save');
     try {
       if (mode === 'edit') {
         const result = await this.updateLeadWithVerification(leadId, lead);
@@ -842,6 +835,8 @@ const Leads = {
       }
       UI.toast(this.formatLeadActionError(error, { resource: 'leads', action: mode === 'edit' ? 'update' : 'create' }));
     } finally {
+      console.timeEnd('entity-save');
+      this.state.saveInFlight = false;
       this.setFormBusy(false);
     }
   },
