@@ -323,6 +323,86 @@ const Api = {
     if (appended.length) merged.push(...appended);
     return merged;
   },
+  async fetchAllListPages(resource, action, payload = {}, options = {}) {
+    const basePayload = payload && typeof payload === 'object' ? { ...payload } : {};
+    const requestedLimit = Number(basePayload.limit || 0);
+    const pageSize = Math.max(1, Math.min(requestedLimit || 200, 1000));
+    const firstPage = Math.max(1, Number(basePayload.page || 1) || 1);
+    const shouldUseOffset = basePayload.offset !== undefined;
+
+    let page = firstPage;
+    let firstResponse = null;
+    let aggregatedRows = [];
+    let total = 0;
+    let safety = 0;
+    let hasMore = false;
+
+    while (safety < 200) {
+      const pagePayload = {
+        ...basePayload,
+        page,
+        limit: pageSize
+      };
+      if (shouldUseOffset || page > firstPage) {
+        pagePayload.offset = Math.max(0, (page - 1) * pageSize);
+      }
+
+      const response = await this.postAuthenticated(resource, action, pagePayload, options);
+      if (firstResponse == null) firstResponse = response;
+
+      const normalized = this.normalizeListResponse(response);
+      const pageRows = Array.isArray(normalized.rows) ? normalized.rows : [];
+      aggregatedRows.push(...pageRows);
+      total = Math.max(total, Number(normalized.total || 0), aggregatedRows.length);
+      hasMore = Boolean(normalized.hasMore || normalized.has_more);
+
+      if (!hasMore || pageRows.length === 0) break;
+      page += 1;
+      safety += 1;
+    }
+
+    if (firstResponse == null) {
+      return {
+        ok: true,
+        resource,
+        action,
+        total: 0,
+        count: 0,
+        returned: 0,
+        has_more: false,
+        hasMore: false,
+        page: 1,
+        limit: 0,
+        offset: 0,
+        data: [],
+        rows: []
+      };
+    }
+
+    if (!Array.isArray(aggregatedRows) || aggregatedRows.length === 0) {
+      return firstResponse;
+    }
+
+    const merged =
+      firstResponse && typeof firstResponse === 'object' && !Array.isArray(firstResponse)
+        ? { ...firstResponse }
+        : { ok: true, resource, action };
+
+    merged.resource = merged.resource || resource;
+    merged.action = merged.action || action;
+    merged.total = Math.max(total, aggregatedRows.length);
+    merged.count = aggregatedRows.length;
+    merged.returned = aggregatedRows.length;
+    merged.has_more = false;
+    merged.hasMore = false;
+    merged.page = 1;
+    merged.offset = 0;
+    merged.limit = aggregatedRows.length;
+    merged.data = aggregatedRows;
+    merged.rows = aggregatedRows;
+
+    return merged;
+  },
   async postAuthenticatedCached(resource, action, payload = {}, options = {}) {
     const cacheKey = options?.cacheKey || this.buildCacheKey(resource, action, payload);
     const forceRefresh = options?.forceRefresh === true;
@@ -336,6 +416,8 @@ const Api = {
     const incrementalPayload = {
       ...payload
     };
+    const isListAction = String(action || '').trim().toLowerCase() === 'list';
+    const shouldFetchAllPages = isListAction && incrementalPayload.fetch_all !== false;
     const isPaginatedQuery =
       incrementalPayload.limit !== undefined ||
       incrementalPayload.offset !== undefined ||
@@ -347,7 +429,9 @@ const Api = {
     }
 
     try {
-      const fresh = await this.postAuthenticated(resource, action, incrementalPayload, options);
+      const fresh = shouldFetchAllPages
+        ? await this.fetchAllListPages(resource, action, incrementalPayload, options)
+        : await this.postAuthenticated(resource, action, incrementalPayload, options);
       const shouldMerge = Array.isArray(cached?.value) && Array.isArray(fresh);
       const merged = shouldMerge ? this.mergeIncrementalRows(cached.value, fresh) : fresh;
       this.writeCachedValue(cacheKey, merged);
