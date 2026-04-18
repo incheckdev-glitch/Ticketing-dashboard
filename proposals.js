@@ -123,8 +123,33 @@ const Proposals = {
     normalized.status = String(normalized.status || '').trim();
     normalized.currency = String(normalized.currency || '').trim();
     normalized.deal_id = String(normalized.deal_id || '').trim();
+    normalized.agreement_id = String(source.agreement_id ?? source.agreementId ?? normalized.agreement_id ?? '').trim();
     normalized.generated_by = String(normalized.generated_by || '').trim();
     return normalized;
+  },
+  hasConflictError(error, conflictCode = '') {
+    const message = String(error?.message || '').toUpperCase();
+    const code = String(conflictCode || '').trim().toUpperCase();
+    return message.includes('HTTP 409') && (!code || message.includes(code));
+  },
+  isAgreementAlreadyCreated(row = {}) {
+    const agreementId = String(row?.agreement_id || '').trim();
+    if (agreementId) return true;
+    const status = this.normalizeText(row?.status);
+    return status.includes('agreement drafted') || status.includes('agreement created');
+  },
+  markDealAsConvertedToProposal(dealId, proposalId = '') {
+    const id = String(dealId || '').trim();
+    if (!id || !window.Deals?.state?.rows) return;
+    const deal = window.Deals.state.rows.find(row => String(row?.deal_id || '').trim() === id);
+    if (!deal) return;
+    window.Deals.upsertLocalRow?.({
+      ...deal,
+      proposal_id: String(proposalId || deal.proposal_id || '').trim(),
+      proposal_needed: 'yes',
+      stage: String(deal.stage || '').trim() || 'Proposal',
+      status: String(deal.status || '').trim() || 'Proposal Created'
+    });
   },
   proposalDraftFromDeal(rawDeal = {}) {
     const deal = rawDeal && typeof rawDeal === 'object' ? rawDeal : {};
@@ -677,7 +702,9 @@ const Proposals = {
             <button class="btn ghost sm" type="button" data-proposal-view="${id}">View</button>
             ${Permissions.canUpdateProposal() ? `<button class="btn ghost sm" type="button" data-proposal-edit="${id}">Edit</button>` : ''}
             ${Permissions.canGenerateProposalHtml() ? `<button class="btn ghost sm" type="button" data-proposal-preview="${id}">Preview</button>` : ''}
-            ${Permissions.canCreateAgreementFromProposal() ? `<button class="btn ghost sm" type="button" data-proposal-convert-agreement="${id}">Convert to Agreement</button>` : ''}
+            ${Permissions.canCreateAgreementFromProposal() && !this.isAgreementAlreadyCreated(row)
+              ? `<button class="btn ghost sm" type="button" data-proposal-convert-agreement="${id}">Convert to Agreement</button>`
+              : ''}
             ${Permissions.canDeleteProposal() ? `<button class="btn ghost sm" type="button" data-proposal-delete="${id}">Delete</button>` : ''}
           </td>
         </tr>`;
@@ -1223,6 +1250,9 @@ const Proposals = {
       if (parsed?.proposal) {
         this.upsertLocalRow(parsed.proposal);
         this.setCachedDetail(parsed.proposal.proposal_id || proposalId, parsed.proposal, parsed.items);
+        if (mode !== 'edit' && parsed.proposal.deal_id) {
+          this.markDealAsConvertedToProposal(parsed.proposal.deal_id, parsed.proposal.proposal_id);
+        }
       }
       UI.toast(mode === 'edit' ? 'Proposal updated.' : 'Proposal created.');
       if (parsed?.proposal) this.openProposalForm(parsed.proposal, parsed.items, { readOnly: false });
@@ -1230,6 +1260,10 @@ const Proposals = {
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      if (this.hasConflictError(error, 'DEAL_ALREADY_CONVERTED_TO_PROPOSAL')) {
+        UI.toast('This deal has already been converted to a proposal.');
         return;
       }
       UI.toast('Unable to save proposal: ' + (error?.message || 'Unknown error'));
@@ -1368,9 +1402,12 @@ const Proposals = {
       UI.toast('Deal ID is required.');
       return;
     }
-    if (!openAfterCreate) return;
-
     const deal = await this.resolveDealForProposal(trimmedDealId);
+    if (window.Deals?.isProposalAlreadyCreated?.(deal)) {
+      UI.toast('This deal has already been converted to a proposal.');
+      return;
+    }
+    if (!openAfterCreate) return;
     const draft = this.proposalDraftFromDeal({ ...(deal || {}), deal_id: trimmedDealId });
 
     this.openProposalForm(draft, [], { readOnly: false });
@@ -1456,12 +1493,14 @@ const Proposals = {
         }
         const convertAgreementId = getActionValue('data-proposal-convert-agreement');
         if (convertAgreementId) {
-          if (typeof setActiveView === 'function') setActiveView('agreements');
-          if (window.Agreements?.createFromProposalFlow) {
-            window.Agreements.createFromProposalFlow(convertAgreementId);
-          } else {
-            UI.toast('Agreements module is unavailable.');
-          }
+          this.runRowAction(`convert-agreement:${convertAgreementId}`, trigger, async () => {
+            if (typeof setActiveView === 'function') setActiveView('agreements');
+            if (window.Agreements?.createFromProposalFlow) {
+              await window.Agreements.createFromProposalFlow(convertAgreementId);
+            } else {
+              UI.toast('Agreements module is unavailable.');
+            }
+          });
           return;
         }
         const deleteId = getActionValue('data-proposal-delete');
