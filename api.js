@@ -962,30 +962,40 @@ async function apiPost(payload = {}) {
   const requestBody = payload && typeof payload === 'object' ? payload : {};
   const resource = String(requestBody?.resource || '').trim();
   const action = String(requestBody?.action || '').trim();
-  if (isDevEnvironment()) {
-    console.log('[api] post', { endpoint, resource, action });
-  }
+
+  const controller = new AbortController();
+  const timeoutMs = 20000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   let response;
   try {
     response = await fetch(endpoint, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs / 1000} seconds.`);
+    }
     throw buildNetworkRequestError(endpoint, error);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const { data } = await readAppsScriptResponse(response, {
-    sourceName: `Backend ${requestBody.resource || 'api'}`,
+    sourceName: `Backend ${resource || 'api'}`,
     endpoint,
     resource,
     action
   });
+
   if (!response.ok) {
     throw buildHttpResponseError(response, data, endpoint, { resource, action });
   }
+
   if (data && typeof data === 'object' && hasExplicitBackendFailure(data)) {
     throw buildExplicitBackendFailureError(data, {
       endpoint,
@@ -994,6 +1004,7 @@ async function apiPost(payload = {}) {
       status: response.status
     });
   }
+
   if (data && typeof data === 'object' && 'data' in data && data.data !== undefined) {
     return data.data;
   }
