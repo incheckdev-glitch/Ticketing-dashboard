@@ -135,12 +135,13 @@ const Proposals = {
     return {
       ...this.emptyProposal(),
       deal_id: String(deal.deal_id || deal.dealId || '').trim(),
+      lead_id: String(deal.lead_id || deal.leadId || '').trim(),
       proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
       customer_name: companyName || fullName,
       customer_contact_name: fullName,
       customer_contact_mobile: String(deal.phone || '').trim(),
       customer_contact_email: String(deal.email || '').trim(),
-      currency: String(deal.currency || '').trim() || 'USD'
+      currency: String(deal.currency || '').trim()
     };
   },
   async resolveDealForProposal(dealId) {
@@ -722,10 +723,11 @@ const Proposals = {
     return {
       proposal_title: '',
       deal_id: '',
+      lead_id: '',
       proposal_date: '',
       valid_until: '',
       status: 'Draft',
-      currency: 'USD',
+      currency: '',
       customer_name: '',
       customer_address: '',
       customer_contact_name: '',
@@ -798,7 +800,7 @@ const Proposals = {
     set(E.proposalFormProposalDate, proposal.proposal_date || '');
     set(E.proposalFormValidUntil, proposal.valid_until || '');
     set(E.proposalFormStatus, proposal.status || 'Draft');
-    set(E.proposalFormCurrency, proposal.currency || 'USD');
+    set(E.proposalFormCurrency, proposal.currency || '');
     set(E.proposalFormCustomerName, proposal.customer_name || '');
     set(E.proposalFormCustomerAddress, proposal.customer_address || '');
     set(E.proposalFormCustomerContactName, proposal.customer_contact_name || '');
@@ -1064,7 +1066,7 @@ const Proposals = {
       provider_contact_email: String(E.proposalFormProviderContactEmail?.value || '').trim(),
       service_start_date: String(E.proposalFormServiceStartDate?.value || '').trim(),
       contract_term: String(E.proposalFormContractTerm?.value || '').trim(),
-      account_number: this.ensureAccountNumber(E.proposalFormAccountNumber?.value),
+      account_number: String(E.proposalFormAccountNumber?.value || '').trim(),
       billing_frequency: String(E.proposalFormBillingFrequency?.value || '').trim(),
       payment_term: String(E.proposalFormPaymentTerm?.value || '').trim(),
       po_number: String(E.proposalFormPoNumber?.value || '').trim(),
@@ -1143,9 +1145,6 @@ const Proposals = {
     E.proposalForm.dataset.id = base.proposal_id || '';
     E.proposalForm.dataset.refNumber = base.ref_number || '';
     this.assignFormValues(base);
-    if (!readOnly && mode === 'create' && E.proposalFormAccountNumber) {
-      E.proposalFormAccountNumber.value = this.ensureAccountNumber(E.proposalFormAccountNumber.value);
-    }
     this.renderProposalItems(this.state.currentItems);
     this.ensureCatalogLoaded();
 
