@@ -41,7 +41,11 @@ const Invoices = {
     selectedInvoice: null,
     items: [],
     catalogLoading: false,
-    saveInFlight: false
+    saveInFlight: false,
+    detailCacheById: {},
+    detailCacheTtlMs: 90 * 1000,
+    openingInvoiceIds: new Set(),
+    rowActionInFlight: new Set()
   },
   statusOptions: ['Draft', 'Issued', 'Sent', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'],
   toNumberSafe(value) {
@@ -180,6 +184,49 @@ const Invoices = {
       limit,
       offset
     };
+  },
+  getCachedDetail(id) {
+    const key = String(id || '').trim();
+    if (!key) return null;
+    const cached = this.state.detailCacheById[key];
+    if (!cached) return null;
+    if (Date.now() - Number(cached.cachedAt || 0) > this.state.detailCacheTtlMs) return null;
+    return cached;
+  },
+  setCachedDetail(id, invoice, items) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    this.state.detailCacheById[key] = {
+      invoice: this.normalizeInvoice(invoice || { invoice_id: key }),
+      items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [],
+      cachedAt: Date.now()
+    };
+  },
+  setTriggerBusy(trigger, busy) {
+    if (!trigger || !('disabled' in trigger)) return;
+    trigger.disabled = !!busy;
+  },
+  setFormDetailLoading(loading) {
+    if (!E.invoiceForm) return;
+    if (loading) E.invoiceForm.setAttribute('data-detail-loading', 'true');
+    else E.invoiceForm.removeAttribute('data-detail-loading');
+    if (E.invoiceFormTitle) {
+      const baseTitle = String(E.invoiceFormTitle.textContent || '').replace(/\s+\u00b7\s+Loading details…$/, '').trim();
+      E.invoiceFormTitle.textContent = loading ? `${baseTitle || 'Invoice'} · Loading details…` : baseTitle;
+    }
+  },
+  async runRowAction(actionKey, trigger, fn) {
+    const key = String(actionKey || '').trim();
+    if (!key) return;
+    if (this.state.rowActionInFlight.has(key)) return;
+    this.state.rowActionInFlight.add(key);
+    this.setTriggerBusy(trigger, true);
+    try {
+      await fn();
+    } finally {
+      this.state.rowActionInFlight.delete(key);
+      this.setTriggerBusy(trigger, false);
+    }
   },
   mergeCatalogItem(invoiceItem = {}, catalogLookup = { byId: new Map(), byName: new Map() }) {
     const byId = catalogLookup?.byId instanceof Map ? catalogLookup.byId : new Map();
@@ -1013,15 +1060,39 @@ const Invoices = {
       UI.toast('Unable to auto-fill from agreement: ' + (error?.message || 'Unknown error'));
     }
   },
-  async openInvoiceById(invoiceId, { readOnly = false } = {}) {
+  async openInvoiceById(invoiceId, { readOnly = false, trigger = null } = {}) {
     const id = String(invoiceId || '').trim();
     if (!id) return;
+    if (this.state.openingInvoiceIds.has(id)) return;
+    this.state.openingInvoiceIds.add(id);
+    this.setTriggerBusy(trigger, true);
+    console.time('invoice-open');
+    const localSummary = this.state.rows.find(row => String(row.invoice_id || '').trim() === id);
+    this.openInvoice(
+      localSummary ? { ...this.emptyInvoice(), ...localSummary, invoice_id: id } : { invoice_id: id },
+      [],
+      { readOnly }
+    );
+    this.setFormDetailLoading(true);
     try {
+      const cached = this.getCachedDetail(id);
+      if (cached) {
+        this.openInvoice(cached.invoice, cached.items, { readOnly });
+        return;
+      }
       const response = await Api.getInvoice(id);
       const { invoice, items } = this.extractInvoiceAndItems(response, id);
-      this.openInvoice(invoice, items, { readOnly });
+      this.setCachedDetail(id, invoice, items);
+      if (String(E.invoiceForm?.dataset.id || '').trim() === id) {
+        this.openInvoice(invoice, items, { readOnly });
+      }
     } catch (error) {
       UI.toast('Unable to load invoice: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.state.openingInvoiceIds.delete(id);
+      this.setTriggerBusy(trigger, false);
+      this.setFormDetailLoading(false);
+      console.timeEnd('invoice-open');
     }
   },
   async saveForm() {
@@ -1076,6 +1147,7 @@ const Invoices = {
         invoice_id: parsed?.invoice?.invoice_id || id || payloadInvoice.invoice_id
       });
       const normalized = this.upsertLocalRow(persisted);
+      this.setCachedDetail(normalized?.invoice_id || id, persisted, persistedItems);
       if (normalized?.invoice_id && this.state.selectedInvoice?.invoice_id === normalized.invoice_id) {
         this.state.selectedInvoice = normalized;
         this.state.items = persistedItems;
@@ -1096,6 +1168,7 @@ const Invoices = {
     this.setFormBusy(true);
     try {
       await Api.deleteInvoice(id);
+      delete this.state.detailCacheById[id];
       this.removeLocalRow(id);
       UI.toast('Invoice deleted.');
       this.closeForm();
@@ -1184,7 +1257,7 @@ const Invoices = {
   async openCreateFromAgreementResult(invoice) {
     const normalized = this.normalizeInvoice(invoice || {});
     if (typeof setActiveView === 'function') setActiveView('invoices');
-    await this.refresh(true);
+    if (normalized?.invoice_id) this.upsertLocalRow(normalized);
     if (normalized.invoice_id) {
       await this.openInvoiceById(normalized.invoice_id, { readOnly: false });
     }
@@ -1302,15 +1375,15 @@ const Invoices = {
         const trigger = event.target?.closest?.('button[data-invoice-view], button[data-invoice-edit], button[data-invoice-preview], button[data-invoice-create-receipt], button[data-invoice-delete]');
         if (!trigger) return;
         const viewId = trigger.getAttribute('data-invoice-view');
-        if (viewId) return this.openInvoiceById(viewId, { readOnly: true });
+        if (viewId) return this.runRowAction(`view:${viewId}`, trigger, () => this.openInvoiceById(viewId, { readOnly: true, trigger }));
         const editId = trigger.getAttribute('data-invoice-edit');
-        if (editId) return this.openInvoiceById(editId, { readOnly: false });
+        if (editId) return this.runRowAction(`edit:${editId}`, trigger, () => this.openInvoiceById(editId, { readOnly: false, trigger }));
         const previewId = trigger.getAttribute('data-invoice-preview');
-        if (previewId) return this.previewInvoice(previewId);
+        if (previewId) return this.runRowAction(`preview:${previewId}`, trigger, () => this.previewInvoice(previewId));
         const createReceiptId = trigger.getAttribute('data-invoice-create-receipt');
-        if (createReceiptId) return this.createReceiptFromInvoice(createReceiptId);
+        if (createReceiptId) return this.runRowAction(`create-receipt:${createReceiptId}`, trigger, () => this.createReceiptFromInvoice(createReceiptId));
         const deleteId = trigger.getAttribute('data-invoice-delete');
-        if (deleteId) return this.deleteInvoice(deleteId);
+        if (deleteId) return this.runRowAction(`delete:${deleteId}`, trigger, () => this.deleteInvoice(deleteId));
       });
     }
     if (E.invoiceForm) {

@@ -68,7 +68,11 @@ const Agreements = {
     currentItems: [],
     currentAgreementId: '',
     currentOnboarding: null,
-    saveInFlight: false
+    saveInFlight: false,
+    detailCacheById: {},
+    detailCacheTtlMs: 90 * 1000,
+    openingAgreementIds: new Set(),
+    rowActionInFlight: new Set()
   },
   toNumberSafe(value) {
     if (value === null || value === undefined || value === '') return 0;
@@ -256,6 +260,49 @@ const Agreements = {
       agreement: this.normalizeAgreement(agreement || { agreement_id: fallbackId }),
       items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : []
     };
+  },
+  getCachedDetail(id) {
+    const key = String(id || '').trim();
+    if (!key) return null;
+    const cached = this.state.detailCacheById[key];
+    if (!cached) return null;
+    if (Date.now() - Number(cached.cachedAt || 0) > this.state.detailCacheTtlMs) return null;
+    return cached;
+  },
+  setCachedDetail(id, agreement, items) {
+    const key = String(id || '').trim();
+    if (!key) return;
+    this.state.detailCacheById[key] = {
+      agreement: this.normalizeAgreement(agreement || { agreement_id: key }),
+      items: Array.isArray(items) ? items.map(item => this.normalizeItem(item)) : [],
+      cachedAt: Date.now()
+    };
+  },
+  setTriggerBusy(trigger, busy) {
+    if (!trigger || !('disabled' in trigger)) return;
+    trigger.disabled = !!busy;
+  },
+  setFormDetailLoading(loading) {
+    if (!E.agreementForm) return;
+    if (loading) E.agreementForm.setAttribute('data-detail-loading', 'true');
+    else E.agreementForm.removeAttribute('data-detail-loading');
+    if (E.agreementFormTitle) {
+      const baseTitle = String(E.agreementFormTitle.textContent || '').replace(/\s+\u00b7\s+Loading details…$/, '').trim();
+      E.agreementFormTitle.textContent = loading ? `${baseTitle || 'Agreement'} · Loading details…` : baseTitle;
+    }
+  },
+  async runRowAction(actionKey, trigger, fn) {
+    const key = String(actionKey || '').trim();
+    if (!key) return;
+    if (this.state.rowActionInFlight.has(key)) return;
+    this.state.rowActionInFlight.add(key);
+    this.setTriggerBusy(trigger, true);
+    try {
+      await fn();
+    } finally {
+      this.state.rowActionInFlight.delete(key);
+      this.setTriggerBusy(trigger, false);
+    }
   },
   async listAgreements(options = {}) { return Api.listAgreements(options); },
   extractListResult(response) {
@@ -791,17 +838,43 @@ const Agreements = {
     grouped[section] = grouped[section].filter((_, idx) => idx !== index);
     this.renderItemRows([...grouped.annual_saas, ...grouped.one_time_fee, ...grouped.capability]);
   },
-  async openAgreementFormById(agreementId, { readOnly = false } = {}) {
+  async openAgreementFormById(agreementId, { readOnly = false, trigger = null } = {}) {
+    const id = String(agreementId || '').trim();
+    if (!id) return;
+    if (this.state.openingAgreementIds.has(id)) return;
+    this.state.openingAgreementIds.add(id);
+    this.setTriggerBusy(trigger, true);
+    console.time('agreement-open');
+    const localSummary = this.state.rows.find(row => String(row.agreement_id || '').trim() === id);
+    this.openAgreementForm(
+      localSummary ? { ...this.emptyAgreement(), ...localSummary, agreement_id: id } : { agreement_id: id },
+      [],
+      { readOnly }
+    );
+    this.setFormDetailLoading(true);
     try {
-      const response = await this.getAgreement(agreementId);
-      const { agreement, items } = this.extractAgreementAndItems(response, agreementId);
-      this.openAgreementForm(agreement, items, { readOnly });
+      const cached = this.getCachedDetail(id);
+      if (cached) {
+        this.openAgreementForm(cached.agreement, cached.items, { readOnly });
+        return;
+      }
+      const response = await this.getAgreement(id);
+      const { agreement, items } = this.extractAgreementAndItems(response, id);
+      this.setCachedDetail(id, agreement, items);
+      if (String(E.agreementForm?.dataset.id || '').trim() === id) {
+        this.openAgreementForm(agreement, items, { readOnly });
+      }
     } catch (error) {
       if (typeof isAuthError === 'function' && isAuthError(error)) {
         handleExpiredSession('Session expired. Please log in again.');
         return;
       }
       UI.toast('Unable to load agreement: ' + (error?.message || 'Unknown error'));
+    } finally {
+      this.state.openingAgreementIds.delete(id);
+      this.setTriggerBusy(trigger, false);
+      this.setFormDetailLoading(false);
+      console.timeEnd('agreement-open');
     }
   },
   async submitForm() {
@@ -838,6 +911,7 @@ const Agreements = {
         : await this.createAgreement(agreement, items);
       const persistedAgreement = this.extractAgreementAndItems(saveResponse, id).agreement;
       const persistedAgreementId = String(persistedAgreement?.agreement_id || id || '').trim();
+      this.setCachedDetail(persistedAgreementId, persistedAgreement, items);
       try {
         await this.syncSignedAgreementToClient({ ...agreement, ...persistedAgreement }, persistedAgreementId);
       } catch (clientSyncError) {
@@ -867,6 +941,7 @@ const Agreements = {
     if (!id || !window.confirm(`Delete agreement ${id}?`)) return;
     try {
       await this.deleteAgreement(id);
+      delete this.state.detailCacheById[id];
       this.removeLocalRow(id);
       this.closeAgreementForm();
       UI.toast('Agreement deleted.');
@@ -942,9 +1017,10 @@ const Agreements = {
     try {
       const response = await this.createAgreementFromProposal(id);
       const { agreement, items } = this.extractAgreementAndItems(response);
-      await this.loadAndRefresh({ force: true });
       const createdAgreementId = String(agreement?.agreement_id || '').trim();
       if (createdAgreementId) {
+        this.upsertLocalRow(agreement);
+        this.setCachedDetail(createdAgreementId, agreement, items);
         this.openAgreementForm(agreement, items, { readOnly: false });
         UI.toast(
           `Agreement ${createdAgreementId} created from proposal ${id}. Review, complete missing fields, and verify details before saving.`
@@ -1084,18 +1160,18 @@ const Agreements = {
       const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-create-invoice], button[data-agreement-delete]');
       if (!trigger) return;
       const viewId = trigger.getAttribute('data-agreement-view');
-      if (viewId) return this.openAgreementFormById(viewId, { readOnly: true });
+      if (viewId) return this.runRowAction(`view:${viewId}`, trigger, () => this.openAgreementFormById(viewId, { readOnly: true, trigger }));
       const editId = trigger.getAttribute('data-agreement-edit');
       if (editId) {
         if (!Permissions.canUpdateAgreement()) return UI.toast('You do not have permission to edit agreements.');
-        return this.openAgreementFormById(editId, { readOnly: false });
+        return this.runRowAction(`edit:${editId}`, trigger, () => this.openAgreementFormById(editId, { readOnly: false, trigger }));
       }
       const previewId = trigger.getAttribute('data-agreement-preview');
-      if (previewId) return this.previewAgreementHtml(previewId);
+      if (previewId) return this.runRowAction(`preview:${previewId}`, trigger, () => this.previewAgreementHtml(previewId));
       const createInvoiceId = trigger.getAttribute('data-agreement-create-invoice');
-      if (createInvoiceId) return this.createInvoiceFromAgreementFlow(createInvoiceId);
+      if (createInvoiceId) return this.runRowAction(`create-invoice:${createInvoiceId}`, trigger, () => this.createInvoiceFromAgreementFlow(createInvoiceId));
       const deleteId = trigger.getAttribute('data-agreement-delete');
-      if (deleteId) return this.deleteById(deleteId);
+      if (deleteId) return this.runRowAction(`delete:${deleteId}`, trigger, () => this.deleteById(deleteId));
     });
 
     if (E.agreementFormCloseBtn) E.agreementFormCloseBtn.addEventListener('click', () => this.closeAgreementForm());
