@@ -742,7 +742,15 @@ const Invoices = {
         const discountPercent = this.toNumberSafe(get('discount_percent'));
         const quantity = this.toNumberSafe(get('quantity'));
         const computed = this.computeCommercialRow({ unit_price: unitPrice, discount_percent: discountPercent, quantity });
-        if (!get('item_name') && !get('location_name') && !unitPrice && !quantity && !get('notes')) return null;
+        const hasMeaningfulValue = [
+          get('item_name'),
+          get('location_name'),
+          get('location_address'),
+          get('service_start_date'),
+          get('service_end_date'),
+          get('notes')
+        ].some(value => String(value || '').trim()) || unitPrice || quantity;
+        if (!hasMeaningfulValue) return null;
         return this.normalizeItem({
           section,
           line_no: idx + 1,
@@ -934,6 +942,7 @@ const Invoices = {
     try {
       const response = await Api.getAgreement(id);
       const { agreement, items } = this.extractAgreementAndItems(response, id);
+      const currentFormInvoice = this.collectFormValues().invoice;
       const pickAgreementValue = (...values) => {
         for (const value of values) {
           if (value !== undefined && value !== null && String(value).trim() !== '') return value;
@@ -941,7 +950,7 @@ const Invoices = {
         return '';
       };
       const mappedInvoice = this.normalizeInvoice({
-        ...this.collectFormValues().invoice,
+        ...currentFormInvoice,
         agreement_id: id,
         customer_name: pickAgreementValue(agreement.customer_name, agreement.customerName, agreement.customer?.name),
         customer_legal_name: pickAgreementValue(
@@ -989,10 +998,14 @@ const Invoices = {
         grand_total: pickAgreementValue(agreement.grand_total, agreement.grandTotal),
         notes: agreement.notes
       });
+      // Keep explicit user-entered invoice/due dates when hydrating from agreement.
+      if (String(currentFormInvoice.invoice_date || '').trim()) mappedInvoice.invoice_date = currentFormInvoice.invoice_date;
+      if (String(currentFormInvoice.due_date || '').trim()) mappedInvoice.due_date = currentFormInvoice.due_date;
       mappedInvoice.invoice_number = this.ensureInvoiceNumber(mappedInvoice.invoice_number);
       this.assignFormValues(mappedInvoice);
       const catalogLookup = await this.getProposalCatalogLookup();
       const normalizedItems = items.map(item => this.mergeCatalogItem(item, catalogLookup));
+      this.state.items = normalizedItems;
       this.renderItems(normalizedItems);
       const totals = this.calculateInvoiceTotals(normalizedItems);
       this.applyTotalsToForm(totals);
@@ -1054,13 +1067,18 @@ const Invoices = {
         UI.toast('Invoice created.');
       }
       const parsed = this.extractInvoiceAndItems(response, id);
-      const persisted = parsed?.invoice?.invoice_id
-        ? parsed.invoice
-        : { ...payloadInvoice, invoice_id: id || payloadInvoice.invoice_id };
+      const persistedItems = Array.isArray(parsed?.items) && parsed.items.length
+        ? parsed.items.map(item => this.normalizeItem(item))
+        : items;
+      const persisted = this.normalizeInvoice({
+        ...payloadInvoice,
+        ...(parsed?.invoice || {}),
+        invoice_id: parsed?.invoice?.invoice_id || id || payloadInvoice.invoice_id
+      });
       const normalized = this.upsertLocalRow(persisted);
       if (normalized?.invoice_id && this.state.selectedInvoice?.invoice_id === normalized.invoice_id) {
         this.state.selectedInvoice = normalized;
-        this.state.items = parsed?.items || items;
+        this.state.items = persistedItems;
       }
       this.closeForm();
     } catch (error) {

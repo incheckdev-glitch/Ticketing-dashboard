@@ -654,7 +654,14 @@ const Agreements = {
     return rows.map((tr, index) => {
       const section = String(tr.getAttribute('data-item-row') || '').trim();
       const get = key => String(tr.querySelector(`[data-item-field="${key}"]`)?.value || '').trim();
-      const item = this.normalizeItem({
+      let baseItem = {};
+      try {
+        baseItem = JSON.parse(tr.getAttribute('data-item-payload') || '{}');
+      } catch (_error) {
+        baseItem = {};
+      }
+      const mergedItem = {
+        ...baseItem,
         section,
         line_no: index + 1,
         location_name: get('location_name'),
@@ -670,7 +677,8 @@ const Agreements = {
         capability_name: get('capability_name'),
         capability_value: get('capability_value'),
         notes: get('notes')
-      }, section);
+      };
+      const item = { ...baseItem, ...this.normalizeItem(mergedItem, section) };
       if (section === 'annual_saas' || section === 'one_time_fee') {
         const discount = item.discount_percent > 1 ? item.discount_percent / 100 : item.discount_percent;
         item.discounted_unit_price = item.unit_price * (1 - Math.max(0, discount));
@@ -682,11 +690,15 @@ const Agreements = {
   renderItemRows(items = []) {
     const grouped = this.groupedItems(items);
     const rowHtml = (section, item, index) => {
+      const payload = U.escapeAttr(JSON.stringify(item || {}));
       if (section === 'capability') {
-        return `<tr data-item-row="capability"><td><input class="input" data-item-field="capability_name" value="${U.escapeAttr(item.capability_name || '')}" /></td><td><input class="input" data-item-field="capability_value" value="${U.escapeAttr(item.capability_value || '')}" /></td><td><input class="input" data-item-field="notes" value="${U.escapeAttr(item.notes || '')}" /></td><td><button type="button" class="btn ghost sm" data-item-remove="capability" data-item-index="${index}">Remove</button></td></tr>`;
+        return `<tr data-item-row="capability" data-item-payload="${payload}"><td><input class="input" data-item-field="capability_name" value="${U.escapeAttr(item.capability_name || '')}" /></td><td><input class="input" data-item-field="capability_value" value="${U.escapeAttr(item.capability_value || '')}" /></td><td><input class="input" data-item-field="notes" value="${U.escapeAttr(item.notes || '')}" /></td><td><button type="button" class="btn ghost sm" data-item-remove="capability" data-item-index="${index}">Remove</button></td></tr>`;
       }
-      return `<tr data-item-row="${section}">
+      return `<tr data-item-row="${section}" data-item-payload="${payload}">
       <td><input class="input" data-item-field="location_name" value="${U.escapeAttr(item.location_name || '')}" /></td>
+      <td><input class="input" data-item-field="location_address" value="${U.escapeAttr(item.location_address || '')}" /></td>
+      <td><input class="input" type="date" data-item-field="service_start_date" value="${U.escapeAttr(item.service_start_date || '')}" /></td>
+      <td><input class="input" type="date" data-item-field="service_end_date" value="${U.escapeAttr(item.service_end_date || '')}" /></td>
       <td><input class="input" data-item-field="item_name" value="${U.escapeAttr(item.item_name || '')}" /></td>
       <td><input class="input" data-item-field="unit_price" type="number" step="0.01" value="${U.escapeAttr(item.unit_price || '')}" /></td>
       <td><input class="input" data-item-field="discount_percent" type="number" step="0.01" value="${U.escapeAttr(item.discount_percent || '')}" /></td>
@@ -771,7 +783,7 @@ const Agreements = {
   addRow(section) {
     const items = this.collectItems();
     if (section === 'capability') items.push({ section: 'capability', capability_name: '', capability_value: '', notes: '' });
-    else items.push({ section, location_name: '', item_name: '', unit_price: 0, discount_percent: 0, quantity: 1, discounted_unit_price: 0, line_total: 0 });
+    else items.push({ section, location_name: '', location_address: '', service_start_date: '', service_end_date: '', item_name: '', unit_price: 0, discount_percent: 0, quantity: 1, discounted_unit_price: 0, line_total: 0 });
     this.renderItemRows(items);
   },
   removeRow(section, index) {
