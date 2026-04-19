@@ -247,7 +247,7 @@ const RolesAdmin = {
   },
   formatDate(value) {
     const d = new Date(value || '');
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+    return U.fmtDisplayDate(value);
   },
   roleId(role = {}) {
     return String(role.role_id || role.id || '').trim();

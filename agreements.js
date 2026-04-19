@@ -679,9 +679,9 @@ const Agreements = {
       return `<tr>
         <td>${textCell(row.agreement_id)}</td><td>${textCell(row.agreement_number)}</td><td>${textCell(row.agreement_title)}</td>
         <td>${textCell(row.customer_name)}</td><td>${textCell(row.proposal_id)}</td><td>${textCell(row.deal_id)}</td>
-        <td>${textCell(row.service_start_date)}</td><td>${textCell(row.agreement_length)}</td><td>${textCell(row.billing_frequency)}</td>
+        <td>${U.escapeHtml(U.fmtDisplayDate(row.service_start_date))}</td><td>${textCell(row.agreement_length)}</td><td>${textCell(row.billing_frequency)}</td>
         <td>${textCell(row.payment_term)}</td><td>${textCell(row.currency)}</td><td>${textCell(this.formatMoney(row.grand_total))}</td>
-        <td>${textCell(row.status)}</td><td>${textCell(row.updated_at)}</td>
+        <td>${textCell(row.status)}</td><td>${U.escapeHtml(U.fmtDisplayDate(row.updated_at))}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn ghost sm" type="button" data-agreement-view="${id}">View</button>
         ${Permissions.canUpdateAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-edit=\"${id}\">Edit</button>` : ''}

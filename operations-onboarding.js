@@ -158,7 +158,7 @@ const OperationsOnboarding = {
   formatDate(value = '') {
     const parsed = this.parseDate(value);
     if (!parsed) return '—';
-    return parsed.toISOString().slice(0, 10);
+    return U.fmtDisplayDate(value);
   },
   daysOpen(row) {
     const start = this.parseDate(row?.requested_at || row?.signed_date || '');
@@ -784,8 +784,8 @@ const OperationsOnboarding = {
       const agreementItems = this.state.agreementItemsMap.get(row.agreement_id) || [];
       const locationCount = this.deriveAgreementLocationCount(agreement, agreementItems, row);
       return `<tr>
-          <td>${text(row.onboarding_id)}</td><td>${text(row.agreement_id)}</td><td>${text(row.agreement_number)}</td><td>${text(row.client_name)}</td><td>${text(row.signed_date)}</td><td>${text(row.onboarding_status)}</td>
-          <td>${text(row.request_type)}</td><td>${text(row.requested_by)}</td><td>${text(row.requested_at)}</td><td>${text(row.lite_request)}</td><td>${text(row.full_request)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(row.updated_at)}</td>
+          <td>${text(row.onboarding_id)}</td><td>${text(row.agreement_id)}</td><td>${text(row.agreement_number)}</td><td>${text(row.client_name)}</td><td>${text(this.formatDate(row.signed_date))}</td><td>${text(row.onboarding_status)}</td>
+          <td>${text(row.request_type)}</td><td>${text(row.requested_by)}</td><td>${text(this.formatDate(row.requested_at))}</td><td>${text(row.lite_request)}</td><td>${text(row.full_request)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(this.formatDate(row.updated_at))}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn ghost sm" type="button" data-op-open-agreement="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Open Agreement</button>
             <button class="btn ghost sm" type="button" data-op-open-details="${onboardingId}">Open Onboarding Details</button>

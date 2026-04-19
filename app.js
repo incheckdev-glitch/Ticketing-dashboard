@@ -589,7 +589,7 @@ UI.Issues.renderSummary = function (list) {
       E.issuesLastUpdated.textContent = 'Last updated: --';
       E.issuesLastUpdated.classList.remove('stale');
     } else {
-      E.issuesLastUpdated.textContent = `Last updated: ${lastUpdated.toLocaleString()}`;
+      E.issuesLastUpdated.textContent = `Last updated: ${U.fmtDisplayDate(lastUpdated)}`;
       const ageHours = (Date.now() - lastUpdated.getTime()) / 36e5;
       E.issuesLastUpdated.classList.toggle('stale', ageHours > CONFIG.DATA_STALE_HOURS);
       E.issuesLastUpdated.title =
@@ -3298,7 +3298,7 @@ function exportIssuesToExcel(rows, suffix) {
     return acc;
   }, {});
   const summaryRows = [
-    ['Generated at', new Date().toLocaleString()],
+    ['Generated at', U.fmtDisplayDate(new Date())],
     ['Filter - Search', Filters.state.search || ''],
     ['Filter - Module', Filters.state.module || 'All'],
     ['Filter - Category', Filters.state.category || 'All'],
@@ -3565,11 +3565,7 @@ function renderPlannerResults(result, context) {
   const htmlSlots = slots
     .map((slot, idx) => {
       const d = slot.start;
-      const dateStr = d.toLocaleDateString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      });
+      const dateStr = U.fmtDisplayDate(d);
       const timeStr = d.toLocaleTimeString(undefined, {
         hour: '2-digit',
         minute: '2-digit'
@@ -3721,7 +3717,7 @@ function exportPlannerScorecard() {
   const { slots, bug, bomb, ticketContext } = LAST_PLANNER_RESULT;
 
   const summaryRows = [
-    ['Generated at', new Date().toLocaleString()],
+    ['Generated at', U.fmtDisplayDate(new Date())],
     ['Environment', env],
     ['Region', region],
     ['Release type', releaseType],
@@ -3752,8 +3748,8 @@ function exportPlannerScorecard() {
   slots.forEach((slot, idx) => {
     slotsRows.push([
       idx + 1,
-      slot.start ? new Date(slot.start).toLocaleString() : '',
-      slot.end ? new Date(slot.end).toLocaleString() : '',
+      slot.start ? U.fmtDisplayDate(slot.start) : '',
+      slot.end ? U.fmtDisplayDate(slot.end) : '',
       Number(slot.totalRisk || 0).toFixed(2),
       Number(slot.safetyScore || 0).toFixed(2),
       Number(slot.rushRisk || 0).toFixed(2),
@@ -3837,12 +3833,7 @@ function refreshPlannerReleasePlans(context) {
       const d = ev.start ? new Date(ev.start) : null;
       const when =
         d && !isNaN(d)
-          ? d.toLocaleString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
+          ? U.fmtDisplayDate(d)
           : '(no date)';
       const label = `[${when}] ${ev.title || 'Release'} (${ev.env || 'Prod'})`;
       return `<option value="${U.escapeAttr(ev.id)}">${U.escapeHtml(label)}</option>`;

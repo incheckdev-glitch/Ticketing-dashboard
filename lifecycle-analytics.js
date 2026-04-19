@@ -38,7 +38,7 @@ const LifecycleAnalytics = {
     const date = this.toDate(value);
     if (!date) return '—';
     try {
-      return date.toLocaleString();
+      return U.fmtDisplayDate(value);
     } catch {
       return String(value);
     }

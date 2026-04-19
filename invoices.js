@@ -151,7 +151,7 @@ const Invoices = {
         return `<tr>
           <td><span class="pill">${U.escapeHtml(type)}</span>${showSettlementBadge ? ' <span class="pill">Settlement</span>' : ''}</td>
           <td>${U.escapeHtml(receipt.receipt_number || receipt.receipt_id || '—')}</td>
-          <td>${U.escapeHtml(receipt.receipt_date || '—')}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(receipt.receipt_date))}</td>
           <td>${this.formatMoney(receipt.received_amount || receipt.grand_total)}</td>
           <td>${this.formatMoney(receipt.pending_amount)}</td>
           <td>${U.escapeHtml(receipt.payment_state || '—')}</td>
@@ -752,12 +752,12 @@ const Invoices = {
           <td>${textCell(row.invoice_number || row.invoice_id)}</td>
           <td>${textCell(row.customer_name)}</td>
           <td>${textCell(row.agreement_id)}</td>
-          <td>${textCell(row.invoice_date)}</td>
-          <td>${textCell(row.due_date)}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.invoice_date))}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.due_date))}</td>
           <td>${textCell(row.currency)}</td>
           <td>${this.formatMoney(row.grand_total)}</td>
           <td>${textCell(row.status)}</td>
-          <td>${textCell(row.updated_at)}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.updated_at))}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn ghost sm" type="button" data-invoice-view="${id}">Open</button>
             ${Permissions.canUpdateInvoice() ? `<button class="btn ghost sm" type="button" data-invoice-edit="${id}">Edit</button>` : ''}

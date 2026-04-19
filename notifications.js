@@ -69,7 +69,7 @@ const Notifications = {
     if (!value) return '—';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleString();
+    return U.fmtDisplayDate(value);
   },
   iconForType(type = '') {
     const value = String(type || '').toLowerCase();

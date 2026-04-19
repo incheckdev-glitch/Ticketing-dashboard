@@ -363,7 +363,7 @@ const Leads = {
     if (!value) return '—';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return U.escapeHtml(String(value));
-    return U.escapeHtml(date.toLocaleString());
+    return U.escapeHtml(U.fmtDisplayDate(value));
   },
   boolLabel(value) {
     if (value === 'yes') return 'Yes';
@@ -701,7 +701,7 @@ const Leads = {
       });
     } else {
       if (E.leadFormLeadId) E.leadFormLeadId.value = 'Auto-generated';
-      if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = new Date().toLocaleString();
+      if (E.leadFormCreatedAt) E.leadFormCreatedAt.value = U.fmtDisplayDate(new Date());
       if (E.leadFormAssignedTo) E.leadFormAssignedTo.value = this.currentUserAssignee();
       this.syncLeadFormDropdowns();
     }

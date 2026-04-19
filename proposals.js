@@ -696,8 +696,8 @@ const Proposals = {
           <td>${this.formatMoney(row.saas_total)}</td>
           <td>${this.formatMoney(row.one_time_total)}</td>
           <td>${this.formatMoney(row.grand_total)}</td>
-          <td>${textCell(row.proposal_date)}</td>
-          <td>${textCell(row.valid_until)}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.proposal_date))}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.valid_until))}</td>
           <td>${textCell(row.generated_by)}</td>
           <td>
             <button class="btn ghost sm" type="button" data-proposal-view="${id}">View</button>
