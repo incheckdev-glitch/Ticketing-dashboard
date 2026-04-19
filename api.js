@@ -527,6 +527,25 @@ const Api = {
       return this.postAuthenticated('agreements', 'request_incheck_full', payload);
     }
   },
+  async requestAgreementTechnicalAdmin(agreementId, message = '') {
+    const payload = {
+      agreement_id: agreementId,
+      technical_admin_request: true,
+      technical_admin_request_message: String(message || '').trim() || `Please proceed with the following agreement ${agreementId}.`
+    };
+    try {
+      return await this.postAuthenticated('agreements', 'request_technical_admin', payload);
+    } catch (error) {
+      if (!isOperationsOnboardingRowMissingError(error)) throw error;
+      await this.saveOperationsOnboarding({
+        agreement_id: agreementId,
+        request_type: 'Technical Admin',
+        technical_admin_request: 'Requested',
+        technical_admin_request_message: payload.technical_admin_request_message
+      });
+      return this.postAuthenticated('agreements', 'request_technical_admin', payload);
+    }
+  },
   async assignAgreementCsm(agreementId, assignment = {}) {
     return this.postAuthenticated('agreements', 'assign_csm', {
       agreement_id: agreementId,
