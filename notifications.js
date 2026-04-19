@@ -27,8 +27,8 @@ const Notifications = {
       if (value === false || value === 0 || value === null || value === undefined) return false;
       if (typeof value === 'string') {
         const normalized = value.trim().toLowerCase();
-        if (normalized === 'true' || normalized === '1') return true;
-        if (normalized === 'false' || normalized === '0' || normalized === '') return false;
+        if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+        if (normalized === 'false' || normalized === '0' || normalized === '' || normalized === 'no') return false;
       }
       return false;
     };
@@ -44,7 +44,8 @@ const Notifications = {
       }
       return {};
     };
-    const isRead = parseBoolean(firstValue(source.is_read, source.isRead)) || String(firstValue(source.status, source.notification_status)).trim().toLowerCase() === 'read';
+    const statusValue = String(firstValue(source.status, source.notification_status)).trim().toLowerCase();
+    const isRead = parseBoolean(firstValue(source.is_read, source.isRead, source.read)) || statusValue === 'read';
     return {
       notification_id: String(firstValue(source.notification_id, source.id)).trim(),
       created_at: String(firstValue(source.created_at, source.createdAt, source.timestamp, source.date)).trim(),
@@ -80,8 +81,7 @@ const Notifications = {
       payload?.result?.notifications,
       payload?.payload?.rows,
       payload?.payload?.items,
-      payload?.payload?.notifications,
-      payload?.rows?.rows
+      payload?.payload?.notifications
     ];
     for (const candidate of candidates) {
       if (Array.isArray(candidate)) return candidate;
@@ -217,7 +217,7 @@ const Notifications = {
       console.debug('[notifications] extracted rows', rows);
       const normalizedItems = rows.map(item => this.normalize(item));
       console.debug('[notifications] normalized items', normalizedItems);
-      console.debug('[notifications] active mode/search', { mode, search });
+      console.debug('[notifications] active filters', this.state.filters);
       this.state.items = normalizedItems;
       this.state.lastFetchedAt = new Date().toISOString();
     } catch (error) {
@@ -441,6 +441,13 @@ const Notifications = {
     E.notificationsState.textContent = `${list.length} item(s) • Last refreshed: ${lastFetched}`;
 
     if (!list.length) {
+      if (this.state.items.length) {
+        console.debug('[notifications] items exist but filters removed all rows', {
+          totalItems: this.state.items.length,
+          activeFilters: this.state.filters,
+          sample: this.state.items.slice(0, 5)
+        });
+      }
       E.notificationsTbody.innerHTML = '<tr><td colspan="8" class="muted">No notifications found for current filters.</td></tr>';
       return;
     }
@@ -490,7 +497,11 @@ const Notifications = {
         btn.classList.toggle('active', btn.getAttribute('data-filter') === mode);
       });
     }
-    this.loadHub(true);
+    if (mode === 'unread' || mode === 'high') {
+      this.loadHub(true);
+      return;
+    }
+    this.renderHub();
   },
   startPolling() {
     this.stopPolling();
@@ -532,14 +543,7 @@ const Notifications = {
       this.reset();
       return;
     }
-    this.state.filters.mode = 'all';
-    this.state.filters.search = '';
-    if (E.notificationsSearchInput) E.notificationsSearchInput.value = '';
-    if (E.notificationsFilterButtons) {
-      E.notificationsFilterButtons.querySelectorAll('[data-filter]').forEach(btn => {
-        btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
-      });
-    }
+    this.reset();
     this.startPolling();
     this.refreshAll(true);
   },
