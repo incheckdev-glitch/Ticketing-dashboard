@@ -2066,6 +2066,10 @@ function setActiveView(view) {
   if (view === 'users' && window.UserAdmin?.refresh) UserAdmin.refresh();
   if ((view === 'roles' || view === 'rolePermissions') && window.RolesAdmin?.loadAll) RolesAdmin.loadAll();
   updatePrimaryActionButton(view);
+  if (E.app) {
+    const appTop = E.app.getBoundingClientRect().top + window.scrollY - 10;
+    window.scrollTo({ top: Math.max(0, appTop), behavior: 'smooth' });
+  }
 }
 
 function updatePrimaryActionButton(activeView) {
