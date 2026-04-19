@@ -8,7 +8,9 @@ const TechnicalAdmin = {
     initialized: false,
     search: '',
     status: 'All',
-    activeRequestId: ''
+    activeRequestId: '',
+    rowActionInFlight: new Set(),
+    detailPreviewLoading: false
   },
   pick(...values) {
     for (const value of values) {
@@ -59,6 +61,51 @@ const TechnicalAdmin = {
     const normalized = String(status || '').trim();
     const label = normalized || 'Requested';
     return `<span class="pill status-${U.toStatusClass(label)}">${U.escapeHtml(label)}</span>`;
+  },
+  setTriggerBusy(trigger, busy, loadingLabel = 'Loading…') {
+    if (!trigger || !('disabled' in trigger)) return;
+    const isBusy = !!busy;
+    trigger.disabled = isBusy;
+    if (isBusy) {
+      trigger.dataset.originalLabel = String(trigger.textContent || '');
+      trigger.textContent = loadingLabel;
+      trigger.setAttribute('aria-busy', 'true');
+      return;
+    }
+    if (trigger.dataset.originalLabel !== undefined) {
+      trigger.textContent = trigger.dataset.originalLabel;
+      delete trigger.dataset.originalLabel;
+    }
+    trigger.removeAttribute('aria-busy');
+  },
+  async runRowAction(actionKey, trigger, fn, loadingLabel = 'Loading…') {
+    const key = String(actionKey || '').trim();
+    if (!key) return;
+    if (this.state.rowActionInFlight.has(key)) return;
+    this.state.rowActionInFlight.add(key);
+    this.setTriggerBusy(trigger, true, loadingLabel);
+    try {
+      await fn();
+    } finally {
+      this.state.rowActionInFlight.delete(key);
+      this.setTriggerBusy(trigger, false, loadingLabel);
+    }
+  },
+  async previewAgreement(agreementId) {
+    const id = String(agreementId || '').trim();
+    if (!id) {
+      UI.toast('Linked agreement not available');
+      return;
+    }
+    if (!window.Agreements?.previewAgreementHtml) {
+      UI.toast('Unable to load agreement preview');
+      return;
+    }
+    try {
+      await window.Agreements.previewAgreementHtml(id);
+    } catch (_error) {
+      UI.toast('Unable to load agreement preview');
+    }
   },
   applyFilters() {
     const query = String(this.state.search || '').trim().toLowerCase();
@@ -130,6 +177,10 @@ const TechnicalAdmin = {
     E.technicalAdminTbody.innerHTML = rows
       .map(row => {
         const requestId = U.escapeAttr(row.technical_request_id || '');
+        const agreementId = String(row.agreement_id || '').trim();
+        const agreementAction = agreementId
+          ? `<button class="btn ghost sm" type="button" data-technical-preview="${U.escapeAttr(agreementId)}" data-technical-request-preview="${requestId}">Preview Agreement</button>`
+          : '';
         return `<tr data-technical-request-id="${requestId}">
           <td>${text(row.technical_request_id)}</td>
           <td>${text(row.agreement_number)}</td>
@@ -146,6 +197,7 @@ const TechnicalAdmin = {
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn ghost sm" type="button" data-technical-open="${requestId}">Open</button>
+              ${agreementAction}
             </div>
           </td>
         </tr>`;
@@ -214,6 +266,13 @@ const TechnicalAdmin = {
       E.technicalAdminDetailsTitle.textContent = `Technical Admin Request ${row.technical_request_id || ''}`.trim();
     }
     if (E.technicalAdminDetailsContent) {
+      const agreementId = String(row.agreement_id || '').trim();
+      const hasAgreementId = !!agreementId;
+      const hasAgreementNumberOnly = !hasAgreementId && !!String(row.agreement_number || '').trim();
+      const previewDisabledAttr = hasAgreementId ? '' : 'disabled';
+      const previewHint = hasAgreementNumberOnly
+        ? '<div class="muted" style="font-size:12px;">Linked agreement not available</div>'
+        : '';
       E.technicalAdminDetailsContent.innerHTML = `
         <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
           <div><span class="muted">Technical Request ID:</span> ${U.escapeHtml(row.technical_request_id || '—')}</div>
@@ -235,6 +294,10 @@ const TechnicalAdmin = {
           <div style="grid-column:1/-1;"><span class="muted">Notes:</span> ${U.escapeHtml(row.notes || '—')}</div>
         </div>
         <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:14px;">
+          <div style="margin-right:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+            <button class="btn ghost" type="button" data-technical-preview-detail="${U.escapeAttr(agreementId)}" ${previewDisabledAttr}>Preview Agreement</button>
+            ${previewHint}
+          </div>
           <button class="btn ghost" type="button" data-technical-status="In Progress">Mark In Progress</button>
           <button class="btn ghost" type="button" data-technical-status="Completed">Mark Completed</button>
           <button class="btn ghost" type="button" data-technical-status="Requested">Reopen</button>
@@ -291,10 +354,14 @@ const TechnicalAdmin = {
     if (E.technicalAdminRefreshBtn) E.technicalAdminRefreshBtn.addEventListener('click', () => this.loadAndRefresh({ force: true }));
     if (E.technicalAdminTbody)
       E.technicalAdminTbody.addEventListener('click', event => {
-        const trigger = event.target?.closest?.('button[data-technical-open]');
+        const trigger = event.target?.closest?.('button[data-technical-open], button[data-technical-preview]');
         if (!trigger) return;
         const id = trigger.getAttribute('data-technical-open') || '';
-        this.openDetails(id);
+        if (id) return this.openDetails(id);
+        const previewId = trigger.getAttribute('data-technical-preview') || '';
+        if (!previewId) return;
+        const requestId = trigger.getAttribute('data-technical-request-preview') || previewId;
+        return this.runRowAction(`preview:${requestId}`, trigger, () => this.previewAgreement(previewId), 'Loading…');
       });
     if (E.technicalAdminDetailsContent)
       E.technicalAdminDetailsContent.addEventListener('click', event => {
@@ -302,6 +369,18 @@ const TechnicalAdmin = {
         if (statusBtn) return this.updateStatus(statusBtn.getAttribute('data-technical-status') || 'Requested');
         const assignBtn = event.target?.closest?.('button[data-technical-assign]');
         if (assignBtn) return this.assignToFlow();
+        const previewBtn = event.target?.closest?.('button[data-technical-preview-detail]');
+        if (previewBtn) {
+          const previewId = String(previewBtn.getAttribute('data-technical-preview-detail') || '').trim();
+          if (!previewId) return UI.toast('Linked agreement not available');
+          if (this.state.detailPreviewLoading) return;
+          this.state.detailPreviewLoading = true;
+          this.setTriggerBusy(previewBtn, true, 'Loading…');
+          this.previewAgreement(previewId).finally(() => {
+            this.state.detailPreviewLoading = false;
+            this.setTriggerBusy(previewBtn, false, 'Loading…');
+          });
+        }
       });
     if (E.technicalAdminDetailsCloseBtn) E.technicalAdminDetailsCloseBtn.addEventListener('click', () => this.closeDetails());
     if (E.technicalAdminDetailsModal)
