@@ -208,7 +208,7 @@ const Deals = {
     if (!value) return '—';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return U.escapeHtml(String(value));
-    return U.escapeHtml(date.toLocaleString());
+    return U.escapeHtml(U.fmtDisplayDate(value));
   },
   canCreate() {
     return Permissions.canCreateLead();
@@ -774,7 +774,7 @@ const Deals = {
       });
     } else {
       if (E.dealFormDealId) E.dealFormDealId.value = 'Auto-generated';
-      if (E.dealFormConvertedAt) E.dealFormConvertedAt.value = new Date().toLocaleString();
+      if (E.dealFormConvertedAt) E.dealFormConvertedAt.value = U.fmtDisplayDate(new Date());
       if (E.dealFormAssignedTo) E.dealFormAssignedTo.value = this.currentUserAssignee();
       this.syncDealFormDropdowns();
     }

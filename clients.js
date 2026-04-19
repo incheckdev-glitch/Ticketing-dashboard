@@ -605,8 +605,8 @@ const Clients = {
         ['Total Invoiced', U.fmtNumber(totalInvoiced)],
         ['Total Paid', U.fmtNumber(totalPaid)],
         ['Total Due', U.fmtNumber(totalDue)],
-        ['Last Payment Date', U.fmtDate(lastPayment) || '—'],
-        ['Next Renewal Date', U.fmtDate(nextRenewal) || '—']
+        ['Last Payment Date', U.fmtDisplayDate(lastPayment) || '—'],
+        ['Next Renewal Date', U.fmtDisplayDate(nextRenewal) || '—']
       ]
         .map(([label, value]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(String(value))}</div></div>`)
         .join('');
@@ -615,7 +615,7 @@ const Clients = {
       E.clientStatementTbody.innerHTML = rows.length
         ? rows
             .map(row => `<tr>
-              <td>${U.escapeHtml(U.fmtDate(row.date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.date) || '—')}</td>
               <td>${U.escapeHtml(row.type || '—')}</td>
               <td>${U.escapeHtml(row.document_no || '—')}</td>
               <td>${U.escapeHtml(row.reference || '—')}</td>
@@ -623,7 +623,7 @@ const Clients = {
               <td>${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
-              <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.due_date) || '—')}</td>
               <td>${U.escapeHtml(row.status || this.getPaymentStatus(row))}</td>
               <td>${U.escapeHtml(row.notes || '—')}</td>
             </tr>`)
@@ -639,7 +639,7 @@ const Clients = {
     const bodyRows = rows.length
       ? rows
           .map(row => `<tr>
-            <td>${U.escapeHtml(U.fmtDate(row.date) || '—')}</td>
+            <td>${U.escapeHtml(U.fmtDisplayDate(row.date) || '—')}</td>
             <td>${U.escapeHtml(row.type || '—')}</td>
             <td>${U.escapeHtml(row.document_no || '—')}</td>
             <td>${U.escapeHtml(row.reference || '—')}</td>
@@ -647,7 +647,7 @@ const Clients = {
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.debit || 0))}</td>
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.credit || 0))}</td>
             <td style="text-align:right;">${U.escapeHtml(U.fmtNumber(row.running_balance || 0))}</td>
-            <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
+            <td>${U.escapeHtml(U.fmtDisplayDate(row.due_date) || '—')}</td>
             <td>${U.escapeHtml(row.status || this.getPaymentStatus(row))}</td>
             <td>${U.escapeHtml(row.notes || '—')}</td>
           </tr>`)
@@ -682,7 +682,7 @@ const Clients = {
           <h2 style="margin:0 0 6px;">Statement of Account</h2>
           <div style="margin-bottom:10px;">${U.escapeHtml(customerName)}</div>
           <div class="meta">
-            <span>Generated: ${U.escapeHtml(U.fmtDate(generatedOn.toISOString().slice(0, 10)) || '—')}</span>
+            <span>Generated: ${U.escapeHtml(U.fmtDisplayDate(generatedOn.toISOString().slice(0, 10)) || '—')}</span>
             <span>Client ID: ${U.escapeHtml(client.client_id || '—')}</span>
             <span>Rows: ${U.escapeHtml(String(rows.length))}</span>
           </div>
@@ -771,10 +771,10 @@ const Clients = {
               <td>${U.escapeHtml(row.agreement_number || '—')}</td>
               <td>${U.escapeHtml(row.invoice_number || '—')}</td>
               <td>${U.escapeHtml(row.client_name || client.customer_name || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDate(row.start_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDate(row.end_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDate(row.due_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDate(row.renewal_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.start_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.end_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.due_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.renewal_date) || '—')}</td>
               <td>${U.escapeHtml(row.days_left === null ? '—' : String(row.days_left))}</td>
               <td>${U.escapeHtml(U.fmtNumber(row.amount_due || 0))}</td>
               <td>${U.escapeHtml(row.status || this.getRenewalStatus(row))}</td>
@@ -794,7 +794,7 @@ const Clients = {
         ['Renewal overdue', 'overdue_renewal_date']
       ];
       E.clientRenewalEvents.innerHTML = events
-        .map(([label, key]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(U.fmtDate(detailData?.detail?.[key] || detailData?.analytics?.[key]) || '—')}</div></div>`)
+        .map(([label, key]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(U.fmtDisplayDate(detailData?.detail?.[key] || detailData?.analytics?.[key]) || '—')}</div></div>`)
         .join('');
     }
   },
@@ -821,7 +821,7 @@ const Clients = {
           <td>${U.escapeHtml(U.fmtNumber(analytics.total_paid_amount || 0))}</td>
           <td>${U.escapeHtml(U.fmtNumber(analytics.total_due_amount || 0))}</td>
           <td><span class="chip">${U.escapeHtml(client.status || 'Unknown')}</span></td>
-          <td>${U.escapeHtml(U.fmtDate(analytics.latest_activity_date) || '—')}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(analytics.latest_activity_date) || '—')}</td>
         </tr>`;
       })
       .join('');
@@ -858,7 +858,7 @@ const Clients = {
       ['Total Paid', U.fmtNumber(analytics.total_paid_amount || 0)],
       ['Total Due', U.fmtNumber(analytics.total_due_amount || 0)],
       ['Receipts', U.fmtNumber(analytics.total_receipts_value || 0)],
-      ['Next Renewal', U.fmtDate(analytics.next_renewal_date) || '—']
+      ['Next Renewal', U.fmtDisplayDate(analytics.next_renewal_date) || '—']
     ];
     if (E.clientAnalyticsCards) {
       E.clientAnalyticsCards.innerHTML = analyticsCards
@@ -876,8 +876,8 @@ const Clients = {
               <td>${U.escapeHtml(item.agreement_number || item.agreement_id || '—')}</td>
               <td>${U.escapeHtml(item.status || '—')}</td>
               <td>${U.escapeHtml(U.fmtNumber(item.grand_total || 0))}</td>
-              <td>${U.escapeHtml(U.fmtDate(item.service_start_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDate(item.end_date || item.service_end_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(item.service_start_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(item.end_date || item.service_end_date) || '—')}</td>
               <td>${item.agreement_id ? `<button class="btn ghost sm" type="button" data-agreement-view="${U.escapeAttr(item.agreement_id)}">Open</button>` : '—'}</td>
             </tr>`)
             .join('')
@@ -915,7 +915,7 @@ const Clients = {
       const timeline = (detailData.timeline || this.buildTimeline_(client.client_id)).slice(0, 20);
       E.clientTimeline.innerHTML = timeline.length
         ? timeline
-            .map(item => `<li><strong>${U.escapeHtml(U.fmtDate(item.date || item.event_date) || '—')}</strong> — ${U.escapeHtml(item.label || item.title || item.type || 'Activity')}</li>`)
+            .map(item => `<li><strong>${U.escapeHtml(U.fmtDisplayDate(item.date || item.event_date) || '—')}</strong> — ${U.escapeHtml(item.label || item.title || item.type || 'Activity')}</li>`)
             .join('')
         : '<li class="muted">No timeline activity yet.</li>';
     }

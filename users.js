@@ -226,7 +226,7 @@ const UserAdmin = {
     if (!value) return '—';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString();
+    return U.fmtDisplayDate(value);
   },
   normalizeActive(user = {}) {
     if (typeof user.active === 'boolean') return user.active;

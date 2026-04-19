@@ -355,12 +355,12 @@ const Receipts = {
           <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span>${U.escapeHtml(row.receipt_number || row.receipt_id || '—')}</span><span class="pill">${U.escapeHtml(typeLabel)}</span>${settlementBadge}</div></td>
           <td>${U.escapeHtml(row.invoice_number || '—')}</td>
           <td>${U.escapeHtml(row.customer_name || '—')}</td>
-          <td>${U.escapeHtml(row.receipt_date || '—')}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.receipt_date))}</td>
           <td>${U.escapeHtml(row.currency || '—')}</td>
           <td>${this.formatMoney(row.received_amount || row.grand_total)}</td>
           <td>${U.escapeHtml(row.payment_state || '—')}</td>
           <td>${U.escapeHtml(row.status || '—')}</td>
-          <td>${U.escapeHtml(row.updated_at || '—')}</td>
+          <td>${U.escapeHtml(U.fmtDisplayDate(row.updated_at))}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn ghost sm" type="button" data-receipt-view="${id}">View</button>
             ${Permissions.canUpdateReceipt() ? `<button class="btn ghost sm" type="button" data-receipt-edit="${id}">Edit</button>` : ''}
@@ -377,7 +377,7 @@ const Receipts = {
     if (E.receiptLocationItemsTbody) {
       E.receiptLocationItemsTbody.innerHTML = locations.length
         ? locations
-            .map(item => `<tr><td>${U.escapeHtml(item.location_name || '—')}</td><td>${U.escapeHtml(item.location_address || '—')}</td><td>${U.escapeHtml(item.service_start_date || '—')}</td><td>${U.escapeHtml(item.service_end_date || '—')}</td><td>${U.escapeHtml(item.modules || item.item_name || '—')}</td><td>${this.formatMoney(item.line_total)}</td><td>${U.escapeHtml(item.notes || '—')}</td></tr>`)
+            .map(item => `<tr><td>${U.escapeHtml(item.location_name || '—')}</td><td>${U.escapeHtml(item.location_address || '—')}</td><td>${U.escapeHtml(U.fmtDisplayDate(item.service_start_date))}</td><td>${U.escapeHtml(U.fmtDisplayDate(item.service_end_date))}</td><td>${U.escapeHtml(item.modules || item.item_name || '—')}</td><td>${this.formatMoney(item.line_total)}</td><td>${U.escapeHtml(item.notes || '—')}</td></tr>`)
             .join('')
         : '<tr><td colspan="7" class="muted" style="text-align:center;">No location detail rows.</td></tr>';
     }
