@@ -9,6 +9,7 @@ const Permissions = {
     proposals: 'proposals',
     agreements: 'agreements',
     operationsOnboarding: 'operations_onboarding',
+    technicalAdmin: 'technical_admin_requests',
     invoices: 'invoices',
     receipts: 'receipts',
     lifecycleAnalytics: 'analytics',
@@ -290,6 +291,12 @@ const Permissions = {
   canViewOperationsOnboarding() {
     return this.can('operations_onboarding', 'list', { fallback: Session.isAuthenticated() });
   },
+  canViewTechnicalAdmin() {
+    return this.can('technical_admin_requests', 'list', { fallback: this.canViewOperationsOnboarding() });
+  },
+  canManageTechnicalAdmin() {
+    return this.can('technical_admin_requests', 'update_status', { fallback: this.canManageOperationsOnboarding() });
+  },
   canManageOperationsOnboarding() {
     return this.isAdmin() || this.isDev() || this.isHoo();
   },
@@ -384,6 +391,7 @@ const Permissions = {
     if (!key) return false;
     if (key === 'issues') return Session.isAuthenticated();
     if (key === 'operationsOnboarding') return this.canViewOperationsOnboarding();
+    if (key === 'technicalAdmin') return this.canViewTechnicalAdmin();
     const resource = this.tabResourceMap[key];
     if (!resource) return Session.isAuthenticated();
     return this.can(resource, 'list', { fallback: Session.isAuthenticated() });

@@ -7,6 +7,7 @@ const RolesAdmin = {
     deals: 'deals',
     proposals: 'proposals',
     agreements: 'agreements',
+    technicalAdmin: 'technical_admin_requests',
     invoices: 'invoices',
     receipts: 'receipts',
     lifecycleAnalytics: 'analytics',

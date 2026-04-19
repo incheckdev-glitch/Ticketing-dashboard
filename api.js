@@ -334,7 +334,7 @@ const Api = {
     if (!Array.isArray(cachedRows)) return Array.isArray(freshRows) ? freshRows : [];
     if (!Array.isArray(freshRows) || !freshRows.length) return cachedRows;
 
-    const idKeys = ['id', 'uuid', 'ticket_id', 'deal_id', 'client_id', 'agreement_id', 'invoice_id', 'proposal_id', 'user_id', 'role_id', 'key'];
+    const idKeys = ['id', 'uuid', 'ticket_id', 'deal_id', 'client_id', 'agreement_id', 'technical_request_id', 'invoice_id', 'proposal_id', 'user_id', 'role_id', 'key'];
     const getRowId = row => {
       if (!row || typeof row !== 'object') return '';
       const match = idKeys.find(key => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '');
@@ -585,6 +585,21 @@ const Api = {
       onboarding_id: onboardingId,
       updates,
       sheetName: CONFIG.OPERATIONS_ONBOARDING_SHEET_NAME
+    });
+  },
+  async listTechnicalAdminRequests(filters = {}) {
+    return this.postAuthenticatedCached('technical_admin_requests', 'list', { filters });
+  },
+  async getTechnicalAdminRequest(technicalRequestId) {
+    return this.postAuthenticated('technical_admin_requests', 'get', {
+      technical_request_id: technicalRequestId
+    });
+  },
+  async updateTechnicalAdminRequestStatus(technicalRequestId, status, extra = {}) {
+    return this.postAuthenticated('technical_admin_requests', 'update_status', {
+      technical_request_id: technicalRequestId,
+      request_status: status,
+      ...(extra && typeof extra === 'object' ? extra : {})
     });
   },
 

@@ -333,6 +333,10 @@
                     role="tab" aria-selected="false" aria-controls="operationsOnboardingView">
               <span class="icon" aria-hidden="true">🧭</span> Operations Onboarding
             </button>
+            <button id="technicalAdminTab" class="view-tab" data-view="technicalAdmin"
+                    role="tab" aria-selected="false" aria-controls="technicalAdminView">
+              <span class="icon" aria-hidden="true">🛠️</span> Technical Admin
+            </button>
             <button id="invoicesTab" class="view-tab" data-view="invoices"
                     role="tab" aria-selected="false" aria-controls="invoicesView">
               <span class="icon" aria-hidden="true">🧮</span> Invoices
@@ -633,6 +637,7 @@
               <option value="deals">Deals</option>
               <option value="proposals">Proposals</option>
               <option value="agreements">Agreements</option>
+              <option value="technicalAdmin">Technical Admin</option>
               <option value="invoices">Invoices</option>
               <option value="receipts">Receipts</option>
               <option value="lifecycleAnalytics">Lifecycle Analytics</option>
@@ -1695,6 +1700,34 @@
                 </tr>
               </thead>
               <tbody id="operationsOnboardingTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="technicalAdminView" class="view" role="tabpanel" aria-labelledby="technicalAdminTab">
+        <div class="grid cols-4" id="technicalAdminSummary" aria-live="polite"></div>
+        <div class="card" aria-label="Technical admin request list">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div>
+              <strong>Technical Admin Requests</strong>
+              <div class="muted">Track all technical admin requests raised from agreements.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="technicalAdminSearchInput" class="input" type="search" placeholder="Search request, agreement, client..." aria-label="Search technical admin requests" />
+              <select id="technicalAdminStatusFilter" class="select" aria-label="Filter by request status"><option>All</option></select>
+              <button id="technicalAdminRefreshBtn" class="btn ghost sm" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="technicalAdminState" class="muted" style="margin-bottom:8px;">No data loaded.</div>
+          <div class="table-wrap" role="region" aria-label="Technical admin requests table">
+            <table id="technicalAdminTable">
+              <thead>
+                <tr>
+                  <th>Technical Request ID</th><th>Agreement Number</th><th>Client Name</th><th>Number of Locations</th><th>Service Start Date</th><th>Service End Date</th><th>Billing Frequency</th><th>Payment Term</th><th>Request Status</th><th>Requested By</th><th>Requested At</th><th>Assigned To</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="technicalAdminTbody"></tbody>
             </table>
           </div>
         </div>
@@ -3021,6 +3054,16 @@
     </div>
   </div>
 
+  <div id="technicalAdminDetailsModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-content" style="max-width:900px;">
+      <div class="header">
+        <h2 id="technicalAdminDetailsTitle" style="margin:0;font-size:20px;">Technical Admin Request</h2>
+        <div class="actions"><button class="modal-close" id="technicalAdminDetailsCloseBtn" aria-label="Close technical admin details">✕</button></div>
+      </div>
+      <div id="technicalAdminDetailsContent" class="muted"></div>
+    </div>
+  </div>
+
   <div id="invoiceFormModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="invoiceFormTitle" aria-hidden="true">
     <div class="modal-content" style="max-width:1200px;">
       <div class="header"><h2 id="invoiceFormTitle" style="margin:0;font-size:20px">Invoice</h2><div class="actions"><button class="modal-close" id="invoiceFormCloseBtn" aria-label="Close invoice form">✕</button></div></div>
@@ -3205,6 +3248,7 @@
   <script src="proposals.js"></script>
   <script src="agreements.js"></script>
   <script src="operations-onboarding.js"></script>
+  <script src="technical-admin.js"></script>
   <script src="invoices.js"></script>
   <script src="receipts.js"></script>
   <script src="lifecycle-analytics.js"></script>
