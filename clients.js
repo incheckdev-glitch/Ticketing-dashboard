@@ -461,31 +461,27 @@ const Clients = {
   buildClientRenewalRows(client) {
     const clientId = String(client?.client_id || '').trim();
     const agreements = this.listClientRelatedAgreements_(clientId);
-    const invoices = this.listClientRelatedInvoices_(clientId);
-    const invoiceByAgreement = new Map();
-    invoices.forEach(item => {
-      const key = String(item.agreement_id || '').trim();
-      if (key && !invoiceByAgreement.has(key)) invoiceByAgreement.set(key, item);
+    const rows = [];
+    agreements.forEach(agreement => {
+      const itemRows = Array.isArray(agreement.items) ? agreement.items : [];
+      itemRows.forEach(item => {
+        const normalized = this.normalizeRenewalRow({
+          ...item,
+          agreement_id: agreement.agreement_id,
+          agreement_number: agreement.agreement_number,
+          client_name: client.customer_name || client.customer_legal_name || '—',
+          renewal_date: this.getField(item, 'renewal_date', 'renewalDate', 'service_end_date', 'serviceEndDate', 'end_date', 'endDate'),
+          service_start_date: this.getField(item, 'service_start_date', 'serviceStartDate', 'start_date', 'startDate') || agreement.service_start_date,
+          service_end_date: this.getField(item, 'service_end_date', 'serviceEndDate', 'end_date', 'endDate') || agreement.service_end_date || agreement.end_date,
+          location_name: this.getField(item, 'location_name', 'locationName') || agreement.location_name,
+          payment_status: this.getField(item, 'payment_status', 'paymentStatus')
+        });
+        if (normalized.renewal_date || normalized.service_start_date || normalized.service_end_date || normalized.location_name || normalized.module_name) {
+          rows.push(normalized);
+        }
+      });
     });
-    return agreements.map(agreement => {
-      const invoice = invoiceByAgreement.get(String(agreement.agreement_id || '').trim()) || {};
-      const renewalDate = agreement.renewal_date || agreement.end_date || agreement.service_end_date || '';
-      return {
-        agreement_id: agreement.agreement_id,
-        agreement_number: agreement.agreement_number || agreement.agreement_id || '—',
-        invoice_id: invoice.invoice_id || '',
-        invoice_number: invoice.invoice_number || '—',
-        client_name: client.customer_name || client.customer_legal_name || '—',
-        start_date: agreement.service_start_date || '',
-        end_date: agreement.end_date || agreement.service_end_date || '',
-        due_date: invoice.due_date || agreement.due_date || '',
-        renewal_date: renewalDate,
-        days_left: this.getDaysLeft(renewalDate),
-        amount_due: this.toNumberSafe(invoice.pending_amount),
-        payment_status: this.getPaymentStatus(invoice),
-        status: this.getRenewalStatus({ ...agreement, ...invoice, renewal_date: renewalDate })
-      };
-    });
+    return rows;
   },
   normalizeStatementRow(raw = {}) {
     return {
@@ -504,20 +500,24 @@ const Clients = {
   },
   normalizeRenewalRow(raw = {}) {
     const renewalDate = String(this.getField(raw, 'renewal_date', 'renewalDate', 'next_renewal_date', 'nextRenewalDate', 'service_end_date', 'serviceEndDate') || '').trim();
+    const paymentStatus = String(this.getField(raw, 'payment_status', 'paymentStatus') || '').trim();
     return {
       agreement_id: String(this.getField(raw, 'agreement_id', 'agreementId') || '').trim(),
       agreement_number: String(this.getField(raw, 'agreement_number', 'agreementNo', 'agreementNumber') || '').trim(),
       invoice_id: String(this.getField(raw, 'invoice_id', 'invoiceId') || '').trim(),
       invoice_number: String(this.getField(raw, 'invoice_no', 'invoiceNo', 'invoice_number', 'invoiceNumber') || '').trim(),
       client_name: String(this.getField(raw, 'client', 'client_name', 'customer_name', 'customerName') || '').trim(),
-      start_date: String(this.getField(raw, 'start_date', 'service_start_date', 'serviceStartDate') || '').trim(),
-      end_date: String(this.getField(raw, 'end_date', 'service_end_date', 'serviceEndDate') || '').trim(),
+      location_name: String(this.getField(raw, 'location_name', 'locationName') || '').trim(),
+      module_name: String(this.getField(raw, 'module_name', 'moduleName', 'item_name', 'name') || '').trim(),
+      service_start_date: String(this.getField(raw, 'service_start_date', 'serviceStartDate', 'start_date', 'startDate') || '').trim(),
+      service_end_date: String(this.getField(raw, 'service_end_date', 'serviceEndDate', 'end_date', 'endDate') || '').trim(),
       due_date: String(this.getField(raw, 'due_date', 'dueDate') || '').trim(),
       renewal_date: renewalDate,
+      billing_frequency: String(this.getField(raw, 'billing_frequency', 'billingFrequency') || '').trim(),
       days_left: this.getDaysLeft(renewalDate),
       amount_due: this.toNumberSafe(this.getField(raw, 'amount_due', 'pending_amount', 'pendingAmount')),
       status: String(this.getField(raw, 'status') || '').trim(),
-      payment_status: this.getPaymentStatus(raw)
+      payment_status: paymentStatus || this.getPaymentStatus(raw)
     };
   },
   applyFilters() {
@@ -795,19 +795,16 @@ const Clients = {
       E.clientRenewalsTbody.innerHTML = rows.length
         ? rows
             .map(row => `<tr>
-              <td>${U.escapeHtml(row.agreement_number || '—')}</td>
-              <td>${U.escapeHtml(row.invoice_number || '—')}</td>
-              <td>${U.escapeHtml(row.client_name || client.customer_name || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDisplayDate(row.start_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDisplayDate(row.end_date) || '—')}</td>
-              <td>${U.escapeHtml(U.fmtDisplayDate(row.due_date) || '—')}</td>
+              <td>${U.escapeHtml(row.location_name || '—')}</td>
+              <td>${U.escapeHtml(row.module_name || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.service_start_date) || '—')}</td>
+              <td>${U.escapeHtml(U.fmtDisplayDate(row.service_end_date) || '—')}</td>
               <td>${U.escapeHtml(U.fmtDisplayDate(row.renewal_date) || '—')}</td>
-              <td>${U.escapeHtml(row.days_left === null ? '—' : String(row.days_left))}</td>
-              <td>${U.escapeHtml(U.fmtNumber(row.amount_due || 0))}</td>
-              <td>${U.escapeHtml(row.status || this.getRenewalStatus(row))}</td>
+              <td>${U.escapeHtml(row.billing_frequency || '—')}</td>
+              <td>${U.escapeHtml(row.payment_status || this.getPaymentStatus(row) || '—')}</td>
             </tr>`)
             .join('')
-        : '<tr><td colspan="10" class="muted" style="text-align:center;">No renewals or payments timeline rows.</td></tr>';
+        : '<tr><td colspan="7" class="muted" style="text-align:center;">No renewals or payments timeline rows.</td></tr>';
     }
     if (E.clientRenewalEvents) {
       const events = [
@@ -978,7 +975,7 @@ const Clients = {
       E.clientStatementTbody.innerHTML = '<tr><td colspan="10"><div class="skeleton" style="height:30px;"></div></td></tr>';
     }
     if (E.clientRenewalsTbody) {
-      E.clientRenewalsTbody.innerHTML = '<tr><td colspan="10"><div class="skeleton" style="height:30px;"></div></td></tr>';
+      E.clientRenewalsTbody.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height:30px;"></div></td></tr>';
     }
   },
   async selectClient(clientId, options = {}) {
