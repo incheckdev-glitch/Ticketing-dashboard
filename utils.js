@@ -121,7 +121,7 @@ const U = {
     const textWalker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_TEXT);
 
     const datePattern =
-      /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}(?:\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4}(?:\s+\([^)]*\))?)?|\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?/g;
+      /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?\s+GMT[+-]\d{4}(?:\s+\([^)]*\)|\s+[A-Za-z][A-Za-z\s/_-]*)?)?|\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?/g;
 
     let node = textWalker.nextNode();
     while (node) {
