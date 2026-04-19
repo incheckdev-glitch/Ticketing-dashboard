@@ -353,6 +353,38 @@ const Agreements = {
   async createAgreementFromProposal(proposalId) { return Api.createAgreementFromProposal(proposalId); },
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
   async createInvoiceFromAgreement(agreementId) { return Api.createInvoiceFromAgreement(agreementId); },
+  extractTechnicalRequest(response) {
+    const payload = Api.unwrapApiPayload(response);
+    const candidates = [
+      payload?.technical_request,
+      payload?.technicalAdminRequest,
+      payload?.request,
+      payload,
+      response?.technical_request,
+      response?.request
+    ];
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      const requestId = String(candidate.technical_request_id || candidate.technicalRequestId || '').trim();
+      if (requestId) return candidate;
+    }
+    return null;
+  },
+  async requestTechnicalAdminFlow(agreementId) {
+    const id = String(agreementId || '').trim();
+    if (!id) return UI.toast('Agreement ID is required.');
+    try {
+      const response = await Api.postAuthenticated('agreements', 'request_technical_admin', { agreement_id: id });
+      const technicalRequest = this.extractTechnicalRequest(response);
+      if (technicalRequest && window.TechnicalAdmin?.upsertLocalRow) {
+        TechnicalAdmin.upsertLocalRow(technicalRequest);
+      }
+      if (window.TechnicalAdmin?.loadAndRefresh) TechnicalAdmin.loadAndRefresh({ force: !technicalRequest });
+      UI.toast(`Technical Admin request sent for agreement ${id}.`);
+    } catch (error) {
+      UI.toast('Unable to request Technical Admin: ' + (error?.message || 'Unknown error'));
+    }
+  },
   isSignedStatus(status) {
     return this.normalizeText(status).includes('signed');
   },
@@ -602,6 +634,7 @@ const Agreements = {
         <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn ghost sm" type="button" data-agreement-view="${id}">View</button>
         ${Permissions.canUpdateAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-edit=\"${id}\">Edit</button>` : ''}
+        ${Permissions.canViewTechnicalAdmin() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-request-technical=\"${id}\">Request Technical</button>` : ''}
         ${Permissions.canGenerateAgreementHtml() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-preview=\"${id}\">View Agreement</button>` : ''}
         ${this.isSignedStatus(row.status) && Permissions.canCreateInvoiceFromAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-create-invoice=\"${id}\">Create Invoice</button>` : ''}
         ${Permissions.canDeleteAgreement() ? `<button class=\"btn ghost sm\" type=\"button\" data-agreement-delete=\"${id}\">Delete</button>` : ''}
@@ -1116,7 +1149,7 @@ const Agreements = {
       this.createFromProposalFlow(E.agreementsCreateFromProposalInput?.value || '');
     });
     if (E.agreementsTbody) E.agreementsTbody.addEventListener('click', event => {
-      const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-preview], button[data-agreement-create-invoice], button[data-agreement-delete]');
+      const trigger = event.target?.closest?.('button[data-agreement-view], button[data-agreement-edit], button[data-agreement-request-technical], button[data-agreement-preview], button[data-agreement-create-invoice], button[data-agreement-delete]');
       if (!trigger) return;
       const viewId = trigger.getAttribute('data-agreement-view');
       if (viewId) return this.runRowAction(`view:${viewId}`, trigger, () => this.openAgreementFormById(viewId, { readOnly: true, trigger }));
@@ -1124,6 +1157,11 @@ const Agreements = {
       if (editId) {
         if (!Permissions.canUpdateAgreement()) return UI.toast('You do not have permission to edit agreements.');
         return this.runRowAction(`edit:${editId}`, trigger, () => this.openAgreementFormById(editId, { readOnly: false, trigger }));
+      }
+      const requestTechnicalId = trigger.getAttribute('data-agreement-request-technical');
+      if (requestTechnicalId) {
+        if (!Permissions.canViewTechnicalAdmin()) return UI.toast('You do not have permission to request Technical Admin.');
+        return this.runRowAction(`request-technical:${requestTechnicalId}`, trigger, () => this.requestTechnicalAdminFlow(requestTechnicalId));
       }
       const previewId = trigger.getAttribute('data-agreement-preview');
       if (previewId) return this.runRowAction(`preview:${previewId}`, trigger, () => this.previewAgreementHtml(previewId));
