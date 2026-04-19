@@ -5878,14 +5878,15 @@ function logApiStartupDiagnostics() {
   const resolvedBaseUrl = String(diagnostics.apiBaseUrl || API_BASE_URL || '').trim();
   const resolvedEndpoint =
     String(diagnostics.resolvedEndpoint || (window.resolveApiEndpoint ? resolveApiEndpoint(resolvedBaseUrl) : '') || '').trim();
-  const sameOriginWithProxy =
-    diagnostics.isSameOriginWithLocalProxy !== undefined
-      ? diagnostics.isSameOriginWithLocalProxy
+  const notificationHubEndpoint = String(diagnostics.notificationHubEndpoint || resolvedEndpoint || '').trim();
+  const isProxy =
+    diagnostics.isProxy !== undefined
+      ? Boolean(diagnostics.isProxy)
       : (() => {
           try {
             const proxyUrl = new URL('/api/proxy', window.location.origin);
             const endpointUrl = new URL(resolvedEndpoint, window.location.origin);
-            return endpointUrl.origin === proxyUrl.origin && endpointUrl.pathname === proxyUrl.pathname;
+            return endpointUrl.pathname === proxyUrl.pathname;
           } catch {
             return false;
           }
@@ -5894,8 +5895,12 @@ function logApiStartupDiagnostics() {
   console.info('[startup/auth] API diagnostics', {
     apiBaseUrl: resolvedBaseUrl,
     resolvedEndpoint,
-    sameOriginWithLocalProxy: sameOriginWithProxy
+    usingProxy: isProxy,
+    notificationHubEndpoint
   });
+  console.info(
+    `[startup/notifications] endpoint=${notificationHubEndpoint || 'n/a'}; isProxy=${isProxy ? 'yes' : 'no'}`
+  );
 
   if (!resolvedBaseUrl) {
     console.warn('[startup/auth] API_BASE_URL is empty. Configure window.RUNTIME_CONFIG.API_BASE_URL (or PROXY_API_BASE_URL/BACKEND_API_BASE_URL).');

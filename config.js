@@ -70,15 +70,24 @@ const API_BASE_URL = window.API_BASE_URL;
 const RESOLVED_API_ENDPOINT = resolveApiEndpoint(API_BASE_URL);
 const LOCAL_PROXY_ENDPOINT = new URL('/api/proxy', window.location.origin);
 const resolvedApiUrl = RESOLVED_API_ENDPOINT ? new URL(RESOLVED_API_ENDPOINT, window.location.origin) : null;
+const normalizedResolvedPathname = resolvedApiUrl
+  ? normalizeEndpointPathname(resolvedApiUrl.pathname)
+  : '';
+const localProxyPathname = normalizeEndpointPathname(LOCAL_PROXY_ENDPOINT.pathname);
+const isProxyPath = Boolean(normalizedResolvedPathname) && normalizedResolvedPathname === localProxyPathname;
 const isSameOriginWithLocalProxy =
   !!resolvedApiUrl &&
   resolvedApiUrl.origin === LOCAL_PROXY_ENDPOINT.origin &&
-  normalizeEndpointPathname(resolvedApiUrl.pathname) === normalizeEndpointPathname(LOCAL_PROXY_ENDPOINT.pathname);
+  isProxyPath;
+const usingProxy = isProxyPath;
+const notificationHubEndpoint = RESOLVED_API_ENDPOINT;
 
 window.resolveApiEndpoint = resolveApiEndpoint;
 window.API_RUNTIME_DIAGNOSTICS = Object.freeze({
   apiBaseUrl: API_BASE_URL,
   resolvedEndpoint: RESOLVED_API_ENDPOINT,
+  notificationHubEndpoint,
+  isProxy: usingProxy,
   isSameOriginWithLocalProxy,
   isMalformed: isLikelyMalformedApiBaseUrl(rawApiBaseUrl)
 });

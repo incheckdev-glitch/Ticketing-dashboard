@@ -57,6 +57,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed. Use POST.' });
   }
 
+  // Keep APPS_SCRIPT_WEBAPP_URL pointed to the latest Apps Script Web App /exec deployment URL.
+  // This proxy is only used when frontend API_BASE_URL resolves to /api/proxy.
   const targetUrl = String(process.env.APPS_SCRIPT_WEBAPP_URL || '').trim();
   if (!targetUrl) {
     return res.status(500).json({
@@ -69,6 +71,7 @@ export default async function handler(req, res) {
   const payload = parseRequestBody(req.body);
   const resource = String(payload?.resource || '').trim();
   const action = String(payload?.action || '').trim();
+  res.setHeader('X-Upstream-Apps-Script', targetUrl);
 
   console.log('[proxy] forwarding request', {
     targetUrl,
