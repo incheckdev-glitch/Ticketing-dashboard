@@ -751,7 +751,6 @@ const Api = {
       priority: options.priority || '',
       search: options.search || ''
     };
-    if (options.type) payload.type = options.type;
     if (options.filters && typeof options.filters === 'object') payload.filters = options.filters;
     return this.postAuthenticated('notifications', 'list', payload);
   },
