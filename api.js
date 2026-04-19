@@ -748,10 +748,11 @@ const Api = {
     const payload = {
       limit: Number(options.limit || 50),
       unread_only: options.unread_only === true,
-      type: options.type || '',
       priority: options.priority || '',
       search: options.search || ''
     };
+    if (options.type) payload.type = options.type;
+    if (options.filters && typeof options.filters === 'object') payload.filters = options.filters;
     return this.postAuthenticated('notifications', 'list', payload);
   },
   async getNotificationUnreadCount() {
