@@ -16,6 +16,22 @@ const Notifications = {
   },
   normalize(item = {}) {
     const source = item && typeof item === 'object' ? item : {};
+    const firstValue = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return '';
+    };
+    const parseBoolean = value => {
+      if (value === true || value === 1) return true;
+      if (value === false || value === 0 || value === null || value === undefined) return false;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1') return true;
+        if (normalized === 'false' || normalized === '0' || normalized === '') return false;
+      }
+      return false;
+    };
     const parseMeta = value => {
       if (!value) return {};
       if (typeof value === 'object') return value;
@@ -28,23 +44,23 @@ const Notifications = {
       }
       return {};
     };
-    const isRead = source.is_read === true || source.is_read === 'true' || source.status === 'read';
+    const isRead = parseBoolean(firstValue(source.is_read, source.isRead)) || String(firstValue(source.status, source.notification_status)).trim().toLowerCase() === 'read';
     return {
-      notification_id: String(source.notification_id || source.id || '').trim(),
-      created_at: String(source.created_at || source.createdAt || '').trim(),
-      type: String(source.type || '').trim().toLowerCase(),
-      title: String(source.title || 'Untitled notification').trim(),
-      message: String(source.message || '').trim(),
-      resource: String(source.resource || '').trim().toLowerCase(),
-      resource_id: String(source.resource_id || '').trim(),
-      action_required: !!source.action_required,
-      action_label: String(source.action_label || '').trim(),
-      priority: String(source.priority || '').trim().toLowerCase(),
-      status: String(source.status || '').trim(),
+      notification_id: String(firstValue(source.notification_id, source.id)).trim(),
+      created_at: String(firstValue(source.created_at, source.createdAt, source.timestamp, source.date)).trim(),
+      type: String(firstValue(source.type, source.notification_type)).trim().toLowerCase(),
+      title: String(firstValue(source.title, source.notification_title, 'Untitled notification')).trim(),
+      message: String(firstValue(source.message, source.notification_message, source.details)).trim(),
+      resource: String(firstValue(source.resource, source.target_resource)).trim().toLowerCase(),
+      resource_id: String(firstValue(source.resource_id, source.target_resource_id)).trim(),
+      action_required: parseBoolean(source.action_required),
+      action_label: String(firstValue(source.action_label, source.actionLabel)).trim(),
+      priority: String(firstValue(source.priority, source.priority_level)).trim().toLowerCase(),
+      status: String(firstValue(source.status, source.notification_status)).trim(),
       is_read: isRead,
-      read_at: String(source.read_at || '').trim(),
-      link_target: String(source.link_target || '').trim(),
-      meta: parseMeta(source.meta || source.meta_json)
+      read_at: String(firstValue(source.read_at, source.readAt)).trim(),
+      link_target: String(firstValue(source.link_target, source.link, source.target_link)).trim(),
+      meta: parseMeta(firstValue(source.meta, source.meta_json))
     };
   },
   extractRows(payload) {
@@ -58,7 +74,14 @@ const Notifications = {
       payload?.payload,
       payload?.data?.rows,
       payload?.data?.items,
-      payload?.data?.notifications
+      payload?.data?.notifications,
+      payload?.result?.rows,
+      payload?.result?.items,
+      payload?.result?.notifications,
+      payload?.payload?.rows,
+      payload?.payload?.items,
+      payload?.payload?.notifications,
+      payload?.rows?.rows
     ];
     for (const candidate of candidates) {
       if (Array.isArray(candidate)) return candidate;
@@ -180,19 +203,22 @@ const Notifications = {
     this.renderHub();
     try {
       const mode = this.state.filters.mode || 'all';
+      const search = this.state.filters.search || '';
       const payload = {
         limit: 200,
         unread_only: mode === 'unread',
-        search: this.state.filters.search || ''
+        search,
+        priority: mode === 'high' ? 'high' : ''
       };
-      if (mode === 'approvals') payload.type = 'approval';
-      if (mode === 'operations') payload.type = 'operations';
-      if (mode === 'tickets') payload.type = 'ticket';
-      if (mode === 'assignments') payload.type = 'assignment';
-      if (mode === 'high') payload.priority = 'high';
 
       const response = await Api.listNotifications(payload);
-      this.state.items = this.extractRows(response).map(item => this.normalize(item));
+      console.debug('[notifications] raw response', response);
+      const rows = this.extractRows(response);
+      console.debug('[notifications] extracted rows', rows);
+      const normalizedItems = rows.map(item => this.normalize(item));
+      console.debug('[notifications] normalized items', normalizedItems);
+      console.debug('[notifications] active mode/search', { mode, search });
+      this.state.items = normalizedItems;
       this.state.lastFetchedAt = new Date().toISOString();
     } catch (error) {
       console.warn('Unable to load notifications hub', error);
@@ -487,7 +513,15 @@ const Notifications = {
     this.state.unreadCount = 0;
     this.state.loading = false;
     this.state.previewLoading = false;
+    this.state.filters.mode = 'all';
+    this.state.filters.search = '';
     this.state.lastFetchedAt = '';
+    if (E.notificationsSearchInput) E.notificationsSearchInput.value = '';
+    if (E.notificationsFilterButtons) {
+      E.notificationsFilterButtons.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+      });
+    }
     this.closePanel();
     this.renderBell();
     this.renderPreview();
@@ -497,6 +531,14 @@ const Notifications = {
     if (!Session.isAuthenticated()) {
       this.reset();
       return;
+    }
+    this.state.filters.mode = 'all';
+    this.state.filters.search = '';
+    if (E.notificationsSearchInput) E.notificationsSearchInput.value = '';
+    if (E.notificationsFilterButtons) {
+      E.notificationsFilterButtons.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+      });
     }
     this.startPolling();
     this.refreshAll(true);
