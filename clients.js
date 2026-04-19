@@ -383,6 +383,136 @@ const Clients = {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 20);
   },
+  normalizeEventToken_(value = '') {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+  },
+  asArray_(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') {
+      const nested = [value.rows, value.data, value.timeline].find(Array.isArray);
+      if (Array.isArray(nested)) return nested;
+    }
+    return [];
+  },
+  extractTimelineRows_(...sources) {
+    const rows = [];
+    sources.forEach(source => {
+      this.asArray_(source).forEach(item => {
+        if (item && typeof item === 'object') rows.push(item);
+      });
+    });
+    return rows;
+  },
+  normalizeTimelineEvents_(events = []) {
+    return events
+      .map(item => {
+        const date = String(
+          this.getField(item, 'date', 'event_date', 'timeline_date', 'occurred_at', 'created_at', 'updated_at', 'value') || ''
+        ).trim();
+        return {
+          ...item,
+          type: String(this.getField(item, 'type', 'event_type', 'event', 'key', 'name', 'milestone') || item.type || '').trim(),
+          date
+        };
+      })
+      .filter(item => item.date || item.type || item.label || item.title);
+  },
+  getTimelineEventTokens_(event = {}) {
+    const tokenFields = [
+      event.type,
+      event.event_type,
+      event.event,
+      event.key,
+      event.name,
+      event.label,
+      event.title,
+      event.milestone
+    ];
+    return tokenFields.map(value => this.normalizeEventToken_(value)).filter(Boolean);
+  },
+  getTimelineEventDate_(event = {}) {
+    const candidates = [
+      this.getField(event, 'date', 'event_date', 'timeline_date', 'occurred_at', 'created_at', 'updated_at'),
+      event.value
+    ]
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+    for (const candidate of candidates) {
+      const parsed = new Date(candidate);
+      if (!Number.isNaN(parsed.getTime())) return candidate;
+    }
+    return '';
+  },
+  selectMilestoneDateFromTimeline_(timeline = [], aliases = []) {
+    const normalizedAliases = aliases.map(alias => this.normalizeEventToken_(alias)).filter(Boolean);
+    const matches = timeline
+      .map(event => {
+        const tokens = this.getTimelineEventTokens_(event);
+        const matched = normalizedAliases.some(alias => tokens.some(token => token.includes(alias) || alias.includes(token)));
+        return matched ? this.getTimelineEventDate_(event) : '';
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return matches[0] || '';
+  },
+  minDateFromRows_(rows = [], key) {
+    const dates = rows
+      .map(row => String(row?.[key] || '').trim())
+      .filter(Boolean)
+      .filter(value => !Number.isNaN(new Date(value).getTime()))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    return dates[0] || '';
+  },
+  maxDateFromRows_(rows = [], key) {
+    const dates = rows
+      .map(row => String(row?.[key] || '').trim())
+      .filter(Boolean)
+      .filter(value => !Number.isNaN(new Date(value).getTime()))
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return dates[0] || '';
+  },
+  getMilestoneValues_(detailData = {}, client = {}) {
+    const detail = detailData.detail || {};
+    const timeline = Array.isArray(detailData.timeline) ? detailData.timeline : [];
+    const renewals = Array.isArray(detailData.renewalRows) ? detailData.renewalRows : [];
+    const invoices = this.listClientRelatedInvoices_(client.client_id || '');
+    const receipts = this.listClientRelatedReceipts_(client.client_id || '');
+    const agreementSummary = detail.agreement || detail.agreement_summary || detail.agreementSummary || {};
+    const fromTimeline = {
+      agreement_signed: this.selectMilestoneDateFromTimeline_(timeline, ['agreement_signed', 'agreementSigned']),
+      service_start: this.selectMilestoneDateFromTimeline_(timeline, ['service_start', 'serviceStart']),
+      service_end: this.selectMilestoneDateFromTimeline_(timeline, ['service_end', 'serviceEnd']),
+      invoice_issued: this.selectMilestoneDateFromTimeline_(timeline, ['invoice_issued', 'invoiceIssued']),
+      invoice_due: this.selectMilestoneDateFromTimeline_(timeline, ['invoice_due', 'invoiceDue']),
+      receipt_received: this.selectMilestoneDateFromTimeline_(timeline, ['receipt_received', 'receiptReceived'])
+    };
+    const fallback = {
+      agreement_signed: String(
+        detail.agreement_date ||
+          detail.signed_at ||
+          agreementSummary.agreement_date ||
+          agreementSummary.signed_at ||
+          ''
+      ).trim(),
+      service_start: this.minDateFromRows_(renewals, 'service_start_date'),
+      service_end: this.maxDateFromRows_(renewals, 'service_end_date'),
+      invoice_issued: this.maxDateFromRows_(invoices, 'issued_date'),
+      invoice_due: this.maxDateFromRows_(invoices, 'due_date'),
+      receipt_received: this.maxDateFromRows_(receipts, 'receipt_date')
+    };
+    const selected = {
+      agreement_signed: fromTimeline.agreement_signed || fallback.agreement_signed,
+      service_start: fromTimeline.service_start || fallback.service_start,
+      service_end: fromTimeline.service_end || fallback.service_end,
+      invoice_issued: fromTimeline.invoice_issued || fallback.invoice_issued,
+      invoice_due: fromTimeline.invoice_due || fallback.invoice_due,
+      receipt_received: fromTimeline.receipt_received || fallback.receipt_received
+    };
+    return selected;
+  },
   getDaysLeft(date) {
     const value = String(date || '').trim();
     if (!value) return null;
@@ -582,15 +712,36 @@ const Clients = {
     const client = this.state.rows.find(row => row.client_id === clientId);
     const normalizedStatement = this.extractRows(statementRes).map(item => this.normalizeStatementRow(item));
     const normalizedRenewals = this.extractRows(renewalsRes).map(item => this.normalizeRenewalRow(item));
+    const normalizedTimeline = this.normalizeTimelineEvents_(
+      this.extractTimelineRows_(
+        timelineRes?.timeline,
+        timelineRes?.rows,
+        timelineRes?.data,
+        detailRes?.timeline,
+        detailRes?.rows,
+        detailRes?.data,
+        detailRes?.paymentTimeline?.timeline,
+        detailRes?.paymentTimeline?.rows,
+        detailRes?.paymentTimeline?.data,
+        detailRes?.payment_timeline?.timeline,
+        detailRes?.payment_timeline?.rows,
+        detailRes?.payment_timeline?.data
+      )
+    );
     const fallbackTimeline = this.buildTimeline_(clientId);
     const detailBundle = {
       detail: detailRes || {},
       analytics: this.resolveBackendAnalytics_(analyticsRes) || client?.analytics || this.computeClientAnalytics_(client || {}),
-      timeline: this.extractRows(timelineRes).length ? this.extractRows(timelineRes) : fallbackTimeline,
+      timeline: normalizedTimeline.length ? normalizedTimeline : fallbackTimeline,
       statementRows: normalizedStatement.length ? this.computeRunningBalance(normalizedStatement) : this.buildClientStatementRows(client),
       renewalRows: normalizedRenewals.length ? normalizedRenewals : this.buildClientRenewalRows(client),
       loadedAt: Date.now()
     };
+    console.debug('[Clients] detail timeline source', {
+      clientId,
+      timelineEvents: detailBundle.timeline.length,
+      renewalRows: detailBundle.renewalRows.length
+    });
     this.state.detailCache[clientId] = detailBundle;
     return detailBundle;
   },
@@ -807,18 +958,28 @@ const Clients = {
         : '<tr><td colspan="7" class="muted" style="text-align:center;">No renewals or payments timeline rows.</td></tr>';
     }
     if (E.clientRenewalEvents) {
+      const milestones = this.getMilestoneValues_(detailData, client);
       const events = [
-        ['Agreement signed', 'agreement_date'],
-        ['Service start', 'service_start_date'],
-        ['Service end', 'service_end_date'],
-        ['Invoice issued', 'invoice_issued_date'],
-        ['Invoice due', 'due_date'],
-        ['Receipt received', 'receipt_date'],
-        ['Renewal due soon', 'next_renewal_date'],
-        ['Renewal overdue', 'overdue_renewal_date']
+        { label: 'Agreement signed', value: milestones.agreement_signed },
+        { label: 'Service start', value: milestones.service_start },
+        { label: 'Service end', value: milestones.service_end },
+        { label: 'Invoice issued', value: milestones.invoice_issued },
+        { label: 'Invoice due', value: milestones.invoice_due },
+        { label: 'Receipt received', value: milestones.receipt_received },
+        { label: 'Renewal due soon', value: detailData?.detail?.next_renewal_date || detailData?.analytics?.next_renewal_date || '' },
+        { label: 'Renewal overdue', value: detailData?.detail?.overdue_renewal_date || detailData?.analytics?.overdue_renewal_date || '' }
       ];
+      console.debug('[Clients] milestone selection', {
+        clientId: client.client_id,
+        timelineEvents: (detailData.timeline || []).length,
+        renewalRows: rows.length,
+        milestones
+      });
       E.clientRenewalEvents.innerHTML = events
-        .map(([label, key]) => `<div class="card kpi"><div class="label">${U.escapeHtml(label)}</div><div class="value">${U.escapeHtml(U.fmtDisplayDate(detailData?.detail?.[key] || detailData?.analytics?.[key]) || '—')}</div></div>`)
+        .map(event => {
+          const displayValue = U.fmtDisplayDate(event.value) || '—';
+          return `<div class="card kpi"><div class="label">${U.escapeHtml(event.label)}</div><div class="value">${U.escapeHtml(displayValue)}</div></div>`;
+        })
         .join('');
     }
   },
