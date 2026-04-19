@@ -29,6 +29,7 @@ const Proposals = {
     'terms_conditions',
     'customer_signatory_name',
     'customer_signatory_title',
+    'customer_sign_date',
     'provider_signatory_name',
     'provider_signatory_title',
     'provider_sign_date',
@@ -771,6 +772,7 @@ const Proposals = {
       po_number: '',
       customer_signatory_name: '',
       customer_signatory_title: '',
+      customer_sign_date: '',
       provider_signatory_name: '',
       provider_signatory_title: '',
       provider_sign_date: '',
@@ -844,6 +846,7 @@ const Proposals = {
     set(E.proposalFormPoNumber, proposal.po_number || '');
     set(E.proposalFormCustomerSignatoryName, proposal.customer_signatory_name || '');
     set(E.proposalFormCustomerSignatoryTitle, proposal.customer_signatory_title || '');
+    set(E.proposalFormCustomerSignDate, proposal.customer_sign_date || '');
     set(E.proposalFormProviderSignatoryName, proposal.provider_signatory_name || '');
     set(E.proposalFormProviderSignatoryTitle, proposal.provider_signatory_title || '');
     set(E.proposalFormProviderSignDate, proposal.provider_sign_date || '');
@@ -1099,6 +1102,7 @@ const Proposals = {
       po_number: String(E.proposalFormPoNumber?.value || '').trim(),
       customer_signatory_name: String(E.proposalFormCustomerSignatoryName?.value || '').trim(),
       customer_signatory_title: String(E.proposalFormCustomerSignatoryTitle?.value || '').trim(),
+      customer_sign_date: String(E.proposalFormCustomerSignDate?.value || '').trim(),
       provider_signatory_name: String(E.proposalFormProviderSignatoryName?.value || '').trim(),
       provider_signatory_title: String(E.proposalFormProviderSignatoryTitle?.value || '').trim(),
       provider_sign_date: String(E.proposalFormProviderSignDate?.value || '').trim(),
@@ -1441,6 +1445,8 @@ const Proposals = {
   },
   wire() {
     if (this.state.initialized) return;
+
+    if (!E.proposalFormCustomerSignDate) E.proposalFormCustomerSignDate = document.getElementById('proposalFormCustomerSignDate');
 
     const bindState = (el, key) => {
       if (!el) return;
