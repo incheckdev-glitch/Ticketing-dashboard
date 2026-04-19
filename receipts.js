@@ -582,7 +582,7 @@ const Receipts = {
       const response = await Api.previewReceipt(id);
       const html = String(response?.html || response?.receipt_html || response?.content || response || '').trim();
       if (!html) return UI.toast('No receipt HTML was returned by backend.');
-      const formattedHtml = this.formatReceiptPreviewHtml(html);
+      const formattedHtml = this.formatReceiptPreviewHtml(U.formatPreviewHtmlDates(html));
       if (E.receiptPreviewTitle) E.receiptPreviewTitle.textContent = `RECEIPT VOUCHER · ${id}`;
       if (E.receiptPreviewFrame) E.receiptPreviewFrame.srcdoc = formattedHtml;
       if (E.receiptPreviewModal) {

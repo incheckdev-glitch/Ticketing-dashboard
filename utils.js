@@ -97,12 +97,46 @@ const U = {
     }
     const raw = String(value).trim();
     if (!raw) return fallback;
-    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw;
+
+    const textualDateMatch = raw.match(
+      /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})\b/
+    );
+    if (textualDateMatch) {
+      return `${textualDateMatch[1]} ${textualDateMatch[2]} ${String(textualDateMatch[3]).padStart(2, '0')} ${textualDateMatch[4]}`;
+    }
+
+    const isoDateMatch = raw.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+    const normalized = isoDateMatch ? `${isoDateMatch[1]}T00:00:00` : raw;
     const parsed = new Date(normalized);
     if (Number.isNaN(parsed.getTime())) return fallback;
     return parsed.toDateString();
   },
   fmtDisplayDate: value => U.fmtDisplayDateSafe(value, '—'),
+  formatPreviewHtmlDates: html => {
+    const rawHtml = String(html || '').trim();
+    if (!rawHtml) return '';
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, 'text/html');
+    const textWalker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_TEXT);
+
+    const datePattern =
+      /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}(?:\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4}(?:\s+\([^)]*\))?)?|\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?/g;
+
+    let node = textWalker.nextNode();
+    while (node) {
+      const parentTag = String(node.parentElement?.tagName || '').toLowerCase();
+      if (parentTag !== 'script' && parentTag !== 'style') {
+        node.nodeValue = String(node.nodeValue || '').replace(datePattern, match => {
+          const formatted = U.fmtDisplayDate(match);
+          return formatted === '—' ? match : formatted;
+        });
+      }
+      node = textWalker.nextNode();
+    }
+
+    return doc.documentElement.outerHTML;
+  },
   fmtNumber: value => {
     const num = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(num)) return '0';
