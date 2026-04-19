@@ -34,27 +34,55 @@ const OperationsOnboarding = {
   normalizeRow(raw = {}) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const nestedAgreement = source.agreement && typeof source.agreement === 'object' ? source.agreement : {};
+    const locationCountValue = this.pick(
+      source.location_count,
+      source.locations_count,
+      source.number_of_locations,
+      source.total_locations,
+      source.locationCount,
+      source.locationsCount,
+      source.numberOfLocations,
+      source.totalLocations,
+      source.onboarding?.location_count,
+      source.agreement?.location_count
+    );
     return {
       onboarding_id: String(this.pick(source.onboarding_id, source.onboardingId, source.id)).trim(),
       agreement_id: String(this.pick(source.agreement_id, source.agreementId, source.agreement_uuid, source.agreementUuid, nestedAgreement.agreement_id, nestedAgreement.agreementId, nestedAgreement.id)).trim(),
-      agreement_number: String(this.pick(source.agreement_number, source.agreementNumber)).trim(),
-      client_name: String(this.pick(source.client_name, source.clientName, source.customer_name, source.customerName)).trim(),
-      signed_date: String(this.pick(source.signed_date, source.signedDate, source.customer_sign_date, source.customerSignDate)).trim(),
+      agreement_number: String(this.pick(source.agreement_number, source.agreementNumber, nestedAgreement.agreement_number, nestedAgreement.agreementNumber)).trim(),
+      client_id: String(this.pick(source.client_id, source.clientId, source.customer_id, source.customerId, nestedAgreement.client_id, nestedAgreement.clientId)).trim(),
+      client_name: String(this.pick(source.client_name, source.clientName, source.customer_name, source.customerName, nestedAgreement.client_name, nestedAgreement.clientName, nestedAgreement.customer_name, nestedAgreement.customerName)).trim(),
+      agreement_status: String(this.pick(source.agreement_status, source.agreementStatus, nestedAgreement.agreement_status, nestedAgreement.agreementStatus)).trim(),
+      signed_date: String(this.pick(source.signed_date, source.signedDate, source.customer_sign_date, source.customerSignDate, nestedAgreement.signed_date, nestedAgreement.signedDate)).trim(),
       onboarding_status: String(this.pick(source.onboarding_status, source.onboardingStatus)).trim(),
+      technical_request_type: String(this.pick(source.technical_request_type, source.technicalRequestType, source.request_type, source.requestType)).trim(),
+      technical_request_details: String(this.pick(source.technical_request_details, source.technicalRequestDetails, source.request_details, source.requestDetails, source.request_message, source.requestMessage)).trim(),
       request_type: String(this.pick(source.request_type, source.requestType, source.technical_request_type, source.technicalRequestType)).trim(),
+      request_details: String(this.pick(source.request_details, source.requestDetails, source.technical_request_details, source.technicalRequestDetails, source.request_message, source.requestMessage)).trim(),
+      request_message: String(this.pick(source.request_message, source.requestMessage, source.technical_request_details, source.technicalRequestDetails, source.request_details, source.requestDetails)).trim(),
       requested_by: String(this.pick(source.requested_by, source.requestedBy)).trim(),
       requested_at: String(this.pick(source.requested_at, source.requestedAt)).trim(),
       technical_admin_request: String(this.pick(source.technical_admin_request, source.technicalAdminRequest, source.lite_request, source.liteRequest, source.full_request, source.fullRequest)).trim(),
       technical_admin_request_message: String(this.pick(source.technical_admin_request_message, source.technicalAdminRequestMessage, source.request_message, source.requestMessage)).trim(),
       technical_request_status: String(this.pick(source.technical_request_status, source.technicalRequestStatus)).trim(),
       csm_assigned_to: String(this.pick(source.csm_assigned_to, source.csmAssignedTo)).trim(),
+      csm_assigned_at: String(this.pick(source.csm_assigned_at, source.csmAssignedAt)).trim(),
+      priority: String(this.pick(source.priority)).trim(),
       service_start_date: String(this.pick(source.service_start_date, source.serviceStartDate)).trim(),
       service_end_date: String(this.pick(source.service_end_date, source.serviceEndDate)).trim(),
       billing_frequency: String(this.pick(source.billing_frequency, source.billingFrequency)).trim(),
       payment_term: String(this.pick(source.payment_term, source.paymentTerm)).trim(),
+      module_summary: String(this.pick(source.module_summary, source.moduleSummary)).trim(),
+      go_live_target_date: String(this.pick(source.go_live_target_date, source.goLiveTargetDate)).trim(),
+      handover_note: String(this.pick(source.handover_note, source.handoverNote)).trim(),
       updated_at: String(this.pick(source.updated_at, source.updatedAt)).trim(),
+      completed_at: String(this.pick(source.completed_at, source.completedAt)).trim(),
+      created_at: String(this.pick(source.created_at, source.createdAt)).trim(),
       notes: String(this.pick(source.notes)).trim(),
-      location_count: Number(this.pick(source.location_count, source.locations_count, source.number_of_locations, source.total_locations, source.locationCount, source.locationsCount, source.onboarding?.location_count, source.agreement?.location_count)) || 0
+      location_count: Number(locationCountValue) || 0,
+      locations_count: Number(this.pick(source.locations_count, source.locationsCount, locationCountValue)) || 0,
+      number_of_locations: Number(this.pick(source.number_of_locations, source.numberOfLocations, locationCountValue)) || 0,
+      total_locations: Number(this.pick(source.total_locations, source.totalLocations, locationCountValue)) || 0
     };
   },
   normalizeClientName(name = '') {
@@ -787,7 +815,7 @@ const OperationsOnboarding = {
       const locationCount = this.deriveAgreementLocationCount(agreement, agreementItems, row);
       return `<tr>
           <td>${text(row.onboarding_id)}</td><td>${text(row.agreement_id)}</td><td>${text(row.agreement_number)}</td><td>${text(row.client_name)}</td><td>${text(this.formatDate(row.signed_date))}</td><td>${text(row.onboarding_status)}</td>
-          <td>${text(row.request_type)}</td><td>${text(row.requested_by)}</td><td>${text(this.formatDate(row.requested_at))}</td><td>${text(row.technical_admin_request || row.technical_request_status)}</td><td>${text(row.technical_admin_request_message)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(this.formatDate(row.service_start_date))}</td><td>${text(this.formatDate(row.service_end_date))}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(this.formatDate(row.updated_at))}</td>
+          <td>${text(row.request_type || row.technical_request_type)}</td><td>${text(row.requested_by)}</td><td>${text(this.formatDate(row.requested_at))}</td><td>${text(row.technical_request_status || row.technical_admin_request)}</td><td>${text(row.request_message || row.technical_request_details || row.technical_admin_request_message)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(this.formatDate(row.service_start_date))}</td><td>${text(this.formatDate(row.service_end_date))}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(this.formatDate(row.updated_at))}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn ghost sm" type="button" data-op-open-agreement="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Open Agreement</button>
             <button class="btn ghost sm" type="button" data-op-open-details="${onboardingId}">Open Onboarding Details</button>
@@ -846,16 +874,21 @@ const OperationsOnboarding = {
           <div><span class="muted">Onboarding ID:</span> ${U.escapeHtml(detail.onboarding_id || '—')}</div>
           <div><span class="muted">Agreement ID:</span> ${U.escapeHtml(detail.agreement_id || '—')}</div>
           <div><span class="muted">Status:</span> ${U.escapeHtml(detail.onboarding_status || '—')}</div>
-          <div><span class="muted">Request Type:</span> ${U.escapeHtml(detail.request_type || '—')}</div>
-          <div><span class="muted">Requested By:</span> ${U.escapeHtml(detail.requested_by || '—')}</div>
-          <div><span class="muted">Requested At:</span> ${U.escapeHtml(this.formatDate(detail.requested_at))}</div>
-          <div><span class="muted">Technical Admin Request:</span> ${U.escapeHtml(detail.technical_admin_request || detail.technical_request_status || '—')}</div>
-          <div><span class="muted">Request Message:</span> ${U.escapeHtml(detail.technical_admin_request_message || '—')}</div>
-          <div><span class="muted">Number of Locations:</span> ${U.escapeHtml(String(locations))}</div>
+          <div><span class="muted">Agreement Number:</span> ${U.escapeHtml(detail.agreement_number || '—')}</div>
+          <div><span class="muted">Client Name:</span> ${U.escapeHtml(detail.client_name || '—')}</div>
+          <div><span class="muted">Agreement Status:</span> ${U.escapeHtml(detail.agreement_status || '—')}</div>
+          <div><span class="muted">Signed Date:</span> ${U.escapeHtml(this.formatDate(detail.signed_date))}</div>
           <div><span class="muted">Service Start Date:</span> ${U.escapeHtml(this.formatDate(detail.service_start_date))}</div>
           <div><span class="muted">Service End Date:</span> ${U.escapeHtml(this.formatDate(detail.service_end_date))}</div>
           <div><span class="muted">Billing Frequency:</span> ${U.escapeHtml(detail.billing_frequency || '—')}</div>
           <div><span class="muted">Payment Term:</span> ${U.escapeHtml(detail.payment_term || '—')}</div>
+          <div><span class="muted">Number of Locations:</span> ${U.escapeHtml(String(locations))}</div>
+          <div><span class="muted">Module Summary:</span> ${U.escapeHtml(detail.module_summary || '—')}</div>
+          <div><span class="muted">Requested By:</span> ${U.escapeHtml(detail.requested_by || '—')}</div>
+          <div><span class="muted">Requested At:</span> ${U.escapeHtml(this.formatDate(detail.requested_at))}</div>
+          <div><span class="muted">Technical Request Type:</span> ${U.escapeHtml(detail.technical_request_type || detail.request_type || '—')}</div>
+          <div><span class="muted">Technical Request Message:</span> ${U.escapeHtml(detail.request_message || detail.technical_request_details || detail.technical_admin_request_message || '—')}</div>
+          <div><span class="muted">Technical Request Status:</span> ${U.escapeHtml(detail.technical_request_status || detail.technical_admin_request || '—')}</div>
           <div><span class="muted">Assigned CSM:</span> ${U.escapeHtml(detail.csm_assigned_to || '—')}</div>
           <div style="grid-column:1/-1;"><span class="muted">Notes:</span> ${U.escapeHtml(detail.notes || '—')}</div>
         </div>`;
