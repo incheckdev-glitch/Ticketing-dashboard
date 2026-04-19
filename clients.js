@@ -158,7 +158,14 @@ const Clients = {
       renewal_date: String(raw.renewal_date || raw.renewalDate || raw.next_renewal_date || raw.nextRenewalDate || '').trim(),
       customer_sign_date: String(raw.customer_sign_date || raw.customerSignDate || '').trim(),
       agreement_date: String(raw.agreement_date || raw.agreementDate || '').trim(),
-      location_name: String(raw.location_name || raw.locationName || '').trim()
+      location_name: String(raw.location_name || raw.locationName || '').trim(),
+      items: Array.isArray(raw.items)
+        ? raw.items
+        : Array.isArray(raw.agreement_items)
+          ? raw.agreement_items
+          : Array.isArray(raw.line_items)
+            ? raw.line_items
+            : []
     };
   },
   normalizeInvoice(raw = {}) {
@@ -264,6 +271,32 @@ const Clients = {
     if (!valid.length) return '';
     return new Date(Math.max(...valid.map(date => date.getTime()))).toISOString();
   },
+  hasBackendAnalytics_(analytics) {
+    return Boolean(analytics && typeof analytics === 'object' && !Array.isArray(analytics) && Object.keys(analytics).length);
+  },
+  resolveBackendAnalytics_(payload = {}) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (this.hasBackendAnalytics_(payload.analytics)) return payload.analytics;
+    if (this.hasBackendAnalytics_(payload.data?.analytics)) return payload.data.analytics;
+    if (this.hasBackendAnalytics_(payload.result?.analytics)) return payload.result.analytics;
+    if (this.hasBackendAnalytics_(payload.payload?.analytics)) return payload.payload.analytics;
+    if (this.hasBackendAnalytics_(payload)) return payload;
+    return null;
+  },
+  isAnnualSaasClientLocationItem(item = {}) {
+    const section = this.normalizeText(item.section || item.item_section || item.section_name || item.category || item.type);
+    return section === 'annual_saas' || section === 'annual' || section === 'subscription';
+  },
+  countAgreementAnnualSaasRowsForClientAnalytics(agreement = {}) {
+    const items = Array.isArray(agreement.items)
+      ? agreement.items
+      : Array.isArray(agreement.agreement_items)
+        ? agreement.agreement_items
+        : Array.isArray(agreement.line_items)
+          ? agreement.line_items
+          : [];
+    return items.filter(item => this.isAnnualSaasClientLocationItem(item)).length;
+  },
   computeClientAnalytics_(client) {
     const agreements = this.listClientRelatedAgreements_(client.client_id);
     const invoices = this.listClientRelatedInvoices_(client.client_id);
@@ -271,20 +304,14 @@ const Clients = {
     const signedAgreements = agreements.filter(item => this.isSignedAgreement(item));
     const activeAgreements = agreements.filter(item => this.isActiveAgreement(item));
 
-    const locationSet = new Set();
-    const activeLocationSet = new Set();
-    signedAgreements.forEach(item => {
-      const key = this.normalizeCompanyKey(item.location_name);
-      if (key) locationSet.add(key);
-    });
-    invoices.forEach(item => {
-      const key = this.normalizeCompanyKey(item.location_name);
-      if (key) locationSet.add(key);
-    });
-    activeAgreements.forEach(item => {
-      const key = this.normalizeCompanyKey(item.location_name);
-      if (key) activeLocationSet.add(key);
-    });
+    const totalLocations = signedAgreements.reduce(
+      (sum, agreement) => sum + this.countAgreementAnnualSaasRowsForClientAnalytics(agreement),
+      0
+    );
+    const activeLocations = activeAgreements.reduce(
+      (sum, agreement) => sum + this.countAgreementAnnualSaasRowsForClientAnalytics(agreement),
+      0
+    );
 
     const totalAgreementValue = signedAgreements.reduce((sum, item) => sum + this.toNumberSafe(item.grand_total), 0);
     const totalInvoicedValue = invoices.reduce((sum, item) => sum + this.toNumberSafe(item.grand_total), 0);
@@ -318,8 +345,8 @@ const Clients = {
     );
 
     return {
-      total_locations: locationSet.size,
-      active_locations: activeLocationSet.size,
+      total_locations: totalLocations,
+      active_locations: activeLocations,
       total_agreements: agreements.length,
       signed_agreements: signedAgreements.length,
       total_agreement_value: totalAgreementValue,
@@ -558,7 +585,7 @@ const Clients = {
     const fallbackTimeline = this.buildTimeline_(clientId);
     const detailBundle = {
       detail: detailRes || {},
-      analytics: analyticsRes || client?.analytics || {},
+      analytics: this.resolveBackendAnalytics_(analyticsRes) || client?.analytics || this.computeClientAnalytics_(client || {}),
       timeline: this.extractRows(timelineRes).length ? this.extractRows(timelineRes) : fallbackTimeline,
       statementRows: normalizedStatement.length ? this.computeRunningBalance(normalizedStatement) : this.buildClientStatementRows(client),
       renewalRows: normalizedRenewals.length ? normalizedRenewals : this.buildClientRenewalRows(client),
@@ -835,8 +862,8 @@ const Clients = {
     }
     if (E.clientsDetailEmpty) E.clientsDetailEmpty.style.display = 'none';
     if (E.clientsDetailPanel) E.clientsDetailPanel.style.display = '';
-    const analytics = client.analytics || {};
     const detailData = this.state.detailCache[client.client_id] || {};
+    const analytics = detailData.analytics || client.analytics || this.computeClientAnalytics_(client);
     if (E.clientStatementFiltersStatus) E.clientStatementFiltersStatus.value = this.state.statementFilters.status || 'all';
     if (E.clientStatementDateFrom) E.clientStatementDateFrom.value = this.state.statementFilters.dateFrom || '';
     if (E.clientStatementDateTo) E.clientStatementDateTo.value = this.state.statementFilters.dateTo || '';
@@ -994,7 +1021,11 @@ const Clients = {
         Api.listReceipts({}, { summary_only: true, limit: 50, page: 1, forceRefresh: options.force === true })
       ]);
       const clientsList = this.extractListResult(clientsRes);
-      this.state.rows = clientsList.rows.map(item => this.normalizeClient(item));
+      this.state.rows = clientsList.rows.map(item => {
+        const normalized = this.normalizeClient(item);
+        normalized.analytics = this.resolveBackendAnalytics_(item);
+        return normalized;
+      });
       this.state.total = clientsList.total;
       this.state.returned = clientsList.returned;
       this.state.hasMore = clientsList.hasMore;
@@ -1009,7 +1040,9 @@ const Clients = {
         this.findOrCreateClientFromSignedAgreement_(agreement);
       });
       this.state.rows.forEach(client => {
-        client.analytics = this.computeClientAnalytics_(client);
+        if (!this.hasBackendAnalytics_(client.analytics)) {
+          client.analytics = this.computeClientAnalytics_(client);
+        }
       });
       if (!this.state.selectedClientId && this.state.rows[0]?.client_id) this.state.selectedClientId = this.state.rows[0].client_id;
       this.state.loaded = true;
