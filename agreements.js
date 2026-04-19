@@ -988,7 +988,7 @@ const Agreements = {
         UI.toast('No agreement HTML was returned by backend.');
         return;
       }
-      const brandedHtml = U.addIncheckDocumentLogo(html);
+      const brandedHtml = U.addIncheckDocumentLogo(U.formatPreviewHtmlDates(html));
       if (E.agreementPreviewTitle) E.agreementPreviewTitle.textContent = `Agreement Preview · ${agreementId}`;
       if (E.agreementPreviewFrame) E.agreementPreviewFrame.srcdoc = brandedHtml;
       if (E.agreementPreviewModal) {
