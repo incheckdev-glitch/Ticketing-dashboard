@@ -44,8 +44,9 @@ const OperationsOnboarding = {
       request_type: String(this.pick(source.request_type, source.requestType, source.technical_request_type, source.technicalRequestType)).trim(),
       requested_by: String(this.pick(source.requested_by, source.requestedBy)).trim(),
       requested_at: String(this.pick(source.requested_at, source.requestedAt)).trim(),
-      lite_request: String(this.pick(source.lite_request, source.liteRequest)).trim(),
-      full_request: String(this.pick(source.full_request, source.fullRequest)).trim(),
+      technical_admin_request: String(this.pick(source.technical_admin_request, source.technicalAdminRequest, source.lite_request, source.liteRequest, source.full_request, source.fullRequest)).trim(),
+      technical_admin_request_message: String(this.pick(source.technical_admin_request_message, source.technicalAdminRequestMessage, source.request_message, source.requestMessage)).trim(),
+      technical_request_status: String(this.pick(source.technical_request_status, source.technicalRequestStatus)).trim(),
       csm_assigned_to: String(this.pick(source.csm_assigned_to, source.csmAssignedTo)).trim(),
       service_start_date: String(this.pick(source.service_start_date, source.serviceStartDate)).trim(),
       service_end_date: String(this.pick(source.service_end_date, source.serviceEndDate)).trim(),
@@ -53,7 +54,7 @@ const OperationsOnboarding = {
       payment_term: String(this.pick(source.payment_term, source.paymentTerm)).trim(),
       updated_at: String(this.pick(source.updated_at, source.updatedAt)).trim(),
       notes: String(this.pick(source.notes)).trim(),
-      location_count: Number(this.pick(source.location_count, source.locations_count, source.locationCount, source.locationsCount, source.onboarding?.location_count, source.agreement?.location_count)) || 0
+      location_count: Number(this.pick(source.location_count, source.locations_count, source.number_of_locations, source.total_locations, source.locationCount, source.locationsCount, source.onboarding?.location_count, source.agreement?.location_count)) || 0
     };
   },
   normalizeClientName(name = '') {
@@ -92,6 +93,13 @@ const OperationsOnboarding = {
   },
   canWrite() {
     return !Permissions.isViewer() && Permissions.canManageOperationsOnboarding();
+  },
+  canRequestTechnicalAdmin() {
+    return (
+      this.canWrite() ||
+      (typeof Permissions.canRequestAgreementIncheckLite === 'function' && Permissions.canRequestAgreementIncheckLite()) ||
+      (typeof Permissions.canRequestAgreementIncheckFull === 'function' && Permissions.canRequestAgreementIncheckFull())
+    );
   },
   extractRows(response) {
     const candidates = [response, response?.items, response?.rows, response?.data, response?.result, response?.payload, response?.data?.rows];
@@ -179,8 +187,9 @@ const OperationsOnboarding = {
   },
   requestTypeBucket(requestType = '') {
     const normalized = String(requestType || '').trim().toLowerCase();
-    if (normalized === 'incheck_lite' || normalized === 'incheck lite') return 'InCheck Lite';
-    if (normalized === 'incheck_full' || normalized === 'incheck full') return 'InCheck Full';
+    if (normalized === 'technical_admin' || normalized === 'technical admin' || normalized === 'technical admin request') return 'Technical Admin';
+    if (normalized === 'incheck_lite' || normalized === 'incheck lite') return 'Technical Admin';
+    if (normalized === 'incheck_full' || normalized === 'incheck full') return 'Technical Admin';
     return 'Other / Blank';
   },
   isLocationAgreementItem(item = {}) {
@@ -263,8 +272,7 @@ const OperationsOnboarding = {
           total_locations: 0,
           active_onboarding_count: 0,
           completed_onboarding_count: 0,
-          incheck_lite_count: 0,
-          incheck_full_count: 0,
+          technical_admin_count: 0,
           assigned_csm_count: 0,
           overdue_count: 0,
           last_request_date: '',
@@ -277,8 +285,7 @@ const OperationsOnboarding = {
       agg.total_locations += Number(agreementRow.locations || 0);
       if (this.isActiveStatus(agreementRow.onboarding_status)) agg.active_onboarding_count += 1;
       if (this.isCompletedStatus(agreementRow.onboarding_status)) agg.completed_onboarding_count += 1;
-      if (agreementRow.request_type === 'InCheck Lite') agg.incheck_lite_count += 1;
-      if (agreementRow.request_type === 'InCheck Full') agg.incheck_full_count += 1;
+      if (agreementRow.request_type === 'Technical Admin') agg.technical_admin_count += 1;
       if (String(agreementRow.csm_assigned_to || '').trim()) agg.assigned_csm_count += 1;
       if (agreementRow.overdue) agg.overdue_count += 1;
 
@@ -299,8 +306,7 @@ const OperationsOnboarding = {
       total_locations: entry.total_locations,
       active_onboarding_count: entry.active_onboarding_count,
       completed_onboarding_count: entry.completed_onboarding_count,
-      incheck_lite_count: entry.incheck_lite_count,
-      incheck_full_count: entry.incheck_full_count,
+      technical_admin_count: entry.technical_admin_count,
       assigned_csm_count: entry.assigned_csm_count,
       overdue_count: entry.overdue_count,
       last_request_date: entry.last_request_date ? entry.last_request_date.slice(0, 10) : ''
@@ -379,8 +385,7 @@ const OperationsOnboarding = {
 
     const statusMap = new Map();
     const requestMap = new Map([
-      ['InCheck Lite', 0],
-      ['InCheck Full', 0],
+      ['Technical Admin', 0],
       ['Other / Blank', 0]
     ]);
     const clientLocationsMap = new Map();
@@ -460,8 +465,7 @@ const OperationsOnboarding = {
         totalLocations,
         avgLocationsPerClient,
         avgAgreementsPerClient,
-        incheckLite: requestMap.get('InCheck Lite') || 0,
-        incheckFull: requestMap.get('InCheck Full') || 0,
+        technicalAdmin: requestMap.get('Technical Admin') || 0,
         assignedToCsm: agreementRollup.filter(row => String(row.csm_assigned_to || '').trim()).length,
         unassigned: agreementRollup.filter(row => !String(row.csm_assigned_to || '').trim()).length,
         completed: agreementRollup.filter(row => this.isCompletedStatus(row.onboarding_status)).length,
@@ -542,8 +546,7 @@ const OperationsOnboarding = {
       ['Total Locations', totals.totalLocations || 0, 'clear', ''],
       ['Avg Locations per Client', (totals.avgLocationsPerClient || 0).toFixed(2), 'clear', ''],
       ['Avg Agreements per Client', (totals.avgAgreementsPerClient || 0).toFixed(2), 'clear', ''],
-      ['InCheck Lite Requests', totals.incheckLite || 0, 'request_type', 'InCheck Lite'],
-      ['InCheck Full Requests', totals.incheckFull || 0, 'request_type', 'InCheck Full'],
+      ['Technical Admin Requests', totals.technicalAdmin || 0, 'request_type', 'Technical Admin'],
       ['Assigned to CSM', totals.assignedToCsm || 0, 'assigned', 'true'],
       ['Unassigned', totals.unassigned || 0, 'assigned', 'false'],
       ['Completed', totals.completed || 0, 'completed', 'true'],
@@ -668,15 +671,14 @@ const OperationsOnboarding = {
               <td>${U.escapeHtml(String(row.total_locations || 0))}</td>
               <td>${U.escapeHtml(String(row.active_onboarding_count || 0))}</td>
               <td>${U.escapeHtml(String(row.completed_onboarding_count || 0))}</td>
-              <td>${U.escapeHtml(String(row.incheck_lite_count || 0))}</td>
-              <td>${U.escapeHtml(String(row.incheck_full_count || 0))}</td>
+              <td>${U.escapeHtml(String(row.technical_admin_count || 0))}</td>
               <td>${U.escapeHtml(String(row.assigned_csm_count || 0))}</td>
               <td>${U.escapeHtml(String(row.overdue_count || 0))}</td>
               <td>${U.escapeHtml(row.last_request_date || '—')}</td>
             </tr>`
           )
           .join('')
-        : '<tr><td colspan="11" class="muted" style="text-align:center;">No client rollup data.</td></tr>';
+        : '<tr><td colspan="10" class="muted" style="text-align:center;">No client rollup data.</td></tr>';
     }
 
     if (E.operationsOnboardingAgreementRollupBody) {
@@ -758,12 +760,12 @@ const OperationsOnboarding = {
     if (!E.operationsOnboardingTbody || !E.operationsOnboardingState) return;
     if (this.state.loading) {
       E.operationsOnboardingState.textContent = 'Loading operations onboarding…';
-      E.operationsOnboardingTbody.innerHTML = '<tr><td colspan="17" class="muted" style="text-align:center;">Loading operations onboarding…</td></tr>';
+      E.operationsOnboardingTbody.innerHTML = '<tr><td colspan="19" class="muted" style="text-align:center;">Loading operations onboarding…</td></tr>';
       return;
     }
     if (this.state.loadError) {
       E.operationsOnboardingState.textContent = this.state.loadError;
-      E.operationsOnboardingTbody.innerHTML = `<tr><td colspan="17" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
+      E.operationsOnboardingTbody.innerHTML = `<tr><td colspan="19" class="muted" style="text-align:center;color:#ffb4b4;">${U.escapeHtml(this.state.loadError)}</td></tr>`;
       return;
     }
     const rows = this.state.filteredRows;
@@ -771,7 +773,7 @@ const OperationsOnboarding = {
     this.renderAnalyticsPanels();
     E.operationsOnboardingState.textContent = `${rows.length} onboarding row${rows.length === 1 ? '' : 's'}`;
     if (!rows.length) {
-      E.operationsOnboardingTbody.innerHTML = '<tr><td colspan="17" class="muted" style="text-align:center;">No onboarding rows found.</td></tr>';
+      E.operationsOnboardingTbody.innerHTML = '<tr><td colspan="19" class="muted" style="text-align:center;">No onboarding rows found.</td></tr>';
       return;
     }
     const text = value => U.escapeHtml(String(value || '—'));
@@ -785,11 +787,12 @@ const OperationsOnboarding = {
       const locationCount = this.deriveAgreementLocationCount(agreement, agreementItems, row);
       return `<tr>
           <td>${text(row.onboarding_id)}</td><td>${text(row.agreement_id)}</td><td>${text(row.agreement_number)}</td><td>${text(row.client_name)}</td><td>${text(this.formatDate(row.signed_date))}</td><td>${text(row.onboarding_status)}</td>
-          <td>${text(row.request_type)}</td><td>${text(row.requested_by)}</td><td>${text(this.formatDate(row.requested_at))}</td><td>${text(row.lite_request)}</td><td>${text(row.full_request)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(this.formatDate(row.updated_at))}</td>
+          <td>${text(row.request_type)}</td><td>${text(row.requested_by)}</td><td>${text(this.formatDate(row.requested_at))}</td><td>${text(row.technical_admin_request || row.technical_request_status)}</td><td>${text(row.technical_admin_request_message)}</td><td>${text(row.csm_assigned_to)}</td><td>${text(locationCount)}</td><td>${text(this.formatDate(row.service_start_date))}</td><td>${text(this.formatDate(row.service_end_date))}</td><td>${text(row.billing_frequency)}</td><td>${text(row.payment_term)}</td><td>${text(this.formatDate(row.updated_at))}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn ghost sm" type="button" data-op-open-agreement="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Open Agreement</button>
             <button class="btn ghost sm" type="button" data-op-open-details="${onboardingId}">Open Onboarding Details</button>
-            ${canWrite ? `<button class="btn ghost sm" type="button" data-op-assign-csm="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Assign CSM</button>
+            ${canWrite ? `<button class="btn ghost sm" type="button" data-op-technical-admin="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Technical Admin Request</button>
+            <button class="btn ghost sm" type="button" data-op-assign-csm="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Assign CSM</button>
             <button class="btn ghost sm" type="button" data-op-mark-progress="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Mark In Progress</button>
             <button class="btn ghost sm" type="button" data-op-mark-completed="${agreementId}" ${hasAgreementId ? '' : 'disabled title="Agreement ID not available"'}>Mark Completed</button>` : ''}
           </div></td>
@@ -845,10 +848,14 @@ const OperationsOnboarding = {
           <div><span class="muted">Status:</span> ${U.escapeHtml(detail.onboarding_status || '—')}</div>
           <div><span class="muted">Request Type:</span> ${U.escapeHtml(detail.request_type || '—')}</div>
           <div><span class="muted">Requested By:</span> ${U.escapeHtml(detail.requested_by || '—')}</div>
-          <div><span class="muted">Requested At:</span> ${U.escapeHtml(detail.requested_at || '—')}</div>
-          <div><span class="muted">Lite Request:</span> ${U.escapeHtml(detail.lite_request || '—')}</div>
-          <div><span class="muted">Full Request:</span> ${U.escapeHtml(detail.full_request || '—')}</div>
-          <div><span class="muted">Derived Locations:</span> ${U.escapeHtml(String(locations))}</div>
+          <div><span class="muted">Requested At:</span> ${U.escapeHtml(this.formatDate(detail.requested_at))}</div>
+          <div><span class="muted">Technical Admin Request:</span> ${U.escapeHtml(detail.technical_admin_request || detail.technical_request_status || '—')}</div>
+          <div><span class="muted">Request Message:</span> ${U.escapeHtml(detail.technical_admin_request_message || '—')}</div>
+          <div><span class="muted">Number of Locations:</span> ${U.escapeHtml(String(locations))}</div>
+          <div><span class="muted">Service Start Date:</span> ${U.escapeHtml(this.formatDate(detail.service_start_date))}</div>
+          <div><span class="muted">Service End Date:</span> ${U.escapeHtml(this.formatDate(detail.service_end_date))}</div>
+          <div><span class="muted">Billing Frequency:</span> ${U.escapeHtml(detail.billing_frequency || '—')}</div>
+          <div><span class="muted">Payment Term:</span> ${U.escapeHtml(detail.payment_term || '—')}</div>
           <div><span class="muted">Assigned CSM:</span> ${U.escapeHtml(detail.csm_assigned_to || '—')}</div>
           <div style="grid-column:1/-1;"><span class="muted">Notes:</span> ${U.escapeHtml(detail.notes || '—')}</div>
         </div>`;
@@ -917,6 +924,26 @@ const OperationsOnboarding = {
       UI.toast('Unable to update onboarding status: ' + (error?.message || 'Unknown error'));
     }
   },
+  async requestTechnicalAdmin(agreementId) {
+    const id = String(agreementId || '').trim();
+    if (!id) return UI.toast('Agreement ID is required.');
+    if (!this.canRequestTechnicalAdmin()) return UI.toast('Insufficient permissions.');
+    const summary = this.state.rows.find(row => String(row.agreement_id || '') === id) || {};
+    const agreementLabel = summary.agreement_number || id;
+    const message = `Please proceed with the following agreement ${agreementLabel}.`;
+    try {
+      await Api.requestAgreementTechnicalAdmin(id, message);
+      this.upsertByAgreement(id, {
+        request_type: 'Technical Admin',
+        technical_admin_request: 'Requested',
+        technical_admin_request_message: message
+      });
+      await this.loadAndRefresh({ force: true });
+      UI.toast(`Technical Admin requested for agreement ${agreementLabel}.`);
+    } catch (error) {
+      UI.toast('Unable to request Technical Admin: ' + (error?.message || 'Unknown error'));
+    }
+  },
   handleAnalyticsClick(event) {
     const trigger = event.target?.closest?.('[data-op-analytics-filter-kind]');
     if (!trigger) return;
@@ -953,13 +980,14 @@ const OperationsOnboarding = {
       E.operationsOnboardingTbody.addEventListener('click', event => {
         const trigger = event.target?.closest?.('button');
         if (!trigger) return;
-        const agreementId = trigger.getAttribute('data-op-open-agreement') || trigger.getAttribute('data-op-assign-csm') || trigger.getAttribute('data-op-mark-progress') || trigger.getAttribute('data-op-mark-completed') || '';
+        const agreementId = trigger.getAttribute('data-op-open-agreement') || trigger.getAttribute('data-op-technical-admin') || trigger.getAttribute('data-op-assign-csm') || trigger.getAttribute('data-op-mark-progress') || trigger.getAttribute('data-op-mark-completed') || '';
         const onboardingId = trigger.getAttribute('data-op-open-details') || '';
         if (trigger.hasAttribute('data-op-open-agreement')) {
           if (typeof setActiveView === 'function') setActiveView('agreements');
           return window.Agreements?.openAgreementFormById?.(agreementId, { readOnly: !this.canWrite() });
         }
         if (trigger.hasAttribute('data-op-open-details')) return this.openOnboardingDetails(onboardingId, agreementId);
+        if (trigger.hasAttribute('data-op-technical-admin')) return this.requestTechnicalAdmin(agreementId);
         if (trigger.hasAttribute('data-op-assign-csm')) return this.openAssignCsmModal(agreementId);
         if (trigger.hasAttribute('data-op-mark-progress')) {
           this.openUpdateStatusModal(agreementId);

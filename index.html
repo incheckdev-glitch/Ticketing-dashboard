@@ -1666,7 +1666,7 @@
         </div>
 
         <div id="operationsOnboardingAnalyticsTables" class="grid" style="grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
-          <article class="card"><strong>Client rollup</strong><div class="table-wrap" role="region" aria-label="Operations onboarding client rollup"><table><thead><tr><th>Client</th><th>Unique Client Key</th><th>Agreements</th><th>Locations</th><th>Active Onboardings</th><th>Completed</th><th>InCheck Lite</th><th>InCheck Full</th><th>Assigned CSM</th><th>Overdue</th><th>Last Request Date</th></tr></thead><tbody id="operationsOnboardingClientRollupBody"></tbody></table></div></article>
+          <article class="card"><strong>Client rollup</strong><div class="table-wrap" role="region" aria-label="Operations onboarding client rollup"><table><thead><tr><th>Client</th><th>Unique Client Key</th><th>Agreements</th><th>Locations</th><th>Active Onboardings</th><th>Completed</th><th>Technical Admin Requests</th><th>Assigned CSM</th><th>Overdue</th><th>Last Request Date</th></tr></thead><tbody id="operationsOnboardingClientRollupBody"></tbody></table></div></article>
           <article class="card"><strong>Agreement rollup</strong><div class="table-wrap" role="region" aria-label="Operations onboarding agreement rollup"><table><thead><tr><th>Agreement No</th><th>Client</th><th>Locations</th><th>Onboarding Status</th><th>Request Type</th><th>Assigned CSM</th><th>Requested At</th><th>Days Open</th></tr></thead><tbody id="operationsOnboardingAgreementRollupBody"></tbody></table></div></article>
           <article class="card"><strong>Overdue / stuck</strong><div class="table-wrap" role="region" aria-label="Operations onboarding overdue"><table><thead><tr><th>Agreement No</th><th>Client</th><th>Locations</th><th>Status</th><th>Assigned CSM</th><th>Days Open</th><th>Notes</th></tr></thead><tbody id="operationsOnboardingOverdueBody"></tbody></table></div></article>
           <article class="card"><strong>CSM workload table</strong><div class="table-wrap" role="region" aria-label="Operations onboarding csm workload"><table><thead><tr><th>CSM Name</th><th>Active Agreements</th><th>Unique Clients</th><th>Total Locations</th><th>Completed Agreements</th><th>Overdue Items</th><th>Avg Completion Days</th></tr></thead><tbody id="operationsOnboardingCsmWorkloadBody"></tbody></table></div></article>
@@ -1691,7 +1691,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Request Type</th><th>Requested By</th><th>Requested At</th><th>Lite Request</th><th>Full Request</th><th>Assigned CSM</th><th>Locations</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
+                  <th>Onboarding ID</th><th>Agreement ID</th><th>Agreement Number</th><th>Client</th><th>Signed Date</th><th>Onboarding Status</th><th>Request Type</th><th>Requested By</th><th>Requested At</th><th>Technical Admin Request</th><th>Request Message</th><th>Assigned CSM</th><th>Locations</th><th>Service Start Date</th><th>Service End Date</th><th>Billing Frequency</th><th>Payment Term</th><th>Updated At</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="operationsOnboardingTbody"></tbody>
@@ -2968,19 +2968,6 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;"><strong>Capability Rows</strong><button id="agreementAddCapabilityRowBtn" class="btn ghost sm" type="button">Add Row</button></div>
         <div class="table-wrap"><table><thead><tr><th>Capability Name</th><th>Capability Value</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="agreementCapabilityItemsTbody"></tbody></table></div>
         <div class="card" style="margin-top:12px;"><strong>Totals Preview</strong><div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px;"><div><div class="muted">SaaS Total</div><div id="agreementSaasTotal">0</div></div><div><div class="muted">One Time Total</div><div id="agreementOneTimeTotal">0</div></div><div><div class="muted">Grand Total</div><div id="agreementGrandTotal">0</div></div></div></div>
-        <div id="agreementOperationsCard" class="card" style="margin-top:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-            <strong>Operations</strong>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button id="agreementOperationsSendBtn" class="btn ghost sm" type="button">Send to Operations</button>
-              <button id="agreementOperationsRequestLiteBtn" class="btn ghost sm" type="button">InCheck Lite Request</button>
-              <button id="agreementOperationsRequestFullBtn" class="btn ghost sm" type="button">InCheck Full Request</button>
-              <button id="agreementOperationsAssignCsmBtn" class="btn ghost sm" type="button">Assign to CSM</button>
-              <button id="agreementOperationsUpdateStatusBtn" class="btn ghost sm" type="button">Update Onboarding Status</button>
-            </div>
-          </div>
-          <div id="agreementOperationsSummary" class="muted" style="margin-top:8px;">No onboarding record linked yet.</div>
-        </div>
         <div class="divider" style="margin:12px 0;"></div><strong style="display:block;margin-bottom:8px;">Agreement Terms</strong>
         <div class="filter-row"><label class="muted" for="agreementFormTermsConditions">Terms &amp; Conditions</label><textarea id="agreementFormTermsConditions" class="input" rows="4"></textarea></div>
         <div class="filter-row"><label class="muted" for="agreementFormNotes">Notes</label><textarea id="agreementFormNotes" class="input" rows="3"></textarea></div>

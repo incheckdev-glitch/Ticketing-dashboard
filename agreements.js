@@ -67,7 +67,6 @@ const Agreements = {
     formReadOnly: false,
     currentItems: [],
     currentAgreementId: '',
-    currentOnboarding: null,
     saveInFlight: false,
     detailCacheById: {},
     detailCacheTtlMs: 90 * 1000,
@@ -118,27 +117,6 @@ const Agreements = {
     normalized.status = String(normalized.status || '').trim() || 'Draft';
     normalized.currency = String(normalized.currency || '').trim();
     return normalized;
-  },
-  normalizeOperationsOnboarding(raw = {}) {
-    const source = raw && typeof raw === 'object' ? raw : {};
-    const pick = (...values) => {
-      for (const value of values) {
-        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
-      }
-      return '';
-    };
-    return {
-      onboarding_id: String(pick(source.onboarding_id, source.onboardingId, source.id)).trim(),
-      agreement_id: String(pick(source.agreement_id, source.agreementId)).trim(),
-      onboarding_status: String(pick(source.onboarding_status, source.onboardingStatus)).trim(),
-      request_type: String(pick(source.request_type, source.requestType, source.technical_request_type, source.technicalRequestType)).trim(),
-      requested_by: String(pick(source.requested_by, source.requestedBy)).trim(),
-      requested_at: String(pick(source.requested_at, source.requestedAt)).trim(),
-      lite_request: String(pick(source.lite_request, source.liteRequest)).trim(),
-      full_request: String(pick(source.full_request, source.fullRequest)).trim(),
-      csm_assigned_to: String(pick(source.csm_assigned_to, source.csmAssignedTo)).trim(),
-      updated_at: String(pick(source.updated_at, source.updatedAt)).trim()
-    };
   },
   normalizeItem(raw = {}, sectionFallback = '') {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -374,68 +352,7 @@ const Agreements = {
   async updateClient(clientId, updates) { return Api.updateClient(clientId, updates); },
   async createAgreementFromProposal(proposalId) { return Api.createAgreementFromProposal(proposalId); },
   async generateAgreementHtml(agreementId) { return Api.generateAgreementHtml(agreementId); },
-  async sendToOperations(agreementId) { return Api.sendAgreementToOperations(agreementId); },
-  async getOnboarding(agreementId) { return Api.getAgreementOnboarding(agreementId); },
-  async requestIncheckLite(agreementId) { return Api.requestAgreementIncheckLite(agreementId); },
-  async requestIncheckFull(agreementId) { return Api.requestAgreementIncheckFull(agreementId); },
-  async assignCsm(agreementId, payload) { return Api.assignAgreementCsm(agreementId, payload); },
-  async updateOnboardingStatus(agreementId, payload) { return Api.updateAgreementOnboardingStatus(agreementId, payload); },
   async createInvoiceFromAgreement(agreementId) { return Api.createInvoiceFromAgreement(agreementId); },
-  extractOnboarding(response = {}) {
-    const candidates = [response, response?.item, response?.onboarding, response?.data, response?.result, response?.payload];
-    for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
-      if (candidate.onboarding_id || candidate.onboardingId || candidate.agreement_id || candidate.agreementId) {
-        return this.normalizeOperationsOnboarding(candidate);
-      }
-      if (candidate.item && typeof candidate.item === 'object') return this.normalizeOperationsOnboarding(candidate.item);
-      if (candidate.onboarding && typeof candidate.onboarding === 'object') return this.normalizeOperationsOnboarding(candidate.onboarding);
-    }
-    return null;
-  },
-  renderOperationsSummary() {
-    if (!E.agreementOperationsSummary) return;
-    const onboarding = this.state.currentOnboarding;
-    if (!onboarding) {
-      E.agreementOperationsSummary.innerHTML = 'No onboarding record linked yet.';
-      return;
-    }
-    const text = value => U.escapeHtml(String(value || '—'));
-    E.agreementOperationsSummary.innerHTML = `
-      <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
-        <div><span class="muted">Onboarding ID:</span> ${text(onboarding.onboarding_id)}</div>
-        <div><span class="muted">Onboarding Status:</span> ${text(onboarding.onboarding_status)}</div>
-        <div><span class="muted">Request Type:</span> ${text(onboarding.request_type)}</div>
-        <div><span class="muted">Requested By:</span> ${text(onboarding.requested_by)}</div>
-        <div><span class="muted">Requested At:</span> ${text(onboarding.requested_at)}</div>
-        <div><span class="muted">Lite Request:</span> ${text(onboarding.lite_request)}</div>
-        <div><span class="muted">Full Request:</span> ${text(onboarding.full_request)}</div>
-        <div><span class="muted">Assigned CSM:</span> ${text(onboarding.csm_assigned_to)}</div>
-      </div>`;
-  },
-  setOperationsActionsState() {
-    const canWrite = !Permissions.isViewer() && Permissions.canManageOperationsOnboarding();
-    [E.agreementOperationsSendBtn, E.agreementOperationsRequestLiteBtn, E.agreementOperationsRequestFullBtn, E.agreementOperationsAssignCsmBtn, E.agreementOperationsUpdateStatusBtn].forEach(btn => {
-      if (!btn) return;
-      btn.disabled = !canWrite || !this.state.currentAgreementId;
-      btn.style.display = canWrite ? '' : 'none';
-    });
-  },
-  async refreshOperationsSummary(agreementId = this.state.currentAgreementId) {
-    const id = String(agreementId || '').trim();
-    this.state.currentAgreementId = id;
-    this.state.currentOnboarding = null;
-    this.renderOperationsSummary();
-    this.setOperationsActionsState();
-    if (!id) return;
-    try {
-      const response = await this.getOnboarding(id);
-      this.state.currentOnboarding = this.extractOnboarding(response);
-    } catch (_error) {
-      this.state.currentOnboarding = null;
-    }
-    this.renderOperationsSummary();
-  },
   isSignedStatus(status) {
     return this.normalizeText(status).includes('signed');
   },
@@ -816,10 +733,6 @@ const Agreements = {
     }
     this.setFormReadOnly(readOnly);
     this.state.currentAgreementId = String(agreement.agreement_id || '').trim();
-    this.state.currentOnboarding = null;
-    this.renderOperationsSummary();
-    this.setOperationsActionsState();
-    this.refreshOperationsSummary(this.state.currentAgreementId);
     E.agreementFormModal.classList.add('open');
     E.agreementFormModal.setAttribute('aria-hidden', 'false');
   },
@@ -830,8 +743,6 @@ const Agreements = {
     E.agreementForm.reset();
     E.agreementForm.dataset.id = '';
     this.state.currentAgreementId = '';
-    this.state.currentOnboarding = null;
-    this.renderOperationsSummary();
     this.renderItemRows([]);
   },
   setFormBusy(busy) {
@@ -1256,61 +1167,6 @@ const Agreements = {
     if (E.agreementPreviewModal) E.agreementPreviewModal.addEventListener('click', event => {
       if (event.target === E.agreementPreviewModal) this.closePreviewModal();
     });
-    if (E.agreementOperationsSendBtn) E.agreementOperationsSendBtn.addEventListener('click', async () => {
-      const id = String(this.state.currentAgreementId || '').trim();
-      if (!id) return UI.toast('Save agreement first.');
-      if (!Permissions.canSendAgreementToOperations()) return UI.toast('Insufficient permissions.');
-      try {
-        await this.sendToOperations(id);
-        await this.refreshOperationsSummary(id);
-        if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
-        UI.toast(`Agreement ${id} sent to operations.`);
-      } catch (error) {
-        UI.toast('Unable to send to operations: ' + (error?.message || 'Unknown error'));
-      }
-    });
-    if (E.agreementOperationsRequestLiteBtn)
-      E.agreementOperationsRequestLiteBtn.addEventListener('click', async () => {
-        const id = String(this.state.currentAgreementId || '').trim();
-        if (!id) return UI.toast('Save agreement first.');
-        if (!Permissions.canRequestAgreementIncheckLite()) return UI.toast('Insufficient permissions.');
-        try {
-          await this.requestIncheckLite(id);
-          await this.refreshOperationsSummary(id);
-          if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
-          UI.toast(`InCheck Lite requested for agreement ${id}.`);
-        } catch (error) {
-          UI.toast('Unable to request InCheck Lite: ' + (error?.message || 'Unknown error'));
-        }
-      });
-    if (E.agreementOperationsRequestFullBtn)
-      E.agreementOperationsRequestFullBtn.addEventListener('click', async () => {
-        const id = String(this.state.currentAgreementId || '').trim();
-        if (!id) return UI.toast('Save agreement first.');
-        if (!Permissions.canRequestAgreementIncheckFull()) return UI.toast('Insufficient permissions.');
-        try {
-          await this.requestIncheckFull(id);
-          await this.refreshOperationsSummary(id);
-          if (window.OperationsOnboarding?.loadAndRefresh) window.OperationsOnboarding.loadAndRefresh({ force: true });
-          UI.toast(`InCheck Full requested for agreement ${id}.`);
-        } catch (error) {
-          UI.toast('Unable to request InCheck Full: ' + (error?.message || 'Unknown error'));
-        }
-      });
-    if (E.agreementOperationsAssignCsmBtn)
-      E.agreementOperationsAssignCsmBtn.addEventListener('click', () => {
-        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
-        window.OperationsOnboarding?.openAssignCsmModal?.(this.state.currentAgreementId, async () => {
-          await this.refreshOperationsSummary(this.state.currentAgreementId);
-        });
-      });
-    if (E.agreementOperationsUpdateStatusBtn)
-      E.agreementOperationsUpdateStatusBtn.addEventListener('click', () => {
-        if (!this.state.currentAgreementId) return UI.toast('Save agreement first.');
-        window.OperationsOnboarding?.openUpdateStatusModal?.(this.state.currentAgreementId, async () => {
-          await this.refreshOperationsSummary(this.state.currentAgreementId);
-        });
-      });
     this.state.initialized = true;
   }
 };
