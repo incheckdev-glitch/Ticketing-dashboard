@@ -2,6 +2,8 @@ const Notifications = {
   POLL_INTERVAL_MS: 90000,
   state: {
     items: [],
+    rawResponse: null,
+    rawRows: [],
     previewItems: [],
     unreadCount: 0,
     loading: false,
@@ -153,6 +155,35 @@ const Notifications = {
     }
     return list;
   },
+  getTitleFromAny(item = {}) {
+    const source = item && typeof item === 'object' ? item : {};
+    return String(
+      source.title ||
+      source.notification_title ||
+      source.message ||
+      source.notification_message ||
+      source.details ||
+      '—'
+    ).trim() || '—';
+  },
+  toFallbackView(item = {}) {
+    const source = item && typeof item === 'object' ? item : {};
+    const firstValue = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return '';
+    };
+    return {
+      notification_id: String(firstValue(source.notification_id, source.id)).trim(),
+      title: String(firstValue(source.title, source.notification_title, 'Untitled notification')).trim(),
+      message: String(firstValue(source.message, source.notification_message, source.details)).trim(),
+      type: String(firstValue(source.type, source.notification_type)).trim(),
+      created_at: String(firstValue(source.created_at, source.createdAt, source.timestamp, source.date)).trim(),
+      status: String(firstValue(source.status, source.notification_status)).trim(),
+      action_label: String(firstValue(source.action_label, source.actionLabel)).trim()
+    };
+  },
   async refreshUnreadCount() {
     if (!Session.isAuthenticated()) {
       this.state.unreadCount = 0;
@@ -194,6 +225,16 @@ const Notifications = {
   },
   async loadHub(force = false) {
     if (!E.notificationsView?.classList.contains('active') && !force) return;
+    if (force && E.notificationsView?.classList.contains('active') && !this.state.lastFetchedAt) {
+      this.state.filters.mode = 'all';
+      this.state.filters.search = '';
+      if (E.notificationsSearchInput) E.notificationsSearchInput.value = '';
+      if (E.notificationsFilterButtons) {
+        E.notificationsFilterButtons.querySelectorAll('[data-filter]').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+        });
+      }
+    }
     if (!Session.isAuthenticated()) {
       this.state.items = [];
       this.renderHub();
@@ -212,17 +253,24 @@ const Notifications = {
       };
 
       const response = await Api.listNotifications(payload);
+      this.state.rawResponse = response;
       console.debug('[notifications] raw response', response);
       const rows = this.extractRows(response);
+      this.state.rawRows = Array.isArray(rows) ? rows.slice() : [];
       console.debug('[notifications] extracted rows', rows);
       const normalizedItems = rows.map(item => this.normalize(item));
       console.debug('[notifications] normalized items', normalizedItems);
       console.debug('[notifications] active filters', this.state.filters);
       this.state.items = normalizedItems;
       this.state.lastFetchedAt = new Date().toISOString();
+      if (rows.length > 0 && normalizedItems.length === 0) {
+        this.state.rawRows = rows.slice();
+      }
     } catch (error) {
       console.warn('Unable to load notifications hub', error);
       this.state.items = [];
+      this.state.rawResponse = null;
+      this.state.rawRows = [];
       UI.toast('Unable to load notifications right now.');
     } finally {
       this.state.loading = false;
@@ -419,8 +467,27 @@ const Notifications = {
       });
     });
   },
+  renderDebugInfo() {
+    const box = document.getElementById('notificationsDebugBox');
+    if (!box) return;
+    const rawRows = Array.isArray(this.state.rawRows) ? this.state.rawRows : [];
+    const normalizedItems = Array.isArray(this.state.items) ? this.state.items : [];
+    const mode = this.state.filters.mode || 'all';
+    const search = String(this.state.filters.search || '').trim();
+    const titleSource = normalizedItems.length ? normalizedItems : rawRows;
+    const sample = titleSource.slice(0, 3).map(item => this.getTitleFromAny(item));
+    box.textContent = [
+      `Raw rows: ${rawRows.length}`,
+      `Normalized items: ${normalizedItems.length}`,
+      `Mode: ${mode}`,
+      `Search: ${search || '—'}`,
+      'Sample:',
+      ...(sample.length ? sample.map(title => `- ${title}`) : ['- —'])
+    ].join('\n');
+  },
   renderHub() {
     if (!E.notificationsState || !E.notificationsTbody) return;
+    this.renderDebugInfo();
     if (this.state.loading) {
       E.notificationsState.textContent = 'Loading notifications…';
       E.notificationsTbody.innerHTML = '';
@@ -447,6 +514,36 @@ const Notifications = {
           activeFilters: this.state.filters,
           sample: this.state.items.slice(0, 5)
         });
+        E.notificationsTbody.innerHTML = '<tr><td colspan="8" class="muted">No notifications found for current filters.</td></tr>';
+        return;
+      }
+      if (this.state.rawRows.length) {
+        E.notificationsTbody.innerHTML = this.state.rawRows
+          .map(rawItem => {
+            const item = this.toFallbackView(rawItem);
+            const idAttr = U.escapeAttr(item.notification_id);
+            return `<tr>
+              <td>${U.escapeHtml(item.title || '—')}</td>
+              <td>${U.escapeHtml(item.message || '—')}</td>
+              <td>${U.escapeHtml(item.type || '—')}</td>
+              <td>${U.escapeHtml(this.formatDate(item.created_at))}</td>
+              <td>${U.escapeHtml(item.status || '—')}</td>
+              <td>
+                <div class="notification-actions">
+                  <button type="button" class="btn sm" data-open-notification-raw="${idAttr}">Open</button>
+                </div>
+              </td>
+            </tr>`;
+          })
+          .join('');
+        E.notificationsTbody.querySelectorAll('[data-open-notification-raw]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-open-notification-raw');
+            const rawItem = this.state.rawRows.find(row => String(row?.notification_id || row?.id || '').trim() === id);
+            this.handleNotificationClick(this.normalize(rawItem || {}));
+          });
+        });
+        return;
       }
       E.notificationsTbody.innerHTML = '<tr><td colspan="8" class="muted">No notifications found for current filters.</td></tr>';
       return;
@@ -497,10 +594,6 @@ const Notifications = {
         btn.classList.toggle('active', btn.getAttribute('data-filter') === mode);
       });
     }
-    if (mode === 'unread' || mode === 'high') {
-      this.loadHub(true);
-      return;
-    }
     this.renderHub();
   },
   startPolling() {
@@ -520,6 +613,8 @@ const Notifications = {
   reset() {
     this.stopPolling();
     this.state.items = [];
+    this.state.rawResponse = null;
+    this.state.rawRows = [];
     this.state.previewItems = [];
     this.state.unreadCount = 0;
     this.state.loading = false;
@@ -544,6 +639,8 @@ const Notifications = {
       return;
     }
     this.reset();
+    this.state.filters.mode = 'all';
+    this.state.filters.search = '';
     this.startPolling();
     this.refreshAll(true);
   },
@@ -575,7 +672,7 @@ const Notifications = {
     if (E.notificationsSearchInput) {
       E.notificationsSearchInput.addEventListener('input', debounce(() => {
         this.state.filters.search = String(E.notificationsSearchInput.value || '').trim();
-        this.loadHub(true);
+        this.renderHub();
       }, 250));
     }
     if (E.notificationsFilterButtons) {
