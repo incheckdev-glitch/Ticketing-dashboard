@@ -6,6 +6,70 @@ const Api = {
     }
     return resolved;
   },
+  getAuthDiagnostics() {
+    const endpoint = this.ensureBaseUrl();
+    const localProxyEndpoint = resolveApiEndpoint('/api/proxy');
+    return {
+      endpoint,
+      localProxyEndpoint,
+      isLocalProxy: endpoint === localProxyEndpoint
+    };
+  },
+  async runAuthProxyHealthCheck() {
+    const { endpoint, localProxyEndpoint, isLocalProxy } = this.getAuthDiagnostics();
+    const payload = {
+      resource: 'auth',
+      action: 'session',
+      authToken: 'invalid-test'
+    };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const parsed = await readAppsScriptResponse(response, {
+        sourceName: 'Auth health check',
+        endpoint,
+        resource: 'auth',
+        action: 'session'
+      });
+      if (response.status === 404) {
+        if (isLocalProxy) {
+          console.error(
+            `[auth/health] Missing local /api/proxy route (endpoint=${endpoint}). Ensure api/proxy.js is deployed.`
+          );
+        } else {
+          console.error(
+            `[auth/health] Backend endpoint returned HTTP 404 (endpoint=${endpoint}). Verify API_BASE_URL points to a valid auth backend.`
+          );
+        }
+      }
+      return {
+        ok: response.ok,
+        status: response.status,
+        endpoint,
+        data: parsed?.data || null,
+        isLocalProxy,
+        localProxyEndpoint
+      };
+    } catch (error) {
+      const message = String(error?.message || error || 'unknown error');
+      console.warn(
+        `[auth/health] Failed before login. endpoint=${endpoint}; localProxy=${localProxyEndpoint}; error=${message}`
+      );
+      return {
+        ok: false,
+        status: 0,
+        endpoint,
+        error,
+        isLocalProxy,
+        localProxyEndpoint
+      };
+    }
+  },
   buildUrl(resource = '', params = {}) {
     const endpoint = this.ensureBaseUrl();
     const url = new URL(endpoint);
@@ -955,18 +1019,22 @@ function parseAppsScriptJson(text, sourceName = 'API', context = {}) {
     const endpoint = String(context?.endpoint || API_BASE_URL || '').trim();
     const resource = String(context?.resource || '').trim();
     const action = String(context?.action || '').trim();
-    throw new Error(
+    const err = new Error(
       `${sourceName} returned HTML instead of JSON. Check API_BASE_URL/proxy.` +
       (endpoint ? ` endpoint=${endpoint}.` : '') +
       (resource || action ? ` resource=${resource || '-'} action=${action || '-'}.` : '')
     );
+    err.code = 'UPSTREAM_NON_JSON_HTML';
+    throw err;
   }
 
-  throw new Error(
+  const err = new Error(
     `${sourceName} returned non-JSON response. ` +
     `${context?.resource || context?.action ? `resource=${context?.resource || '-'} action=${context?.action || '-'}. ` : ''}` +
     `Sample: ${raw.slice(0, 500)}`
   );
+  err.code = 'UPSTREAM_NON_JSON';
+  throw err;
 }
 
 function buildNetworkRequestError(url, originalError) {
@@ -1040,10 +1108,34 @@ function buildHttpResponseError(response, data, endpoint, context = {}) {
   ).trim();
 
   if (status === 404) {
-    return new Error(
+    const localProxyEndpoint = resolveApiEndpoint('/api/proxy');
+    const isLocalProxy = endpointLabel === localProxyEndpoint;
+    const upstreamStatus = Number(data?.upstreamStatus || 0);
+
+    if (isLocalProxy && !upstreamStatus) {
+      const err = new Error(
+        `HTTP 404 from ${endpointLabel}. Local /api/proxy route is missing. ` +
+        'Deploy api/proxy.js (Vercel function) or set API_BASE_URL to a reachable backend endpoint.'
+      );
+      err.code = 'MISSING_PROXY_ROUTE';
+      return err;
+    }
+
+    if (upstreamStatus === 404) {
+      const err = new Error(
+        `HTTP 404 from ${endpointLabel}. Proxy route exists, but upstream Apps Script returned 404. ` +
+        'Check APPS_SCRIPT_WEBAPP_URL and Apps Script deployment path.'
+      );
+      err.code = 'UPSTREAM_404';
+      return err;
+    }
+
+    const err = new Error(
       `HTTP 404 from ${endpointLabel}. Login/auth routes were not found on the configured backend. ` +
       'Verify API_BASE_URL points to a backend/proxy that implements auth.'
     );
+    err.code = 'AUTH_ROUTE_404';
+    return err;
   }
 
   const details = [
