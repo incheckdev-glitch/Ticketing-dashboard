@@ -6,13 +6,22 @@ const Api = {
     }
     return resolved;
   },
-  getAuthDiagnostics() {
+  getEndpointDiagnostics() {
     const endpoint = this.ensureBaseUrl();
     const localProxyEndpoint = resolveApiEndpoint('/api/proxy');
     return {
       endpoint,
       localProxyEndpoint,
-      isLocalProxy: endpoint === localProxyEndpoint
+      isProxy: endpoint === localProxyEndpoint,
+      notificationEndpoint: endpoint
+    };
+  },
+  getAuthDiagnostics() {
+    const diagnostics = this.getEndpointDiagnostics();
+    return {
+      endpoint: diagnostics.endpoint,
+      localProxyEndpoint: diagnostics.localProxyEndpoint,
+      isLocalProxy: diagnostics.isProxy
     };
   },
   async runAuthProxyHealthCheck() {
