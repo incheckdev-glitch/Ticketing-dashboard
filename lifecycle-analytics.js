@@ -911,30 +911,44 @@ const LifecycleAnalytics = {
   renderMetrics(metrics) {
     const root = document.getElementById('lifecycleMetricsGrid');
     if (!root) return;
+
     const safeMetrics = metrics && typeof metrics === 'object' ? metrics : {};
+    const pickFirst = (...values) => values.find(value => value !== null && value !== undefined && value !== '');
+    const hasExplicitValue = (...values) => values.some(value => value !== null && value !== undefined && value !== '');
+    const isExplicitNone = value => typeof value === 'string' && this.norm(value) === 'none';
+
     const stageDurations = safeMetrics.stage_durations && typeof safeMetrics.stage_durations === 'object'
       ? safeMetrics.stage_durations
       : safeMetrics.stage_durations_days && typeof safeMetrics.stage_durations_days === 'object'
       ? safeMetrics.stage_durations_days
       : {};
-    const pickFirst = (...values) => values.find(value => value !== null && value !== undefined && value !== '');
-    const fmtDays = value => {
-      const resolved = pickFirst(value);
-      return resolved === undefined ? '—' : `${resolved} days`;
+
+    const normalizedMetrics = {
+      lifecycleDuration: pickFirst(safeMetrics.lifecycle_duration_days, safeMetrics.total_cycle_duration_days, safeMetrics.lifecycle_duration),
+      lastActivityAge: pickFirst(safeMetrics.inactive_days, safeMetrics.last_activity_age_days, safeMetrics.last_activity_days, safeMetrics.last_activity_age),
+      averageDiscount: pickFirst(safeMetrics.average_discount_percent, safeMetrics.avg_discount_percent, safeMetrics.averageDiscountPercent),
+      stuckStage: pickFirst(safeMetrics.bottleneck_stage, safeMetrics.stuck_stage, safeMetrics.stuckStage),
+      explicitWarning: pickFirst(safeMetrics.bottleneck_warning, safeMetrics.bottleneckWarning, safeMetrics.warning),
+      stageDurations
     };
+
+    const fmtDays = value => (value === null || value === undefined || value === '' ? '—' : `${value} days`);
+
+    const renderStuckStage = () => {
+      if (!hasExplicitValue(safeMetrics.bottleneck_stage, safeMetrics.stuck_stage, safeMetrics.stuckStage)) return '—';
+      if (isExplicitNone(normalizedMetrics.stuckStage)) return 'None';
+      return normalizedMetrics.stuckStage;
+    };
+
     const deriveBottleneckWarning = () => {
-      const explicitWarning = pickFirst(
-        safeMetrics.bottleneck_warning,
-        safeMetrics.bottleneckWarning,
-        safeMetrics.warning
-      );
-      if (explicitWarning !== undefined) return explicitWarning;
-      const stage = pickFirst(
-        safeMetrics.bottleneck_stage,
-        safeMetrics.stuck_stage,
-        safeMetrics.stuckStage
-      );
-      if (stage === undefined || String(stage).toLowerCase() === 'none') return 'None';
+      if (hasExplicitValue(safeMetrics.bottleneck_warning, safeMetrics.bottleneckWarning, safeMetrics.warning)) {
+        if (isExplicitNone(normalizedMetrics.explicitWarning)) return 'None';
+        return normalizedMetrics.explicitWarning;
+      }
+      if (!hasExplicitValue(safeMetrics.bottleneck_stage, safeMetrics.stuck_stage, safeMetrics.stuckStage)) return '—';
+      if (isExplicitNone(normalizedMetrics.stuckStage)) return 'None';
+
+      const stage = normalizedMetrics.stuckStage;
       const stageKey = this.norm(stage).replace(/\s+/g, '_');
       const stageDelay = pickFirst(
         stageDurations[`${stageKey}_days`],
@@ -944,7 +958,8 @@ const LifecycleAnalytics = {
       return stageDelay === undefined ? `${stage} stage is currently the bottleneck` : `${stage} stage has a ${stageDelay} day delay`;
     };
 
-    this.log('renderMetrics normalized metrics', { raw: safeMetrics, stageDurations });
+    console.debug('[LifecycleAnalytics] renderMetrics normalized metrics', normalizedMetrics);
+    this.log('renderMetrics normalized metrics', { raw: safeMetrics, normalizedMetrics });
 
     const entries = [
       ['Days in Lead', fmtDays(pickFirst(stageDurations.lead_to_deal_days, stageDurations.lead, stageDurations.lead_days))],
@@ -952,12 +967,12 @@ const LifecycleAnalytics = {
       ['Days in Proposal', fmtDays(pickFirst(stageDurations.proposal_to_agreement_days, stageDurations.proposal, stageDurations.proposal_days))],
       ['Days in Agreement', fmtDays(pickFirst(stageDurations.agreement_to_invoice_days, stageDurations.agreement, stageDurations.agreement_days))],
       ['Days in Invoice', fmtDays(pickFirst(stageDurations.invoice_to_receipt_days, stageDurations.invoice, stageDurations.invoice_days))],
-      ['Total Cycle Duration', fmtDays(pickFirst(safeMetrics.lifecycle_duration_days, safeMetrics.total_cycle_duration_days, safeMetrics.lifecycle_duration))],
+      ['Total Cycle Duration', fmtDays(normalizedMetrics.lifecycleDuration)],
       ['Number of Stage Changes', pickFirst(safeMetrics.stage_change_count, safeMetrics.stage_changes, safeMetrics.stageChanges) ?? '—'],
       ['Approval Delay', fmtDays(pickFirst(safeMetrics.approval_delay_days, safeMetrics.approvalDelayDays))],
-      ['Last Activity Age', fmtDays(pickFirst(safeMetrics.inactive_days, safeMetrics.last_activity_age_days, safeMetrics.last_activity_days, safeMetrics.last_activity_age))],
-      ['Average Discount', `${pickFirst(safeMetrics.average_discount_percent, safeMetrics.avg_discount_percent, safeMetrics.averageDiscountPercent, 0)}%`],
-      ['Stuck Stage', pickFirst(safeMetrics.bottleneck_stage, safeMetrics.stuck_stage, safeMetrics.stuckStage) ?? 'None'],
+      ['Last Activity Age', fmtDays(normalizedMetrics.lastActivityAge)],
+      ['Average Discount', normalizedMetrics.averageDiscount === undefined ? '—' : `${normalizedMetrics.averageDiscount}%`],
+      ['Stuck Stage', renderStuckStage()],
       ['Bottleneck Warning', deriveBottleneckWarning()]
     ];
     root.innerHTML = entries.map(([label, value]) => `<div class="card"><div class="label">${this.escape(label)}</div><div class="value">${this.escape(String(value))}</div></div>`).join('');
@@ -965,7 +980,9 @@ const LifecycleAnalytics = {
   renderInsights(insights) {
     const root = document.getElementById('lifecycleInsights');
     if (!root) return;
-    root.innerHTML = insights.map(item => `<li>${this.escape(item)}</li>`).join('');
+    const resolvedInsights = Array.isArray(insights) ? insights.filter(item => this.text(item)) : [];
+    const list = resolvedInsights.length ? resolvedInsights : ['Lifecycle is progressing without major bottlenecks.'];
+    root.innerHTML = list.map(item => `<li>${this.escape(item)}</li>`).join('');
   },
   renderLoading() {
     const body = document.getElementById('lifecycleResultBody');
