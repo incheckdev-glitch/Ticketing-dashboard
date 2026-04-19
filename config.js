@@ -1,29 +1,87 @@
 window.RUNTIME_CONFIG = window.RUNTIME_CONFIG || {};
 const runtimeConfig = window.RUNTIME_CONFIG;
 
-// Vercel serverless proxy expects APPS_SCRIPT_WEBAPP_URL, e.g.
-// APPS_SCRIPT_WEBAPP_URL=https://script.google.com/macros/s/.../exec
-window.API_BASE_URL = String(
-  runtimeConfig.API_BASE_URL ||
-    runtimeConfig.PROXY_API_BASE_URL ||
-    runtimeConfig.BACKEND_API_BASE_URL ||
-    '/api/proxy'
-)
-  .trim() || '/api/proxy';
- 
-const API_BASE_URL = window.API_BASE_URL;
+function normalizeEndpointPathname(pathname = '/') {
+  const withLeadingSlash = String(pathname || '/').startsWith('/')
+    ? String(pathname || '/')
+    : `/${String(pathname || '/')}`;
+  const collapsed = withLeadingSlash.replace(/\/{2,}/g, '/');
+  if (collapsed === '/') return '/';
+  return collapsed.replace(/\/+$/g, '') || '/';
+}
+
+function normalizeApiBaseUrl(value = '') {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+
+  const looksLikeAbsolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
+  if (looksLikeAbsolute) {
+    try {
+      const url = new URL(trimmed);
+      url.pathname = normalizeEndpointPathname(url.pathname || '/');
+      return url.toString();
+    } catch {
+      return trimmed.replace(/\/+$/g, '');
+    }
+  }
+
+  const sanitized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return normalizeEndpointPathname(sanitized);
+}
+
+function isLikelyMalformedApiBaseUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return true;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      return !/^https?:$/i.test(parsed.protocol);
+    } catch {
+      return true;
+    }
+  }
+  return !raw.startsWith('/');
+}
 
 function resolveApiEndpoint(endpoint = '') {
-  const rawEndpoint = String(endpoint || '').trim();
-  if (!rawEndpoint) return '';
+  const normalized = normalizeApiBaseUrl(endpoint);
+  if (!normalized) return '';
   try {
-    return new URL(rawEndpoint, window.location.origin).toString();
-  } catch (_) {
-    return rawEndpoint;
+    const resolved = new URL(normalized, window.location.origin);
+    resolved.pathname = normalizeEndpointPathname(resolved.pathname || '/');
+    return resolved.toString();
+  } catch {
+    return normalized;
   }
 }
 
+const rawApiBaseUrl =
+  runtimeConfig.API_BASE_URL ||
+  runtimeConfig.PROXY_API_BASE_URL ||
+  runtimeConfig.BACKEND_API_BASE_URL ||
+  '/api/proxy';
+
+// Deployment notes:
+// - Vercel deployment: /api/proxy must exist and APPS_SCRIPT_WEBAPP_URL must point to the Apps Script /exec URL.
+// - Static frontend deployment (without Vercel functions): set API_BASE_URL to a live backend endpoint; do not rely on /api/proxy.
+window.API_BASE_URL = normalizeApiBaseUrl(rawApiBaseUrl) || '/api/proxy';
+const API_BASE_URL = window.API_BASE_URL;
+
+const RESOLVED_API_ENDPOINT = resolveApiEndpoint(API_BASE_URL);
+const LOCAL_PROXY_ENDPOINT = new URL('/api/proxy', window.location.origin);
+const resolvedApiUrl = RESOLVED_API_ENDPOINT ? new URL(RESOLVED_API_ENDPOINT, window.location.origin) : null;
+const isSameOriginWithLocalProxy =
+  !!resolvedApiUrl &&
+  resolvedApiUrl.origin === LOCAL_PROXY_ENDPOINT.origin &&
+  normalizeEndpointPathname(resolvedApiUrl.pathname) === normalizeEndpointPathname(LOCAL_PROXY_ENDPOINT.pathname);
+
 window.resolveApiEndpoint = resolveApiEndpoint;
+window.API_RUNTIME_DIAGNOSTICS = Object.freeze({
+  apiBaseUrl: API_BASE_URL,
+  resolvedEndpoint: RESOLVED_API_ENDPOINT,
+  isSameOriginWithLocalProxy,
+  isMalformed: isLikelyMalformedApiBaseUrl(rawApiBaseUrl)
+});
 window.BACKEND_ENDPOINTS = Object.freeze({
   proxyBaseUrl: API_BASE_URL
 });

@@ -4530,6 +4530,9 @@ function wireDashboardGate() {
     }
 
     try {
+      if (typeof Api?.runAuthProxyHealthCheck === 'function') {
+        await Api.runAuthProxyHealthCheck();
+      }
       const user = await Session.login(identifier, passcode);
       UI.applyRolePermissions();
       E.loginIdentifier.value = '';
@@ -4549,12 +4552,32 @@ function wireDashboardGate() {
       });
     } catch (error) {
       const message = String(error?.message || '').toLowerCase();
+      const resolvedEndpoint =
+        (typeof Api?.ensureBaseUrl === 'function' && (() => {
+          try {
+            return Api.ensureBaseUrl();
+          } catch {
+            return '';
+          }
+        })()) ||
+        (window.resolveApiEndpoint ? resolveApiEndpoint(API_BASE_URL) : API_BASE_URL);
+
       if (/invalid|credential|password|passcode|identifier|unauthorized/.test(message)) {
         UI.toast('Invalid credentials. Please check your username/email and password.');
       } else if (/failed before a response|network|cors|unreachable/.test(message)) {
         UI.toast('Backend unavailable. Please try again in a moment.');
       } else if (/http 404/.test(message)) {
+        if (error?.code === 'MISSING_PROXY_ROUTE') {
+          console.error('[auth/login] Missing local /api/proxy route', { resolvedEndpoint, error });
+        } else if (error?.code === 'UPSTREAM_404') {
+          console.error('[auth/login] Proxy route exists but Apps Script upstream returned 404', { resolvedEndpoint, error });
+        } else {
+          console.error('[auth/login] Auth route 404 from configured endpoint', { resolvedEndpoint, error });
+        }
         UI.toast('Auth backend route not found. Please verify API_BASE_URL/proxy.');
+      } else if (error?.code === 'UPSTREAM_NON_JSON' || error?.code === 'UPSTREAM_NON_JSON_HTML') {
+        console.error('[auth/login] Upstream returned non-JSON response', { resolvedEndpoint, error });
+        UI.toast('Backend response format error. Please verify API/proxy configuration.');
       } else {
         UI.toast(`Login failed: ${error.message}`);
       }
@@ -5845,15 +5868,57 @@ function wireKeyboardShortcuts() {
   });
 }
 
+function logApiStartupDiagnostics() {
+  const diagnostics = window.API_RUNTIME_DIAGNOSTICS || {};
+  const resolvedBaseUrl = String(diagnostics.apiBaseUrl || API_BASE_URL || '').trim();
+  const resolvedEndpoint =
+    String(diagnostics.resolvedEndpoint || (window.resolveApiEndpoint ? resolveApiEndpoint(resolvedBaseUrl) : '') || '').trim();
+  const sameOriginWithProxy =
+    diagnostics.isSameOriginWithLocalProxy !== undefined
+      ? diagnostics.isSameOriginWithLocalProxy
+      : (() => {
+          try {
+            const proxyUrl = new URL('/api/proxy', window.location.origin);
+            const endpointUrl = new URL(resolvedEndpoint, window.location.origin);
+            return endpointUrl.origin === proxyUrl.origin && endpointUrl.pathname === proxyUrl.pathname;
+          } catch {
+            return false;
+          }
+        })();
+
+  console.info('[startup/auth] API diagnostics', {
+    apiBaseUrl: resolvedBaseUrl,
+    resolvedEndpoint,
+    sameOriginWithLocalProxy: sameOriginWithProxy
+  });
+
+  if (!resolvedBaseUrl) {
+    console.warn('[startup/auth] API_BASE_URL is empty. Configure window.RUNTIME_CONFIG.API_BASE_URL (or PROXY_API_BASE_URL/BACKEND_API_BASE_URL).');
+    return;
+  }
+
+  if (window.API_RUNTIME_DIAGNOSTICS?.isMalformed) {
+    console.warn(
+      `[startup/auth] API_BASE_URL may be malformed: "${resolvedBaseUrl}". Expected a relative path like /api/proxy or full https URL.`
+    );
+  }
+}
+
 /* ---------- Bootstrapping ---------- */
 
 document.addEventListener('DOMContentLoaded', async () => {
   cacheEls();
+  logApiStartupDiagnostics();
   if (!API_BASE_URL) {
     console.error(
       'API_BASE_URL is not configured. Set window.RUNTIME_CONFIG.API_BASE_URL before app.js loads.'
     );
     UI.toast('Backend URL is not configured. Please set RUNTIME_CONFIG.API_BASE_URL.');
+  }
+  if (typeof Api?.runAuthProxyHealthCheck === 'function') {
+    Api.runAuthProxyHealthCheck().catch(error => {
+      console.warn('[startup/auth] Initial auth health check failed', error);
+    });
   }
   const hadSession = Session.restore();
   Filters.load();
