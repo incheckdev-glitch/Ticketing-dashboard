@@ -76,8 +76,10 @@ const Deals = {
       return '';
     };
 
-    const dealId = String(raw.deal_id || raw.dealId || raw.id || '').trim();
+    const dealUuid = String(pick(source.id, source.uuid)).trim();
+    const dealId = String(pick(source.deal_id, source.dealId)).trim();
     return {
+      id: dealUuid,
       deal_id: dealId,
       lead_id: String(pick(source.lead_id, source.leadId, lead.lead_id, lead.leadId)).trim(),
       full_name: String(pick(source.full_name, source.fullName, lead.full_name, lead.fullName)).trim(),
@@ -171,13 +173,14 @@ const Deals = {
   },
   upsertLocalRow(row) {
     const normalized = this.normalizeDeal(row);
-    const idx = this.state.rows.findIndex(item => item.deal_id === normalized.deal_id);
+    const idx = this.state.rows.findIndex(item => (item.id && normalized.id ? item.id === normalized.id : item.deal_id === normalized.deal_id));
     if (idx === -1) this.state.rows.unshift(normalized);
     else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
     this.rerenderVisibleTable();
   },
   removeLocalRow(id) {
-    this.state.rows = this.state.rows.filter(item => item.deal_id !== id);
+    const target = String(id || '').trim();
+    this.state.rows = this.state.rows.filter(item => String(item.id || item.deal_id || '').trim() !== target);
     this.rerenderVisibleTable();
   },
   rerenderVisibleTable() {
@@ -663,11 +666,12 @@ const Deals = {
             `<button class="btn ghost sm" type="button" data-deal-delete="${U.escapeAttr(row.deal_id)}">Delete</button>`
           );
         }
-        if (row.deal_id && !this.isProposalAlreadyCreated(row)) {
-          const inFlight = this.state.rowActionInFlight.has(`create-proposal:${row.deal_id}`);
+        if ((row.id || row.deal_id) && !this.isProposalAlreadyCreated(row)) {
+          const proposalSourceId = String(row.id || row.deal_id || '').trim();
+          const inFlight = this.state.rowActionInFlight.has(`create-proposal:${proposalSourceId}`);
           actionButtons.push(
             `<button class="btn ghost sm" type="button" data-deal-create-proposal="${U.escapeAttr(
-              row.deal_id
+              proposalSourceId
             )}" ${inFlight ? 'disabled' : ''}>Create Proposal</button>`
           );
         }
@@ -857,7 +861,7 @@ const Deals = {
       this.setFormBusy(false);
     }
   },
-  async deleteDealById(dealId) {
+  async deleteDealById(dealId, dealUuid = '') {
     if (!this.canEditDelete()) {
       UI.toast('Only admin/dev can delete deals.');
       return;
@@ -868,7 +872,7 @@ const Deals = {
     this.setFormBusy(true);
     try {
       await this.deleteDeal(dealId);
-      this.removeLocalRow(dealId);
+      this.removeLocalRow(dealUuid || dealId);
       UI.toast('Deal deleted.');
       this.closeForm();
       this.rerenderVisibleTable();
@@ -956,7 +960,10 @@ const Deals = {
           return;
         }
         const deleteId = event.target?.getAttribute('data-deal-delete');
-        if (deleteId) this.deleteDealById(deleteId);
+        if (deleteId) {
+          const row = this.state.rows.find(item => item.deal_id === deleteId);
+          this.deleteDealById(deleteId, row?.id || '');
+        }
         const createProposalDealId = event.target?.getAttribute('data-deal-create-proposal');
         if (createProposalDealId && window.Proposals?.createFromDealFlow) {
           const actionKey = `create-proposal:${createProposalDealId}`;
@@ -1010,7 +1017,9 @@ const Deals = {
     if (E.dealFormDeleteBtn) {
       E.dealFormDeleteBtn.addEventListener('click', () => {
         const id = String(E.dealForm?.dataset.id || '').trim();
-        if (id) this.deleteDealById(id);
+        if (!id) return;
+        const row = this.state.rows.find(item => item.deal_id === id);
+        this.deleteDealById(id, row?.id || '');
       });
     }
 
