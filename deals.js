@@ -666,8 +666,8 @@ const Deals = {
             `<button class="btn ghost sm" type="button" data-deal-delete="${U.escapeAttr(row.deal_id)}">Delete</button>`
           );
         }
-        if ((row.id || row.deal_id) && !this.isProposalAlreadyCreated(row)) {
-          const proposalSourceId = String(row.id || row.deal_id || '').trim();
+        if (row.id && !this.isProposalAlreadyCreated(row)) {
+          const proposalSourceId = String(row.id || '').trim();
           const inFlight = this.state.rowActionInFlight.has(`create-proposal:${proposalSourceId}`);
           actionButtons.push(
             `<button class="btn ghost sm" type="button" data-deal-create-proposal="${U.escapeAttr(
@@ -964,15 +964,15 @@ const Deals = {
           const row = this.state.rows.find(item => item.deal_id === deleteId);
           this.deleteDealById(deleteId, row?.id || '');
         }
-        const createProposalDealId = event.target?.getAttribute('data-deal-create-proposal');
-        if (createProposalDealId && window.Proposals?.createFromDealFlow) {
-          const actionKey = `create-proposal:${createProposalDealId}`;
+        const createProposalDealUuid = event.target?.getAttribute('data-deal-create-proposal');
+        if (createProposalDealUuid && window.Proposals?.createFromDealFlow) {
+          const actionKey = `create-proposal:${createProposalDealUuid}`;
           if (this.state.rowActionInFlight.has(actionKey)) return;
           this.state.rowActionInFlight.add(actionKey);
           const trigger = event.target?.closest?.('button');
           if (trigger && 'disabled' in trigger) trigger.disabled = true;
           Promise.resolve(
-            Proposals.createFromDealFlow(createProposalDealId, { openAfterCreate: true })
+            Proposals.createFromDealFlow(createProposalDealUuid, { openAfterCreate: true })
           ).finally(() => {
             this.state.rowActionInFlight.delete(actionKey);
             if (trigger && 'disabled' in trigger) trigger.disabled = false;
