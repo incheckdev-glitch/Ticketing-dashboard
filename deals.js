@@ -667,11 +667,11 @@ const Deals = {
           );
         }
         if (row.id && !this.isProposalAlreadyCreated(row)) {
-          const proposalSourceId = String(row.id || '').trim();
-          const inFlight = this.state.rowActionInFlight.has(`create-proposal:${proposalSourceId}`);
+          const dealUuid = String(row.id || '').trim();
+          const inFlight = this.state.rowActionInFlight.has(`create-proposal:${dealUuid}`);
           actionButtons.push(
             `<button class="btn ghost sm" type="button" data-deal-create-proposal="${U.escapeAttr(
-              proposalSourceId
+              dealUuid
             )}" ${inFlight ? 'disabled' : ''}>Create Proposal</button>`
           );
         }

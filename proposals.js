@@ -153,7 +153,9 @@ const Proposals = {
   markDealAsConvertedToProposal(dealId, proposalId = '') {
     const id = String(dealId || '').trim();
     if (!id || !window.Deals?.state?.rows) return;
-    const deal = window.Deals.state.rows.find(row => String(row?.id || row?.deal_id || '').trim() === id || String(row?.deal_id || '').trim() === id);
+    const deal = window.Deals.state.rows.find(
+      row => String(row?.id || row?.uuid || '').trim() === id
+    );
     if (!deal) return;
     window.Deals.upsertLocalRow?.({
       ...deal,
@@ -171,9 +173,9 @@ const Proposals = {
     const titleParts = [companyName || fullName, serviceInterest].filter(Boolean);
     return {
       ...this.emptyProposal(),
-      deal_id: String(deal.id || deal.uuid || '').trim(),
+      deal_id: String(deal.id || '').trim(),
       deal_code: String(deal.deal_id || deal.dealId || '').trim(),
-      deal_uuid: String(deal.id || deal.uuid || '').trim(),
+      deal_uuid: String(deal.id || '').trim(),
       lead_id: String(deal.lead_id || deal.leadId || '').trim(),
       proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
       customer_name: companyName || fullName,
@@ -428,6 +430,9 @@ const Proposals = {
   async createFromDeal(deal = {}) {
     const dealUuid = String(deal?.id || deal?.uuid || '').trim();
     const dealDisplayId = String(deal?.deal_id || deal?.dealId || '').trim();
+    if (!this.isUuid(dealUuid)) {
+      throw new Error('Deal UUID is required to call create_from_deal.');
+    }
     const rpcPayload = { p_deal_uuid: dealUuid };
     console.debug('[proposals:create_from_deal] preparing RPC payload', {
       dealId: dealUuid,
