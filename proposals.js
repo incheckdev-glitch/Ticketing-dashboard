@@ -1,5 +1,6 @@
 const Proposals = {
   proposalFields: [
+    'id',
     'proposal_id',
     'ref_number',
     'created_at',
@@ -117,7 +118,8 @@ const Proposals = {
       const value = source[field] ?? source[camel] ?? '';
       normalized[field] = typeof value === 'string' ? value.trim() : value;
     });
-    normalized.proposal_id = String(normalized.proposal_id || source.id || '').trim();
+    normalized.id = String(source.id ?? source.uuid ?? normalized.id ?? '').trim();
+    normalized.proposal_id = String(normalized.proposal_id || source.proposalId || '').trim();
     normalized.ref_number = this.ensureRefNumber(normalized.ref_number || '');
     normalized.proposal_title = String(normalized.proposal_title || '').trim();
     normalized.customer_name = String(normalized.customer_name || '').trim();
@@ -142,7 +144,7 @@ const Proposals = {
   markDealAsConvertedToProposal(dealId, proposalId = '') {
     const id = String(dealId || '').trim();
     if (!id || !window.Deals?.state?.rows) return;
-    const deal = window.Deals.state.rows.find(row => String(row?.deal_id || '').trim() === id);
+    const deal = window.Deals.state.rows.find(row => String(row?.id || row?.deal_id || '').trim() === id || String(row?.deal_id || '').trim() === id);
     if (!deal) return;
     window.Deals.upsertLocalRow?.({
       ...deal,
@@ -161,6 +163,7 @@ const Proposals = {
     return {
       ...this.emptyProposal(),
       deal_id: String(deal.deal_id || deal.dealId || '').trim(),
+      deal_uuid: String(deal.id || deal.uuid || '').trim(),
       lead_id: String(deal.lead_id || deal.leadId || '').trim(),
       proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
       customer_name: companyName || fullName,
@@ -170,17 +173,19 @@ const Proposals = {
       currency: String(deal.currency || '').trim()
     };
   },
-  async resolveDealForProposal(dealId) {
-    const trimmedDealId = String(dealId || '').trim();
-    if (!trimmedDealId) return null;
+  async resolveDealForProposal(dealRef) {
+    const trimmedDealRef = String(dealRef || '').trim();
+    if (!trimmedDealRef) return null;
 
     const localRows = Array.isArray(window.Deals?.state?.rows) ? window.Deals.state.rows : [];
-    const localMatch = localRows.find(row => String(row?.deal_id || '').trim() === trimmedDealId);
+    const localMatch = localRows.find(
+      row => String(row?.id || '').trim() === trimmedDealRef || String(row?.deal_id || '').trim() === trimmedDealRef
+    );
     if (localMatch) return localMatch;
 
     if (typeof window.Deals?.getDeal === 'function') {
       try {
-        const response = await window.Deals.getDeal(trimmedDealId);
+        const response = await window.Deals.getDeal(trimmedDealRef);
         const candidate = response?.deal || response?.data?.deal || response?.result?.deal || response;
         if (candidate && typeof window.Deals.normalizeDeal === 'function') {
           return window.Deals.normalizeDeal(candidate);
@@ -376,13 +381,14 @@ const Proposals = {
   },
   upsertLocalRow(row) {
     const normalized = this.normalizeProposal(row);
-    const idx = this.state.rows.findIndex(item => String(item.proposal_id || '') === String(normalized.proposal_id || ''));
+    const idx = this.state.rows.findIndex(item => (item.id && normalized.id ? String(item.id) === String(normalized.id) : String(item.proposal_id || '') === String(normalized.proposal_id || '')));
     if (idx === -1) this.state.rows.unshift(normalized);
     else this.state.rows[idx] = { ...this.state.rows[idx], ...normalized };
     this.rerenderVisibleTable();
   },
   removeLocalRow(id) {
-    this.state.rows = this.state.rows.filter(item => String(item.proposal_id || '') !== String(id || ''));
+    const target = String(id || '').trim();
+    this.state.rows = this.state.rows.filter(item => String(item.id || item.proposal_id || '').trim() !== target);
     this.rerenderVisibleTable();
   },
   rerenderVisibleTable() {
@@ -409,8 +415,16 @@ const Proposals = {
   async deleteProposal(proposalId) {
     return Api.postAuthenticated('proposals', 'delete', { proposal_id: proposalId });
   },
-  async createFromDeal(dealId) {
-    return Api.postAuthenticated('proposals', 'create_from_deal', { deal_id: dealId });
+  async createFromDeal(deal = {}) {
+    const dealUuid = String(deal?.id || deal?.uuid || '').trim();
+    const dealDisplayId = String(deal?.deal_id || deal?.dealId || '').trim();
+    const rpcPayload = { p_deal_uuid: dealUuid };
+    console.debug('[proposals:create_from_deal] preparing RPC payload', {
+      dealId: dealUuid,
+      dealDisplayId,
+      rpcPayload
+    });
+    return Api.postAuthenticated('proposals', 'create_from_deal', rpcPayload);
   },
   async generateProposalHtml(proposalId) {
     return Api.postAuthenticated('proposals', 'generate_proposal_html', { proposal_id: proposalId });
@@ -1396,28 +1410,65 @@ const Proposals = {
     }
     return '';
   },
-  async createFromDealFlow(dealId, { openAfterCreate = true } = {}) {
+  async createFromDealFlow(dealRef, { openAfterCreate = true } = {}) {
     if (!Permissions.canCreateProposalFromDeal()) {
       UI.toast('You do not have permission to create proposals from deals.');
       return;
     }
-    const trimmedDealId = String(dealId || '').trim();
-    if (!trimmedDealId) {
+    const trimmedDealRef = String(dealRef || '').trim();
+    if (!trimmedDealRef) {
       UI.toast('Deal ID is required.');
       return;
     }
-    const deal = await this.resolveDealForProposal(trimmedDealId);
+
+    const deal = await this.resolveDealForProposal(trimmedDealRef);
+    if (!deal) {
+      UI.toast('Unable to resolve the selected deal. Please refresh and try again.');
+      return;
+    }
     if (window.Deals?.isProposalAlreadyCreated?.(deal)) {
       UI.toast('This deal has already been converted to a proposal.');
       return;
     }
-    if (!openAfterCreate) return;
-    const draft = this.proposalDraftFromDeal({ ...(deal || {}), deal_id: trimmedDealId });
 
-    this.openProposalForm(draft, [], { readOnly: false });
-    UI.toast(
-      'Proposal template opened. Review and complete missing details, then save to create the proposal.'
-    );
+    const dealUuid = String(deal.id || deal.uuid || '').trim();
+    if (!dealUuid) {
+      UI.toast('Deal UUID is required to create a proposal from deal.');
+      return;
+    }
+
+    try {
+      const response = await this.createFromDeal(deal);
+      const createdProposalId = this.getCreatedProposalId(response);
+      if (!createdProposalId) {
+        UI.toast('Proposal created, but no proposal ID was returned.');
+        return;
+      }
+      if (typeof window.Deals?.upsertLocalRow === 'function') {
+        window.Deals.upsertLocalRow({
+          ...deal,
+          proposal_id: createdProposalId,
+          proposal_needed: 'yes',
+          stage: String(deal.stage || '').trim() || 'Proposal',
+          status: String(deal.status || '').trim() || 'Proposal Created'
+        });
+      }
+      await this.loadAndRefresh({ force: true });
+      UI.toast(`Proposal ${createdProposalId} created from deal ${deal.deal_id || deal.id}.`);
+      if (openAfterCreate) {
+        this.openProposalFormById(createdProposalId, { readOnly: false });
+      }
+    } catch (error) {
+      if (typeof isAuthError === 'function' && isAuthError(error)) {
+        handleExpiredSession('Session expired. Please log in again.');
+        return;
+      }
+      if (this.hasConflictError(error, 'DEAL_ALREADY_CONVERTED_TO_PROPOSAL')) {
+        UI.toast('This deal has already been converted to a proposal.');
+        return;
+      }
+      UI.toast('Proposal creation from deal failed: ' + (error?.message || 'Unknown error'));
+    }
   },
   addRow(section) {
     const groups = this.groupedItems(this.collectProposalItems());
