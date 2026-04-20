@@ -94,6 +94,11 @@ const Proposals = {
   normalizeText(value) {
     return String(value ?? '').trim().toLowerCase();
   },
+  isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || '').trim()
+    );
+  },
   generateRefNumber() {
     return `${Date.now()}${Math.floor(Math.random() * 1000)
       .toString()
@@ -126,6 +131,10 @@ const Proposals = {
     normalized.status = String(normalized.status || '').trim();
     normalized.currency = String(normalized.currency || '').trim();
     normalized.deal_id = String(normalized.deal_id || '').trim();
+    normalized.deal_code = String(source.deal_code ?? source.dealCode ?? normalized.deal_code ?? '').trim();
+    if (!this.isUuid(normalized.deal_id) && normalized.deal_id && !normalized.deal_code) {
+      normalized.deal_code = normalized.deal_id;
+    }
     normalized.agreement_id = String(source.agreement_id ?? source.agreementId ?? normalized.agreement_id ?? '').trim();
     normalized.generated_by = String(normalized.generated_by || '').trim();
     return normalized;
@@ -162,7 +171,8 @@ const Proposals = {
     const titleParts = [companyName || fullName, serviceInterest].filter(Boolean);
     return {
       ...this.emptyProposal(),
-      deal_id: String(deal.deal_id || deal.dealId || '').trim(),
+      deal_id: String(deal.id || deal.uuid || '').trim(),
+      deal_code: String(deal.deal_id || deal.dealId || '').trim(),
       deal_uuid: String(deal.id || deal.uuid || '').trim(),
       lead_id: String(deal.lead_id || deal.leadId || '').trim(),
       proposal_title: titleParts.length ? `${titleParts.join(' · ')} Proposal` : '',
@@ -451,6 +461,7 @@ const Proposals = {
         row.ref_number,
         row.proposal_title,
         row.customer_name,
+        row.deal_code,
         row.deal_id,
         row.status,
         row.currency,
@@ -482,7 +493,7 @@ const Proposals = {
     if (filter === 'rejected') return statusLabel === 'Rejected';
     if (filter === 'expired') return statusLabel === 'Expired';
     if (filter === 'unique-customers') return !!String(row?.customer_name || '').trim();
-    if (filter === 'linked-deals') return !!String(row?.deal_id || '').trim();
+    if (filter === 'linked-deals') return this.isUuid(row?.deal_id);
     if (filter === 'avg-grand-total' || filter === 'grand-total') return grandTotal > 0;
     if (filter === 'saas-total') return saasTotal > 0;
     if (filter === 'one-time-total') return oneTimeTotal > 0;
@@ -562,7 +573,7 @@ const Proposals = {
       oneTimeTotal += oneTime;
       if (grand > 0) rowsWithGrandTotal += 1;
 
-      if (String(row?.deal_id || '').trim()) linkedDeals += 1;
+      if (this.isUuid(row?.deal_id)) linkedDeals += 1;
       if (String(row?.customer_name || '').trim()) customers.add(String(row.customer_name).trim().toLowerCase());
 
       const currency = String(row?.currency || '')
@@ -699,12 +710,13 @@ const Proposals = {
     E.proposalsTbody.innerHTML = rows
       .map(row => {
         const id = U.escapeAttr(row.proposal_id || '');
+        const dealDisplayValue = String(row.deal_code || row.deal_id || '').trim();
         return `<tr>
           <td>${textCell(row.proposal_id)}</td>
           <td>${textCell(row.ref_number)}</td>
           <td>${textCell(row.proposal_title)}</td>
           <td>${textCell(row.customer_name)}</td>
-          <td>${textCell(row.deal_id)}</td>
+          <td>${textCell(dealDisplayValue)}</td>
           <td>${textCell(row.status)}</td>
           <td>${textCell(row.currency)}</td>
           <td>${this.formatMoney(row.saas_total)}</td>
@@ -1233,6 +1245,20 @@ const Proposals = {
     }
     const proposalId = String(E.proposalForm?.dataset.id || '').trim();
     const proposal = this.collectProposalFormData();
+    if (proposal.deal_id) {
+      const resolvedDeal = await this.resolveDealForProposal(proposal.deal_id);
+      const resolvedDealUuid = String(resolvedDeal?.id || resolvedDeal?.uuid || '').trim();
+      if (!this.isUuid(proposal.deal_id) && resolvedDealUuid) {
+        proposal.deal_id = resolvedDealUuid;
+      }
+      if (!this.isUuid(proposal.deal_id)) {
+        UI.toast('Deal UUID is required to save a proposal.');
+        return;
+      }
+      if (resolvedDeal) {
+        proposal.deal_code = String(resolvedDeal.deal_id || resolvedDeal.dealId || '').trim();
+      }
+    }
     const items = this.collectProposalItems();
     const currentRecord = this.state.rows.find(row => String(row.proposal_id || '') === proposalId) || {};
     const requestedDiscount = items.reduce((max, item) => Math.max(max, this.toNumberSafe(item.discount_percent)), 0);
