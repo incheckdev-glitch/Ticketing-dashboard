@@ -664,7 +664,7 @@ body.auth-locked .login-hint{
 }
 .view-tab .icon{font-size:15px}
 .view-tab.active{
-  background:var(--accent);
+  background:rgba(37,99,235,.28);
   color:#fff;
   border-color:transparent;
 }
